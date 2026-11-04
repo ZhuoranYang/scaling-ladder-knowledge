@@ -1,0 +1,220 @@
+        %auto-ignore
+
+\section{Notations}
+\label{sec:notations}
+
+This section provides an introduction to the new TP notations from \cite{yang2023tensor}. We only require the definition of the inner and outer products in this paper. 
+
+\paragraph{Averaging over $n$}
+When $x \in \R^n$, we always use greek subscript $\alpha, \beta, \ldots \in [n]$ to index its entries.
+Then $\la x_\alpha \ra_\alpha$ denotes its average entry.
+This notation will only be used to average over $n$-dimensions, but not over constant dimensions.
+
+\subsection{The Tensor Program Ansatz: Representing Vectors via Random Variables}
+\label{sec:TPansatz}
+
+From the Tensor Programs framework \citep{yang2022tensor}, we know that as width becomes large, the entries of the (pre-)activation
+vectors and their gradients will become roughly iid, both at initialization and training. Hence any such vector's behavior can be
+tracked via a random variable that reflects the distribution of its
+entries. While we call this the ``Tensor Program Ansatz'', it is a completely rigorous calculus.
+
+\subsubsection{Ket Notation}
+
+Concretely, if $x\in\R^{n}$ is one such vector, then we write $\ket x \in \R$ (called a \emph{ket})
+for such a random variable, such that $x$'s entries look like iid
+samples from $\ket{x}$.%
+For any two such vectors $x, y \in \R^n$, $(x_\alpha, y_\alpha) \in \R^2$ for each $\alpha$ will look like iid samples from the random vector $(\ket x, \ket y)$, such that, for example, $\lim_{n\to\infty}\frac{x^{\top}y}{n}=\EV \ket{x}\cdot \ket{y}$, which we write succinctly as just $\braket x y$.
+Here $\bra x$ is called a \emph{bra}, interpreted as a sort of ``transpose'' to $\ket x$.
+In our convention, $\ket x$ is always a random variable independent of $n$ and $x$ always has $\Theta(1)$ typical entry size.\footnote{i.e., $\|x\|^{2}/n=\Theta(1)$ as $n\to\infty$}.
+
+This notation can be generalized to the case where $\xx \in \mathbb{R}^{n \times k}, \yy \in \mathbb{R}^{n \times j}$. In this case, we can think of $\braket{\xx}{\yy}$ as the $k \times j$ matrix given by $(\braket{x_a}{y_b})_{\substack{1 \leq a \leq k \\ 1 \leq b \leq j}}$.
+
+Because we will often need to multiply a ket with a diagonal matrix, we introduce a shorthand:
+\begin{equation}
+  \ket\xx _{\cchi} = \ket\xx \Diag(\cchi),\label{eqn:multdiagnotation}
+\end{equation}
+if $\xx$ is $n\times k$ and $\cchi$ is a $k$-dimensional vector.
+
+\subsubsection{Outer Product}
+\label{sec:ket_outer}
+
+Likewise, if both $\xx$ and $\yy$ have shape $n\times k$, the expression
+\[
+\ket{\xx}\bra{\yy}\ \text{ represents the limit of $\xx\yy^{\trsp}\in\R^{n\times n}$.}
+\]
+More formally,
+$\ket{\xx}\bra{\yy}$ is defined as an operator that takes a ket $\ket{\zz}\in\R^{j}$
+and return the ket
+\[
+(\ket{\xx}\bra{\yy})\ket{\zz}=\ket{\xx}(\braket{\yy}{\zz})\in\R^{j}
+\]
+i.e., it returns the random vector $\ket{\xx}\in\R^{k}$ multiplied
+by the deterministic matrix $\braket{\yy}{\zz}\in\R^{k\times j}$
+on the right. 
+This corresponds to the limit of $\xx \yy^\trsp \zz/n$.
+Likewise, $\ket{\xx}\bra{\yy}$ acts on a bra $\bra{\ww}\in\R^{j}$
+by
+\[
+\bra{\ww}(\ket{\xx}\bra{\yy})=(\braket{\ww}{\xx})\bra{\yy}\in\R^{j}.
+\]
+which corresponds to the limit of $\frac 1 n \ww^\trsp \xx \yy^\trsp$.
+This definition of $\ket{\xx}\bra{\yy}$ makes the expressions
+\[
+\ket{\xx}\braket{\yy}{\zz},\quad\braket{\ww}{\xx}\bra{\yy},\quad\braket{\ww}{\xx}\braket{\yy}{\zz}
+\]
+unambiguous (since any way of ordering the operations give the same
+answer).
+
+\begin{rem}[Potential Confusion]
+One should \emph{not} interpret $\ketdbra{\xx}{}\yy$ as the scalar random variable $\ket\xx \cdot \ket \yy  = \sum_{i=1}^k \ket {x^i}\ket{y^i}$, which would act on a ket $\ket{\zz}$ to produce $(\bra{\xx} \cdot \bra\yy)\ket{\zz} = \EV (\ket\xx \cdot \ket \yy)\ket{\zz} $, which is deterministic.
+On the other hand, $\ketdbra{\xx}{}\yy \zz \ra$ is always a linear combination of $\ket \xx$, a nondeterministic random variable in general.
+In particular, any correlation between $\ket \xx$ and $\ket \yy$ does not directly play a role in their outer product $\ketdbra\xx{}\yy$: we always have $\ketdbra{\xx}{}\yy \zz \ra = \ketdbra{\xx}{}\yy^{\bx1} \ket\zz^{\bx1}$, where $(\ket \yy^{\bx1}, \ket \zz^{\bx1})$ is an iid copy of $(\ket \yy, \ket \zz)$ independent from $\ket \xx$.
+\end{rem}
+
+\paragraph{Outer Product with Diagonal Inserted}
+Finally, if $\cchi\in\R^{k}$ is deterministic, then (consistent with \cref{eqn:multdiagnotation}) we define $\ketdbra{\xx}{\cchi}{\yy}$
+as the operator that acts on kets $\ket{\zz}\in\R^{j}$ by
+\[
+(\ketdbra{\xx}{\cchi}{\yy})\ket{\zz}=\ketdbra{\xx}{\cchi}{\yy}{\zz}\ra=\ket{\xx}\Diag(\cchi)(\braket{\yy}{\zz})\in\R^{j}.
+\]
+Morally, $\ketdbra{\xx}{\cchi}{\yy}$ is just a shorter way of writing
+$\ket{\xx}\Diag(\cchi)\bra{\yy}$ and represents the limit of $\xx\Diag(\cchi)\yy^{\trsp}$.
+In particular, $\ketdbra{\xx}{\boldsymbol{1}}{\yy}=\ket{\xx}\bra{\yy}$.
+
+\subsubsection{Nonlinear Outer Product}
+
+If $x y^\trsp \in \R^{n\times n}$ is the (linear) outer product of two vectors $x \in \R^n$ and $y \in \R^n$, then $\phi(xy^\trsp)$, the entrywise application of nonlinear $\phi: \R \to \R$ to $xy^\trsp$, is a kind of \emph{nonlinear outer product}.%
+Passing to the ket notation, in general we define $\phi\left(\ket{\xx}\bra{\yy}\right)$
+as the operator that acts on kets as
+\[
+\phi\left(\ket{\xx}\bra{\yy}\right)\ket{\zz}\defeq\EV_{\bx{1}}\phi\left(\sum_{i=1}^{k}\ket{x^{i}}\ket{y^{i}}^{\bx{1}}\right)\ket{\zz}^{\bx{1}}
+\]
+where $\left(\ket{y^{1}}^{\bx{1}},\ldots,\ket{y^{k}}^{\bx{1}},\ket{\zz}^{\bx{1}}\right)$
+is an iid copy of $\left(\ket{y^{1}},\ldots,\ket{y^{k}},\ket{\zz}\right)$
+independent from $\ket{\xx}$ and the expectation is taken only over
+the former. 
+This is just like, in the finite $n$ case,
+\[
+\phi\left(\xx \yy^\trsp \right)\zz/n = \phi\left(\sum_{i=1}^{k} x^{i}{y^{i\trsp}}\right) {\zz}/n.
+\]
+
+Moreover, if $\ket{\ww}\in\R^{j},\ket{\zz}\in\R^{k}$,
+then
+\begin{align*}
+\bra{\ww}\phi\left(\ket{\xx}\bra{\yy}\right)\ket{\zz} & =\bra{\ww}\phi\left(\ket{\xx}\bra{\yy}^{\bx{1}}\right)\ket{\zz}^{\bx{1}}\in\R^{j\times k}\\
+ & =\EV\phi\left(\sum_{i=1}^{k}\ket{x^{i}}\ket{y^{i}}^{\bx{1}}\right)\left(\ket{\ww}\otimes\ket{\zz}^{\bx{1}}\right)
+\end{align*}
+where $\otimes$ denotes outer product of vectors and expectation
+is taken over everything.
+
+More generally, if $\phi: \R^t \to \R$, then $\phi\Big(\ket{\xx_1}\bra{\yy_1}, \ldots, \ket{\xx_t}\bra{\yy_t}\Big)$ is an operator taking kets to kets, defined by
+\begin{align*}
+  \phi\Big(\ket{\xx_1}\bra{\yy_1}, \ldots, \ket{\xx_t}\bra{\yy_t}\Big) \ket \zz \defeq
+  \EV_{\bx{1}}\phi\left(\sum_{i=1}^{k}\ket{x_1^{i}}\ket{y_1^{i}}^{\bx{1}}, \ldots, \sum_{i=1}^{k}\ket{x_t^{i}}\ket{y_t^{i}}^{\bx{1}}\right)\ket{\zz}^{\bx{1}}
+\end{align*}
+
+\begin{rem}[Potential Confusion]
+Note $\phi(\ket \xx \bra \yy)$ is not the image of the operator $\ket \xx \bra \yy$ under $\phi$ in the continuous function calculus of operators, but rather a ``coordinatewise application'' of $\phi$.
+For example, if $\phi(t) =t^2$, then $\phi(\ket x \bra y)$ \emph{is not} $\ket x \bra y x\ra \bra y$, the latter being what typically ``squaring an operator'' means, but rather $\ket{x}^2 \bra{y}^2 = \ket{x\odot x}\bra{y\odot y}$.
+\end{rem}
+
+\subsubsection{Comparison with Previous $Z^\bullet$ Notation}
+For readers familiar with the \emph{Tensor Programs} papers, this new ``bra-ket'' notation
+(aka Dirac notation) relates to the old $Z^\bullet$ notation by
+\[
+\ket x= Z^{x},\quad\braket xy=\EV Z^{x}Z^{y}.
+\]
+The new notation's succinctness of expectation inner product should already be apparent.
+Furthermore, the old notation is not very compatible with multi-vectors whereas $\ket x$ makes it clear that $\ra$ represents the constant dimension side.
+Consequently, (nonlinear) outer product is awkward to express in it, especially when its contraction with random variables requires an explicit expectation symbol $\EV$.
+
+    
+
+\section{Infinite-Width Limit with the Bra-ket notation}\label{sec:tp}
+As before, when the width $n$ of the program goes to infinity, one can infer how the program behaves via a calculus of random variables.
+We define them below via the new ket notation instead of the earlier $Z$ notation.
+\paragraph{Ket Construction.}
+We recursively define the random variable $\ket x$ (called a \emph{ket}) for each vector $x$ and deterministic number $\mathring{\theta}$ for each scalar $\theta$ in the program.
+For a vector $Wx$ in the program, we also define random variables $\hatket{Wx}$ and $\dotket{Wx}$ (called \emph{hat-ket} and \emph{dot-ket} respectively) such that $\ket{Wx} = \hatket{Wx} + \dotket{Wx}$. These are the same as $\hat{Z}$ and $\dot{Z}$ in the old TP notation \citep{yang2022tensor} and they satisfy
+\begin{itemize}
+
+\item[\texttt{Hat}]
+All hat-kets
+are jointly Gaussian with zero-mean and covariance%
+\footnote{In \cref{eqn:hatketcovar}, $\ind(W=U)$ is the deterministic number that is 1 iff $W$ and $U$ are the same matrix (as symbols in the program) and 0 otherwise. This should \emph{not} be interpreted as a random variable that is 1 precisely when $W$ and $U$ take the same values.}
+\begin{align}
+  \Cov(\hatket{Wx}, \hatket{Uy}) &= \ind(W = U)\braket x y \label{eqn:hatketcovar}
+  %
+\end{align}
+
+\item[\texttt{Dot}] Every dot-ket is a linear combination of previous kets, expressed by the following equation
+\begin{equation}
+  \dotket{Wx}\defeq \sum_{y \in \xx} \ket{y}\EV \frac{\partial \ket x}{\partial \hatket{W^\trsp y}}\label{eqn:dotket}
+\end{equation}
+\end{itemize}
+\cref{eqn:dotket} is the same equation as in\citep[Zdot]{yang2022tensor} 
+but formulated much more succinctly in the bra-ket notation:
+\begin{align*}
+  \text{\citep[Zdot]{yang2022tensor}},\quad
+  \Zdot^{Wx}
+  &= \sum_{y \in \xx } Z^{y}\EV \f{\partial Z^x} {\partial \hat Z^{W^\trsp y}}.
+  %
+\end{align*}
+
+\newcommand\lhatbra[1]{\mkern+3mu\check{\mkern-3mu\langle}#1 \ob}
+\newcommand\lhatbraket[2]{\mkern+3mu\check{\mkern-3mu\langle}#1 \ob #2 \rangle}
+
+There is an alternative notion for $\dotket{Wx}$ in \citet{yang2023tensor} that write 
+\[\dotket{Wx}=\ket{\xx}\dbra{W^\top \xx}x\ra.\] This is more convenient to write as we introduce the operator view.
+
+We can see the ket $\ket{W x}$ as the result of the action of an operator on the ket $\ket{x}$.
+\begin{defn}\label{defn:oplim}
+  Let $W$ be an initial matrix in a Tensor Program.
+  We define $\oplim{W}, \hatoplim{W}, \dotoplim{W}$ to be the linear operators on kets
+  \footnote{\label{footnote:hilbertspace}
+    To be rigorous, we need to specify the ``Hilbert space'' of kets.
+    This is somewhat pedantic and not crucial to the key points of this paper, but the Hilbert space can be constructed as follows:
+    Let $\sigma(\pi)$ be the $\sigma$-algebra generated by the kets of the program $\pi$.
+    Let $\Sigma(\pi) \defeq \bigcup_{\pi' \supseteq \pi} \sigma(\pi)$ be the union (more precisely, the direct limit) of $\sigma(\pi')$ over all programs $\pi'$ extending $\pi$.
+    Then the Hilbert space in question is the $L^2$ space of random variables over the $\Sigma$ of our program.
+    %
+    %
+    }
+  that act by 
+  \begin{align*}
+      \hatoplim{W} x \ra &\defeq \hatket{Wx}\\
+      \dotoplim{W} x \ra &\defeq \dotket{Wx}\\
+      \opket{W} x &\defeq \hatoplim{W} x \ra + \dotoplim{W} x \ra.
+  \end{align*}
+  Any linear operator that is equal to $\oplim{W}$ for some initial matrix $W$ is called an \emph{initial operator}.
+  %
+\end{defn}
+
+We also define the adjoint relations between the operators:
+\begin{align*}
+    \hatoplim{W}^\dagger &= \dotoplim{W^\trsp},\\
+    \dotoplim{W}^\dagger &= \hatoplim{W^\trsp},\\
+    \oplim{W}^\dagger &= \oplim{W^\trsp}.
+\end{align*}
+
+\paragraph{Parameter Update}
+
+In the SGD case, the parameter update of $W^l$ is simple. With the operator notation and outer product notation, we can write
+\[\oplim{W_{t+1}^l}=\oplim{W_t^l}-\eta \ketdbra{\tilde \del h^l_t}{\chi_t}{x^{l-1}_t}. \]
+
+In this work, $\Delta$ denotes change for one step, i.e., \[\oplim{\Delta W_{t+1}^l}=-\eta \ketdbra{\tilde \del h^l_t}{\chi_t}{x^{l-1}_t};\] $\bar \Delta$ denotes total change, i.e., \[
+\oplim{\bar \Delta W_t^l} =-\sum_{\tau=0}^{t-1}\eta \ketdbra{\tilde \del h^l_\tau}{\chi_\tau}{x^{l-1}_\tau}, 
+\] which we write succinctly $\oplim{\bar \Delta W_t^l}=-\eta \ketdbra{\tilde \del \hh^l_{<t}}{\cchi}{\xx^{l-1}_{<t}}$. (Compared to~\citet{yang2023tensor}, $\Delta$ and $\bar\Delta$ are changed from $\delta$ and $\Delta$ because we want to use $\delta$ for gradients instead of $d$, which is now used for depth differentiation).
+
+Note in the general case, 
+\[\oplim{\Delta W_{t+1}^l}=-\eta \Qketdbra{\tilde \del \hh^l_{\leq t}}{\cchi_{\leq t}}{\xx^{l-1}_{\leq t}}\]
+where \[\Qketdbra{\tilde \del \hh^l_{\leq t}}{\cchi_{\leq t}}{\xx^{l-1}_{\leq t}}\odefeq Q_t^l(\ketdbra{\tilde \del h^l_0}{\chi_0}{x^{l-1}_0}, \ldots, \ketdbra{\tilde \del h^l_t}{\chi_t}{x^{l-1}_t}).\]
+So 
+\begin{equation}\label{eq:qbar}
+    \oplim{\bar\Delta W_t^l}=-\eta \sum_{\tau =0}^{t-1} \Qketdbra{\tilde \del \hh^l_{\leq \tau}}{\cchi_{\leq  \tau}}{\xx^{l-1}_{\leq \tau}}.
+\end{equation}
+
+For the rest of the paper, we write $\oplim{\bar \Delta W_t^l}=-\eta \ketdbra{\tilde \del \hh^l_{<t}}{\cchi}{\xx^{l-1}_{<t}}$ for convenience. The generalization to \cref{eq:qbar} follows \citet{yang2023tensor}.
+
+  
+

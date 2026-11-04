@@ -1,0 +1,228 @@
+{
+  "comments": [
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#issuecomment-5401519196",
+      "body": "**Claude finished @Helw150's task in 5m 17s** —— [View job](https://github.com/marin-community/marin/actions/runs/32778706265)\n\n---\n### Code review\n\nNo high-signal issues found. Checked for correctness bugs and CLAUDE.md/AGENTS.md compliance across the two new modules and the test changes.\n\nI traced the parts most likely to hide a bug:\n\n- **Length partition token slicing** (`length_partition.py`) — `_selected_token_chunks` emits maximal contiguous runs of selected docs as `[starts[first], ends[last-1])`, chunked at `READ_CHUNK_ELEMENTS`. Concatenated across runs in document order, this matches the selected documents' tokens exactly, so `write_bucket_cache` re-splits correctly by `selected_lengths` (same mask, same order). The unselected-first and single-doc cases check out.\n- **Threshold boundary** — `is_long = lengths > 65_536` puts a 65 536-token doc in `lte_64k` and 65 537 in `gt_64k`, matching \"at or below 64K / above 64K.\" The boundary test in `test_datakit_store.py` pins this.\n- **Sharded-leaf load** — `TreeCache.load` on an individual `finished_shards` subpath is a real contract (same pattern as `consolidate_shard_caches._probe_shard`), so `_source_leaf_groups` is fine.\n- **Ledger merge** — `_merge_buckets` passes per-shard token counts through the separate `field_counts` argument of `_merge_sharded_ledgers`; the empty `field_counts` on the constructed ledgers is expected.\n- **Resume/sidecar** — sidecar written last via `atomic_rename` with a fresh `attempt` UUID per run, so a crash-and-retry never collides with orphaned partial shards.\n\n- **Mixture math** (`long_context_datakit_moe_mix.py`) — per cell, `lte + gt = bucket_weight` (mass preserved), `gt/lte = skew · long/short` (skew multiplies the long-to-short ratio exactly), and skew=1 reduces to the token-proportional `short/(short+long)`, `long/(short+long)` split. Confirmed against the two tests.\n- **Division by zero** — the denominator `short + skew·long` is zero only when `short_tokens == 0`; no cell in `_BUCKET_LENGTH_TOKENS` has zero short tokens (the only zeros are `long_tokens`), so it's unreachable. `LONG_CONTEXT_SKEW <= 0` is rejected.\n- **Key/cache consistency** — `lte_64k` is emitted unconditionally and `gt_64k` gated on `long_tokens` in both `long_context_phase_weights` and `long_context_datakit_components`, so their keys match; every `lte` key has a nonzero weight and a cache the partition step always writes. The 191 long cells (200 minus the 9 zero-`long_tokens` cells) match the PR description.\n\nThe PR title and description follow the writing-style guide — plain, leads with what changed and why, no boilerplate or attribution.\n · `held/long-context-cooldown-mixture`",
+      "user": {
+        "login": "claude[bot]",
+        "name": "claude[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1236702?v=4",
+        "id": 209825114
+      },
+      "id": 5401519196,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-24T21:19:59Z",
+      "updated_at": "2026-08-24T21:25:36Z",
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\"><strong>Claude finished <a class=\"user-mention notranslate\" data-hovercard-type=\"user\" data-hovercard-url=\"/users/Helw150/hovercard\" data-octo-click=\"hovercard-link-click\" data-octo-dimensions=\"link_type:self\" href=\"https://github.com/Helw150\">@Helw150</a>'s task in 5m 17s</strong> —— <a href=\"https://github.com/marin-community/marin/actions/runs/32778706265\">View job</a></p>\n<hr>\n<h3 dir=\"auto\">Code review</h3>\n<p dir=\"auto\">No high-signal issues found. Checked for correctness bugs and CLAUDE.md/AGENTS.md compliance across the two new modules and the test changes.</p>\n<p dir=\"auto\">I traced the parts most likely to hide a bug:</p>\n<ul dir=\"auto\">\n<li>\n<p dir=\"auto\"><strong>Length partition token slicing</strong> (<code class=\"notranslate\">length_partition.py</code>) — <code class=\"notranslate\">_selected_token_chunks</code> emits maximal contiguous runs of selected docs as <code class=\"notranslate\">[starts[first], ends[last-1])</code>, chunked at <code class=\"notranslate\">READ_CHUNK_ELEMENTS</code>. Concatenated across runs in document order, this matches the selected documents' tokens exactly, so <code class=\"notranslate\">write_bucket_cache</code> re-splits correctly by <code class=\"notranslate\">selected_lengths</code> (same mask, same order). The unselected-first and single-doc cases check out.</p>\n</li>\n<li>\n<p dir=\"auto\"><strong>Threshold boundary</strong> — <code class=\"notranslate\">is_long = lengths &gt; 65_536</code> puts a 65 536-token doc in <code class=\"notranslate\">lte_64k</code> and 65 537 in <code class=\"notranslate\">gt_64k</code>, matching \"at or below 64K / above 64K.\" The boundary test in <code class=\"notranslate\">test_datakit_store.py</code> pins this.</p>\n</li>\n<li>\n<p dir=\"auto\"><strong>Sharded-leaf load</strong> — <code class=\"notranslate\">TreeCache.load</code> on an individual <code class=\"notranslate\">finished_shards</code> subpath is a real contract (same pattern as <code class=\"notranslate\">consolidate_shard_caches._probe_shard</code>), so <code class=\"notranslate\">_source_leaf_groups</code> is fine.</p>\n</li>\n<li>\n<p dir=\"auto\"><strong>Ledger merge</strong> — <code class=\"notranslate\">_merge_buckets</code> passes per-shard token counts through the separate <code class=\"notranslate\">field_counts</code> argument of <code class=\"notranslate\">_merge_sharded_ledgers</code>; the empty <code class=\"notranslate\">field_counts</code> on the constructed ledgers is expected.</p>\n</li>\n<li>\n<p dir=\"auto\"><strong>Resume/sidecar</strong> — sidecar written last via <code class=\"notranslate\">atomic_rename</code> with a fresh <code class=\"notranslate\">attempt</code> UUID per run, so a crash-and-retry never collides with orphaned partial shards.</p>\n</li>\n<li>\n<p dir=\"auto\"><strong>Mixture math</strong> (<code class=\"notranslate\">long_context_datakit_moe_mix.py</code>) — per cell, <code class=\"notranslate\">lte + gt = bucket_weight</code> (mass preserved), <code class=\"notranslate\">gt/lte = skew · long/short</code> (skew multiplies the long-to-short ratio exactly), and skew=1 reduces to the token-proportional <code class=\"notranslate\">short/(short+long)</code>, <code class=\"notranslate\">long/(short+long)</code> split. Confirmed against the two tests.</p>\n</li>\n<li>\n<p dir=\"auto\"><strong>Division by zero</strong> — the denominator <code class=\"notranslate\">short + skew·long</code> is zero only when <code class=\"notranslate\">short_tokens == 0</code>; no cell in <code class=\"notranslate\">_BUCKET_LENGTH_TOKENS</code> has zero short tokens (the only zeros are <code class=\"notranslate\">long_tokens</code>), so it's unreachable. <code class=\"notranslate\">LONG_CONTEXT_SKEW &lt;= 0</code> is rejected.</p>\n</li>\n<li>\n<p dir=\"auto\"><strong>Key/cache consistency</strong> — <code class=\"notranslate\">lte_64k</code> is emitted unconditionally and <code class=\"notranslate\">gt_64k</code> gated on <code class=\"notranslate\">long_tokens</code> in both <code class=\"notranslate\">long_context_phase_weights</code> and <code class=\"notranslate\">long_context_datakit_components</code>, so their keys match; every <code class=\"notranslate\">lte</code> key has a nonzero weight and a cache the partition step always writes. The 191 long cells (200 minus the 9 zero-<code class=\"notranslate\">long_tokens</code> cells) match the PR description.</p>\n</li>\n</ul>\n<p dir=\"auto\">The PR title and description follow the writing-style guide — plain, leads with what changed and why, no boilerplate or attribution.<br>\n· <code class=\"notranslate\">held/long-context-cooldown-mixture</code></p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#discussion_r3847569947",
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Wire the long-context mixture into the cooldown launch**\n\nThese new weights and components are referenced only by tests; the runnable cooldown experiment in `moe_67b_a2b_d2560_cooldown_step39k_seq64k_bs1024_rep8_muon_10T.py` lines 188–189 still calls `_datakit_components()` and `_phase_weights(1)`. Consequently, launching that experiment never reads the partitioned store, and changing `LONG_CONTEXT_SKEW` has no effect on training. Replace those inputs in the existing launch or add a runnable long-context experiment that consumes these functions.\n\nUseful? React with 👍 / 👎.",
+      "user": {
+        "login": "chatgpt-codex-connector[bot]",
+        "name": "chatgpt-codex-connector[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1144995?v=4",
+        "id": 199175422
+      },
+      "id": 3847569947,
+      "pull_request_review_id": 5012662925,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-24T21:20:42Z",
+      "updated_at": "2026-08-24T21:20:42Z",
+      "review": null,
+      "side": "RIGHT",
+      "line": 253,
+      "start_line": null,
+      "path": "experiments/june_tpu_67b_a2b/moe/long_context_datakit_moe_mix.py",
+      "body_html": "<p dir=\"auto\"><strong><sub><sub><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/c595229c0ecb6ee85b9c7804144d495f131a495ec87091fea2b262d954c9a92d/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50312d6f72616e67653f7374796c653d666c6174\"><img src=\"https://camo.githubusercontent.com/c595229c0ecb6ee85b9c7804144d495f131a495ec87091fea2b262d954c9a92d/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50312d6f72616e67653f7374796c653d666c6174\" alt=\"P1 Badge\" data-canonical-src=\"https://img.shields.io/badge/P1-orange?style=flat\" style=\"max-width: 100%;\"></a></sub></sub>  Wire the long-context mixture into the cooldown launch</strong></p>\n<p dir=\"auto\">These new weights and components are referenced only by tests; the runnable cooldown experiment in <code class=\"notranslate\">moe_67b_a2b_d2560_cooldown_step39k_seq64k_bs1024_rep8_muon_10T.py</code> lines 188–189 still calls <code class=\"notranslate\">_datakit_components()</code> and <code class=\"notranslate\">_phase_weights(1)</code>. Consequently, launching that experiment never reads the partitioned store, and changing <code class=\"notranslate\">LONG_CONTEXT_SKEW</code> has no effect on training. Replace those inputs in the existing launch or add a runnable long-context experiment that consumes these functions.</p>\n<p dir=\"auto\">Useful? React with 👍 / 👎.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#discussion_r3847569950",
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Keep the source store region-local**\n\nWhen this artifact is launched anywhere outside `us-central2`, every partition worker reads the very large source store directly across regions because the source is fixed to this GCS URL while `build()` imposes no region constraint. That can exhaust the transfer budget or incur a full-store cross-region transfer; adopt a region-aware `mirror://` source after the required approval, or explicitly constrain this recipe to the source region.\n\nAGENTS.md reference: [experiments/AGENTS.md:L30-L33](https://github.com/marin-community/marin/blob/fdd2c7ba40a5a5522b1f52a0b96098b7738ee8fc/experiments/AGENTS.md#L30-L33)\n\nUseful? React with 👍 / 👎.",
+      "user": {
+        "login": "chatgpt-codex-connector[bot]",
+        "name": "chatgpt-codex-connector[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1144995?v=4",
+        "id": 199175422
+      },
+      "id": 3847569950,
+      "pull_request_review_id": 5012662925,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-24T21:20:42Z",
+      "updated_at": "2026-08-24T21:20:42Z",
+      "review": null,
+      "side": "RIGHT",
+      "line": null,
+      "start_line": null,
+      "path": "experiments/datakit/store/length_partition.py",
+      "body_html": "<p dir=\"auto\"><strong><sub><sub><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/c595229c0ecb6ee85b9c7804144d495f131a495ec87091fea2b262d954c9a92d/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50312d6f72616e67653f7374796c653d666c6174\"><img src=\"https://camo.githubusercontent.com/c595229c0ecb6ee85b9c7804144d495f131a495ec87091fea2b262d954c9a92d/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50312d6f72616e67653f7374796c653d666c6174\" alt=\"P1 Badge\" data-canonical-src=\"https://img.shields.io/badge/P1-orange?style=flat\" style=\"max-width: 100%;\"></a></sub></sub>  Keep the source store region-local</strong></p>\n<p dir=\"auto\">When this artifact is launched anywhere outside <code class=\"notranslate\">us-central2</code>, every partition worker reads the very large source store directly across regions because the source is fixed to this GCS URL while <code class=\"notranslate\">build()</code> imposes no region constraint. That can exhaust the transfer budget or incur a full-store cross-region transfer; adopt a region-aware <code class=\"notranslate\">mirror://</code> source after the required approval, or explicitly constrain this recipe to the source region.</p>\n<p dir=\"auto\">AGENTS.md reference: <a href=\"https://github.com/marin-community/marin/blob/fdd2c7ba40a5a5522b1f52a0b96098b7738ee8fc/experiments/AGENTS.md#L30-L33\">experiments/AGENTS.md:L30-L33</a></p>\n<p dir=\"auto\">Useful? React with 👍 / 👎.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#pullrequestreview-5012662925",
+      "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `fdd2c7ba40`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\nCodex has been enabled to automatically review pull requests in this repo. Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nWhen you [sign up for Codex through ChatGPT](https://openai.com/codex), Codex can also answer questions or update the PR, like \"@codex address that feedback\".\n            \n</details>",
+      "user": {
+        "login": "chatgpt-codex-connector[bot]",
+        "name": "chatgpt-codex-connector[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1144995?v=4",
+        "id": 199175422
+      },
+      "id": 5012662925,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-24T21:20:42Z",
+      "updated_at": null,
+      "review": "COMMENTED",
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<h3 dir=\"auto\">💡 Codex Review</h3>\n<p dir=\"auto\">Here are some automated review suggestions for this pull request.</p>\n<p dir=\"auto\"><strong>Reviewed commit:</strong> <code class=\"notranslate\">fdd2c7ba40</code></p>\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br>\n<p dir=\"auto\">Codex has been enabled to automatically review pull requests in this repo. Reviews are triggered when you</p>\n<ul dir=\"auto\">\n<li>Open a pull request for review</li>\n<li>Mark a draft as ready</li>\n<li>Comment \"<a class=\"user-mention notranslate\" data-hovercard-type=\"user\" data-hovercard-url=\"/users/codex/hovercard\" data-octo-click=\"hovercard-link-click\" data-octo-dimensions=\"link_type:self\" href=\"https://github.com/codex\">@codex</a> review\".</li>\n</ul>\n<p dir=\"auto\">If Codex has suggestions, it will comment; otherwise it will react with 👍.</p>\n<p dir=\"auto\">When you <a href=\"https://openai.com/codex\" rel=\"nofollow\">sign up for Codex through ChatGPT</a>, Codex can also answer questions or update the PR, like \"<a class=\"user-mention notranslate\" data-hovercard-type=\"user\" data-hovercard-url=\"/users/codex/hovercard\" data-octo-click=\"hovercard-link-click\" data-octo-dimensions=\"link_type:self\" href=\"https://github.com/codex\">@codex</a> address that feedback\".</p>\n</details>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#discussion_r3847601594",
+      "body": "🤖 Added a separate runnable long-context cooldown launcher that replaces the original training components and weights with the length-partitioned mixture. The existing cooldown launcher remains unchanged.",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 3847601594,
+      "pull_request_review_id": 5012697317,
+      "in_reply_to_id": 3847569947,
+      "created_at": "2026-08-24T21:25:40Z",
+      "updated_at": "2026-08-24T21:25:40Z",
+      "review": null,
+      "side": "RIGHT",
+      "line": 253,
+      "start_line": null,
+      "path": "experiments/june_tpu_67b_a2b/moe/long_context_datakit_moe_mix.py",
+      "body_html": "<p dir=\"auto\">🤖 Added a separate runnable long-context cooldown launcher that replaces the original training components and weights with the length-partitioned mixture. The existing cooldown launcher remains unchanged.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#pullrequestreview-5012697317",
+      "body": "",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?u=d46273cc42c8f9fc63992b6223cc63f074200faa&v=4",
+        "id": 9847335
+      },
+      "id": 5012697317,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-24T21:25:40Z",
+      "updated_at": null,
+      "review": "COMMENTED",
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": ""
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#discussion_r3847601714",
+      "body": "🤖 Added a runtime guard that rejects partition builds outside us-central2, keeping the source-store reads region-local.",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 3847601714,
+      "pull_request_review_id": 5012697438,
+      "in_reply_to_id": 3847569950,
+      "created_at": "2026-08-24T21:25:41Z",
+      "updated_at": "2026-08-24T21:25:41Z",
+      "review": null,
+      "side": "RIGHT",
+      "line": null,
+      "start_line": null,
+      "path": "experiments/datakit/store/length_partition.py",
+      "body_html": "<p dir=\"auto\">🤖 Added a runtime guard that rejects partition builds outside us-central2, keeping the source-store reads region-local.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#pullrequestreview-5012697438",
+      "body": "",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?u=d46273cc42c8f9fc63992b6223cc63f074200faa&v=4",
+        "id": 9847335
+      },
+      "id": 5012697438,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-24T21:25:41Z",
+      "updated_at": null,
+      "review": "COMMENTED",
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": ""
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#issuecomment-5404927183",
+      "body": "@dlwh For context, since IIUC you are picking this up while Larry recovers, this is a simple test which leaves \"topic x quality\" mixture the same as the regular cooldown, but enables unweighting just the long-context docs using the skew variable.",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5404927183,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-25T04:03:54Z",
+      "updated_at": "2026-08-25T04:03:54Z",
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\"><a class=\"user-mention notranslate\" data-hovercard-type=\"user\" data-hovercard-url=\"/users/dlwh/hovercard\" data-octo-click=\"hovercard-link-click\" data-octo-dimensions=\"link_type:self\" href=\"https://github.com/dlwh\">@dlwh</a> For context, since IIUC you are picking this up while Larry recovers, this is a simple test which leaves \"topic x quality\" mixture the same as the regular cooldown, but enables unweighting just the long-context docs using the skew variable.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8637#issuecomment-5405269924",
+      "body": "🤖 Superseded by #8656, which targets the branch used by the qk=1.57 context-extension baseline and defines the long-context run as an exact side-by-side treatment.",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5405269924,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-25T04:33:24Z",
+      "updated_at": "2026-08-25T04:33:24Z",
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Superseded by <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5242087848\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8656\" data-hovercard-type=\"pull_request\" data-hovercard-url=\"/marin-community/marin/pull/8656/hovercard\" href=\"https://github.com/marin-community/marin/pull/8656\">#8656</a>, which targets the branch used by the qk=1.57 context-extension baseline and defines the long-context run as an exact side-by-side treatment.</p>"
+    }
+  ],
+  "url": "https://github.com/marin-community/marin/pull/8637",
+  "title": "marin-community/marin PR #8637 comments",
+  "display_url": "https://github.com/marin-community/marin/pull/8637",
+  "display_title": "marin-community/marin PR #8637 comments"
+}

@@ -1,0 +1,122 @@
+\section{Post-Training}
+\label{sec:alignment}
+In comparison to Nemotron Nano 2, we significantly scale up the compute in post-training for \ourmodel. 
+% In total, post-training stage consumes \todo{BB} percent of total training compute for \ourmodel.
+Noticeably \ourmodel is our first effort to scale up reinforcement learning (RL) in the post-training stage. 
+% Specifically, reinforcement learning consumes \todo{CC} percent of the total training compute. 
+This RL scale up is empowered by multi-environment reinforcement learning (discussed in Sections \ref{subsec:SFT} to \ref{subsec:RLHF}), where we train on all environments simultaneously for the first time. We adopted Nemo-Gym, a RL training environment orchestration framework with a large collection of RL environments; this is integrated with Nemo-RL as the RL training framework as discussed in Section \ref{subsubsection:RLinfra} \citep{nemo-gym, nemo-rl}. We open source Nemo-Gym and Nemo-RL to enable the broader community to facilitate large-scale RL training, as well as collaborative and distributed RL environment building.
+
+In the rest of this section, we discuss the post-training methodology for \ourmodel, which includes supervised finetuning (SFT) in \S\ref{subsec:SFT}, multi-environment reinforcement learning in \S\ref{subsec:RLVR}, and reinforcement learning from human feedback (RLHF) in \S\ref{subsec:RLHF}. The final evaluation results can be found in \S\ref{subsec:final_model_evals}. Our post-training methodology results in best-in-class performance in a variety of reasoning and agentic tasks, along with token efficiency, reasoning on/off control, reasoning budget control, and tool-integrated reasoning capabilities.  
+
+\subsection{Supervised Fine Tuning}
+\label{subsec:SFT}
+Since the release of Nemotron 2 Nano, we have significantly improved our SFT strategy. We increased dataset quality and diversity, adding a wide variety of new data with an emphasis on multi-step and multi-turn agentic tasks. Different from the SFT data in the pre-training stage, the SFT stage data is more focused on agentic tasks and has the chat-template applied. We release the majority of our training data and open source our SFT codebase.
+
+\subsubsection{Chat Template}
+We allow using \ourmodel in reasoning or non-reasoning mode through the chat template. 
+% In reasoning mode, the chat template prepends the think token with a new line to signal the model to reason, while in non-reasoning mode the chat template prepends the think token and closing think token. This allows for the model to 
+
+In reasoning mode, we alter the reasoning flow for the following conversation scenarios:
+\begin{itemize}
+    \item \textit{Multi-Step}: In a series of assistant model calls, the existing reasoning tokens are preserved to allow the model to re-use existing reasoning for subsequent step.
+    \item \textit{Multi-Turn}: When a user message is introduced, any reasoning from previous turns are dropped.
+\end{itemize}
+
+For tool calling, we use XML-style special tags to reduce character escaping, following the observations of GLM-4.5 \citep{5team2025glm45agenticreasoningcoding} and Qwen3-Coder \citep{yang2025qwen3technicalreport}.
+
+% \todo{Venkat: Chat-template figure. We should have a link as well to the chat template?}
+% \todo{JK: I added a figure let me know if its weird + I don't think we need a link to the template}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=10cm]{figures/chat_template.pdf}
+    \caption{Example prompt materialization using the \ourmodel chat template for a 2-turn conversation. For a given generation, only reasoning content from the current turn is materialized into the prompt.}
+    \label{fig:chat_template}
+\end{figure}
+
+
+\subsubsection{Data}
+
+\textbf{Competition Math.} For math, we use a similar strategy to Nemotron Nano 2 \citep{nemotronnanov2}. However, we refresh the responses with GPT-OSS 120B \citep{openai2025gptoss120bgptoss20bmodel}. In addition, we create tool-integrated reasoning traces using Python tools and GPT-OSS 120B as the teacher model.
+
+\textbf{Competition Code.} For code we use the same data from Nemotron Nano 2, which is made up of the prompts from \citet{ahmad2025opencodereasoning} complemented with responses from DeepSeek-R1-0528 \citep{deepseekai2025deepseekr1incentivizingreasoningcapability}.
+
+
+\textbf{Conversational Tool Use.} We generate synthetic multi-turn trajectories to demonstrate conversational tool use. The generation of these trajectories involves a user that is given a task to accomplish, an agent that is instructed to help the user accomplish their task, and a tool execution environment, each of which is simulated by a language model. To limit the trajectories in the SFT training data to ones in which the actions of all of these entities are consistent with their goals, we employ a language model as a judge to evaluate the trajectories, and filter out trajectories for which the judge considers an action of an entity to be inconsistent with its goals. We use Qwen3-235B-A22B-Thinking-2507 \citep{yang2025qwen3technicalreport}, Qwen3-32B \citep{yang2025qwen3technicalreport}, GPT-OSS-120b \citep{openai2025gptoss120bgptoss20bmodel}, and Qwen3-235B-A22B-Instruct-2507 \citep{yang2025qwen3technicalreport} to generate data in this synthetic tool use trajectory generation pipeline.
+
+\textbf{Long Context.} We generate synthetic data with a mean token length of 128k tokens and a maximum of 256k tokens to improve long-context performance, validated against a subset of RULER tasks.
+% We generate synthetic data aiming to improve a subset of RULER tasks, with the mean token length of 128k tokens with a hard limit of 256k tokens. 
+% \todo{Dima/Krishna: We can probably add more details}
+
+\textbf{Formal Proofs.} For Lean theorem proving, we curated SFT data by first autoformalizating ~580k natural language theorems from online mathematics communities (AoPS, Math StackExchange, MathOverflow) into ~550k Lean 4 statements using an iterative refinement pipeline based on GPT-OSS-120B with backtranslation-based semantic verification. We then ran large-scale proof generation using Goedel-Prover-V2-32B with up to 4 independent attempts and 8 self-correction rounds per statement, yielding ~920k proof traces with compiler-verified solutions. After filtering, the final dataset contains ~300k examples pairing formal theorem statements with successful reasoning traces and proofs.
+
+\textbf{Multilingual.} We generate multilingual data in a similar manner to Nemotron Nano 2 \citep{nemotronnanov2}. We used Qwen$2.5$-Instruct to translate our existing English post-training data into $5$ target languages, French, Spanish, Italian, German and Japanese. Our pipeline translates inputs line-by-line and skips non-translatable content like code, XML tags, URLs, etc. 
+Following the translation of the English source text, we utilized a language identification tool \url{https://pypi.org/project/langdetect/} to filter out samples that did not predominantly consist of target language tokens. Additionally, we excluded samples containing specific failure modes where the Qwen model explicitly stated its inability to translate the source text.
+
+Our multilingual corpus was further comprised of $1.62$ million text translation samples, aggregated from a combination of news-commentary datasets and proprietary sources. These samples covered bidirectional translation tasks between English and the five target languages.
+%For machine translation, we used the combination of TAUS and news-commentary datasets. The resulting subset contains $1.62$M samples with $162$k samples for each language direction.
+
+
+\textbf{Terminal Use.} To teach \ourmodel to complete autonomous terminal-based tasks, we generate a diverse set of verifiable tasks based on Terminal Bench \citep{tbench_2025}. In particular, we adapt data from our competitive coding, competitive math, and long context datasets to terminal bench problems. We also constructed synthetic tasks requiring data analysis and file creation and operations. Additionally, we incorporated data from SWE-Smith \citep{swesmith}, which provides real-world software engineering tasks. We use 
+Qwen3-Coder-480B-A35B-Instruct \citep{qwen2025qwen25technicalreport} and Kimi-K2-Instruct-0905 \citep{kimiteam2025kimik2openagentic} to generate action trajectories for each task using the Terminus-1 and Terminus-2 agents \citep{tbench_2025}.
+
+\textbf{General Chat.} We create SFT data by generating responses to the LMSYS \citep{zheng2023judging} and WildChat datasets \citep{li2024wildchat} using GPT-OSS-120B, Qwen3-235B-A22B-Thinking-2507, and Qwen3-235B-A22B-Instruct-2507. The data is extended to multi-turn by having the same language model simulate the user and further continue the conversation.
+
+\textbf{Instruction Following.} We create targeted instruction following data with the methodology used in Tülu 3 \citep{lambert2025tulu3pushingfrontiers}. We simulate users in a conversation using language models seeded with a user persona from Nemotron-Personas-USA \citep{nvidia/Nemotron-Personas-USA} and instructions from IFeval \citep{zhou2023instruction} and IFBench \citep{pyatkin2025generalizing} train splits. The user language model is prompted to generate precise instruction following queries for one or more turns. We then use GPT-OSS-120B, Qwen3-235B-A22B-Thinking-2507, and Qwen3-235B-A22B-Instruct-2507 to generate responses to the user queries. The generated data is first filtered to only keep samples where all turns pass the respective instruction verifier implementations in IFEval and IFBench. Further filtering is done with a language model judge to remove samples where the responses only trivially or superficially follow instructions.
+
+\textbf{Safety.} 
+We compile a diverse set of unsafe prompts sourced from the Nemotron Content Safety v2 \citep{ghosh-etal-2025-aegis2} and the Gretel Safety Alignment v1 \citep{gretelai_gretel-safety-alignment-en-v1}  datasets to target content safety risks, and Harmful Tasks \citep{hasan2024pruning} and Red-Team-2K \citep{luo2024jailbreakv_robustness} datasets to target common jailbreak techniques. This collection is further balanced with safe prompts derived from Nemotron Content Safety v2.
+
+For supervised fine-tuning (SFT), we apply safe prompt wrappers to unsafe prompts enabling the models to learn appropriate refusal behaviors while preserving user engagement. Various refusal strategies are implemented to align with good user experience. For instance, self-harm related prompts are paired with prompt templates encouraging the use of appropriate suicide prevention helplines. A content-safety classifier is employed to filter the responses, ensuring alignment with safety objectives.
+
+
+
+%\textbf{Translation.} 
+
+\textbf{Software Engineering.} To train \ourmodel for autonomous software engineering capabilities including code exploration, issue reproduction and bug fixing, we curate a dataset of coding tasks derived from real-world GitHub issues. We use the issue description and containerized execution environments from SWE-Gym \citep{pan2025trainingsoftwareengineeringagents} and R2E-Gym \citep{jain2025r2egymproceduralenvironmentshybrid} datasets. We distill trajectories from three open-source agent harnesses - OpenHands \citep{wang2025openhandsopenplatformai}, SWE-Agent \citep{yang2024sweagent}, and Mini-SWE-Agent \citep{yang2024sweagent} using Qwen3-Coder-480B-A35B-Instruct  \citep{qwen2025qwen25technicalreport} as the teacher model. 
+
+\textbf{Science.} The science dataset spans physics, chemistry, and biology, and is produced through a unified pipeline that integrates synthetic, real, and document-based seed sources. We began by curating a set of challenging seed questions derived from Nemotron Nano v2 \citep{nemotronnanov2} as well as from scientific articles contained in the pre-training corpus. In parallel, we incorporated additional scientific articles from the same corpus as a complementary reservoir of seed material. Each article was annotated with three attributes: (1) education domain based on bert-based finetuned classifier \citep{li2024datacomp}, (2) content level (ranging from elementary to graduate), and (3) fine-grained topical categories (e.g., biology, chemistry, mathematics, law). Focusing on the graduate-level subset, we indexed these documents in a vector database and used a diverse set of science-oriented query prompts to retrieve thousands of highly relevant passages. These retrieved segments served as the foundation for generating multiple-choice question (MCQ) data, which were subsequently converted into an open-ended question-answering (OpenQA) format.
+
+All seed sources—synthetic, real, and doc-retrieved—were subsequently processed through NeMo Data Designer \citep{nemo-data-designer}. The Data Designer was used to paraphrase prompts, produce multiple format and instruction variants, and enhance robustness across prompt styles. Reasoning traces for the SFT stage were generated using tool-integrated Python reasoning traces from GPT-OSS 120B \citep{openai2025gptoss120bgptoss20bmodel}. Crucially, all generated variants underwent rigorous LLM-judge filtering, ensuring strict format compliance, intent preservation, and high-quality reasoning consistency. During the RL stage, we further introduced targeted prompt and format augmentations to reduce prompt sensitivity and improve generalization.
+
+A subset of STEM datasets developed in this work are released in both the multiple-choice question (MCQ\footnote{\url{https://huggingface.co/datasets/nvidia/Nemotron-RL-knowledge-mcqa}}
+) and open question-answering (OpenQA\footnote{\url{https://huggingface.co/datasets/nvidia/Nemotron-RL-knowledge-openqa}}
+) formats to support Nano-V3 training and broader downstream research. These datasets are fully integrated into the RLVR pipeline, with both MCQ\footnote{\url{https://github.com/NVIDIA-NeMo/Gym/tree/main/resources_servers/mcqa}}
+ and OpenQA\footnote{\url{https://github.com/NVIDIA-NeMo/Gym/tree/main/resources_servers/equivalence_llm_judge}}
+ environments provided through NeMo Gym \citep{nemo-gym}. This unified pipeline ensures consistent quality standards and supports robust reinforcement-learning-based evaluation and training across all STEM domains.
+
+%The science dataset spans physics, chemistry, and biology. We constructed a subset of challenging real and synthetic seed questions derived from Nemotron Nano v2 \citep{nemotronnanov2} and scientific articles from the pretraining sets. These prompts were paraphrased with NeMo Data Designer \citep{nemo-data-designer} and augmented to produce SFT training data across several prompt and format variants to improve model robustness. Crucially, all generated variations underwent rigorous LLM-judge filtering to ensure strict format compliance and intent preservation. Additional prompt and format augmentations were introduced during the RL stage to reduce prompt sensitivity. Reasoning traces for the SFT stage were generated using tool-integrated Python reasoning traces from GPT-OSS 120B \citep{openai2025gptoss120bgptoss20bmodel}.
+
+%In addition, we incorporated scientific articles from the pre-training corpus as a complementary source of seed material. We first tagged the entire collection along three attributes: (1) educational domain \citep{li2024datacomp}, (2) content level (elementary through graduate), and (3) fine-grained topic categories (e.g., biology, chemistry, mathematics, law). Focusing on the graduate-level subset, we indexed these documents in a vector database and used questions from established STEM benchmarks as retrieval queries. For each query, we selected thousands of relevant seed chunks, which were used to generate MCQA data and subsequently converted into ShortQA format. As with our synthetic pipeline, all generated variants underwent stringent LLM-judge filtering to ensure strict format adherence and prompt robustness reduction. All STEM RL datasets developed in this work are released in both multi-choice question (MCQ\footnote{\url{https://huggingface.co/datasets/nvidia/Nemotron-RL-knowledge-mcqa}}) and open question answering (OpenQA\footnote{\url{https://huggingface.co/datasets/nvidia/Nemotron-RL-knowledge-openqa}}) formats at high quality (HQ) to nano-V3 training and downstream research. These datasets are fully integrated into the RLVR pipeline, with both MCQ\footnote{\url{https://github.com/NVIDIA-NeMo/Gym/tree/main/resources_servers/mcqa}} and OpenQA\footnote{\url{https://github.com/NVIDIA-NeMo/Gym/tree/main/resources_servers/equivalence_llm_judge}} environments made available through NeMo Gym \citep{nemo-gym}.
+
+\textbf{GenSelect.} We improve our model’s capability as a generative reward model by training it to identify the best solution among multiple candidates, following the approach in \cite{toshniwal2025genselectgenerativeapproachbestofn}. We adapted the problems in our math and coding SFT data by generating synthetic solutions and then selection reasoning traces including their final verdicts using GPT-OSS 120B \citep{openai2025gptoss120bgptoss20bmodel} and DeepSeek-R1-0528 \citep{deepseekai2025deepseekr1incentivizingreasoningcapability}.  
+
+\textbf{CUDA.} We collect and synthesize 21k (PyTorch, Cuda C) pairs with seeds from HuggingFace Transformers \citep{wolf-etal-2020-transformers} and KernelBook \citep{kernelbook2025}. We first parse the PyTorch code from Transformers \citep{wolf-etal-2020-transformers} and KernelBook \citep{kernelbook2025}, and then use DeepSeek-R1-0528 \citep{deepseekai2025deepseekr1incentivizingreasoningcapability} to generate corresponding Cuda C code. We only include {PyTorch, Cuda C} pairs with Cuda C code that is successfully compiled and numerically verified against PyTorch reference code. 
+
+\subsubsection{Data Filtering}
+For all domains, we apply a unified data filtering pipeline to ensure that only high-quality, license-compliant, and verifiable samples are used for training. We first discard malformed examples using structural checks (e.g., missing tool definitions when tool calls are present). We then aggressively filter reasoning traces exhibiting pathological repetition, such as repeated n-grams within a sliding window or across the entire trajectory, which we found to be a strong indicator of malformed or low-quality reasoning. Finally, based on internal audits of synthetically generated datasets, we observed that some teacher models occasionally produce reasoning traces and final responses that implicitly align with specific political entities or promote nationalistic narratives. To mitigate this, we apply targeted keyword- and regex-based filters (e.g., patterns such as “our {nation/party} […]”, “our values”) and remove all trajectories matching such behavior.
+
+\subsubsection{Data Mixture}
+Our exact data blend can be found in Figure \ref{fig:sft_blend} (all datasets not listed make up less than 1\% of the blend). We train over 18M total samples. For each dataset we decide how much data to include based on the approximate amount of data required to achieve optimal performance in single task settings. As the size of different datasets varies significantly, we employ a dynamic sampling approach where smaller datasets may be trained over for many epochs and larger datasets are trained for only a few epochs.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=10cm]{figures/sft_blend.pdf}
+    \caption{SFT data blend for \ourmodel. }
+    \label{fig:sft_blend}
+\end{figure}
+
+\subsubsection{Reasoning Control}
+\ourmodel allows for two different forms of reasoning control: reasoning on/off control and token budget control. Similar to \citet{nemotronnanov2}, to enable reasoning on/off control we strip the reasoning traces from a random 10\% of samples, and to enable budget control, we randomly truncate 3\% of reasoning traces to different reasoning budgets, before continuing with the original post-reasoning response.
+
+\subsubsection{Hyperparameters}
+We train for 13000 steps using a batch size of 64 and employ sequence packing to a sequence length of 256K. We use a learning rate of $5\cdot 10^{-5}$ and use 800 steps of learning rate warmup. We use a sequence-level MoE load balancing regularizer and set the loss coefficient to $10^{-4}$.
+
+% \todo{Soumye: Review expand}
+
+
+% \input{sections/posttraining/rlvr}
+\input{sections/posttraining/rlvr}
+\input{sections/posttraining/rlhf}
+\input{sections/posttraining/evals}
+

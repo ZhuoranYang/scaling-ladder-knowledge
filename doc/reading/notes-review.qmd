@@ -1,0 +1,32 @@
+---
+title: "Review of the deep-dive notes against primary evidence"
+---
+
+The supplied [notes](deep-dive-notes.qmd) add useful derivations to Jiaxuan's [blog synthesis](scientific-scaling-ladder.md). We preserve both documents and maintain this review separately. This pass checks the architecture and hyperparameter claims most relevant to the current questions; the remaining numerical claims from later reports have not all been independently audited.
+
+## Checked claims and qualifications
+
+| Claim in the notes | Primary evidence | How to use it |
+|---|---|---|
+| A single width/depth progression is required | AI2 Table 1 uses 12/16/16/16 layers in the ladder and 32/40 in targets, with changes to head dimensions and MLP ratio | A uniform family is a useful design choice. Successful published ladders can depart from exact geometric similarity; test those departures empirically |
+| μP transfers LR across width | Tensor Programs V §7.4 transfers from width 256 to 4,096 at 32 blocks | Distinguish base LR from matrix-specific actual LR. Specify initialization and readout conventions too |
+| μP does not handle batch or horizon | Tensor Programs V §6.1 investigates transfer beyond width with caveats | Width theory does not supply universal batch/horizon optima; empirical transfer beyond width is not ruled out |
+| Depth transfer fails for Transformers | Tensor Programs VI studies a particular class of infinite-depth parameterizations and distinguishes one-layer from multi-layer residual blocks | Do not interpret this as a universal impossibility theorem. Audit residual scaling and retune at changed depths |
+| Batch-size scaling has a consensus exponent 0.4–0.57 | Step Law v3 uses 0.571; Power Lines v2 obtains 0.383 with tuned decay and other exponents with fixed decay | These are conditional fits. Record batch units, data, optimizer, and decay-tuning policy |
+| Optimal AdamW $\tau$ stays constant as $D$ changes | Power Lines v2 instead finds $\tau_*\approx1.084(D/N)^{-0.527}$ | Constant $\tau$ supports scaling decay with batch at fixed $N,D$; it is not the cross-TPP optimum |
+| Repetition decay is approximately 15.4, rather than 4 | Muennighoff et al., Appendix A, Eq. 14 reports $R_D^*=15.387756$ and $R_N^*=5.309743$ | The notes' correction is supported for that fit. Four epochs is not the fitted decay constant |
+| Every candidate-comparison ladder requires exhaustive per-point tuning | AI2 transfers a prescribed recipe; μTransfer deliberately avoids large-model sweeps | Tune enough for the claim being made. A fixed-recipe comparison and a fully tuned frontier are different estimands |
+
+Sources: [AI2 task ladder, v2, §2.1/Table 1](https://arxiv.org/html/2412.04403v2#S2.T1); [Tensor Programs V, v2](https://arxiv.org/pdf/2203.03466v2); [Tensor Programs VI](https://arxiv.org/pdf/2310.02244); [Step Law v3](https://arxiv.org/pdf/2503.04715v3); [Power Lines v2, §§2–3/Table 5](https://arxiv.org/pdf/2505.13738v2); [data-constrained scaling, v5, Appendix A](https://arxiv.org/pdf/2305.16264v5).
+
+## Two details that matter when using the derivations
+
+The Skaling outer exponent preserves the **algebraic form** of the compute-optimal allocation for positive $k$ under $C=6ND$. Refitting the coupled model can change $A,B,\alpha,\beta$, and therefore change the numerical recommendation. “Same allocation formula” does not mean the two separately fitted models must recommend the same size.
+
+The floor $E$ in a fitted loss surface is an estimated parameter. Calling it the exact entropy of the underlying text distribution is an idealization. Uncertainty in $E$ can strongly affect equivalent-compute ratios near the floor; propagate it into the decision rather than interpreting a fitted value as known physical truth.
+
+## Evidence standard for the next deep dives
+
+For each practical rule, record the exact model configurations, what was held fixed, data/token horizon, optimizer and parameterization, measured result, figure/table locator, and transfer limitation. A table of chosen hyperparameters establishes a recipe used in practice; it does not establish optimality or a causal scaling law without the corresponding sweep.
+
+The [architecture evidence guide](../architecture/architecture-evidence.qmd) applies this standard to the AI2 ladder, μP, fixed-depth optimizer comparisons, batch size, and weight decay.

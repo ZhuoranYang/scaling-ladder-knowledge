@@ -1,0 +1,204 @@
+\newpage
+\appendix
+\section{Models}
+We select in total 37 models for evaluation and analysis. Our results in the main text only include aligned models (GPT-4, Gemini-1.5, and 15 open-source models). Besides the aligned models, we also evaluate 7 open-source base models using~\ruler. We use the performance of Llama2-7b (base) and Llama2-7b (chat) at context length of 4K as the threshold for determining effective context size. 
+In our analysis section, we evaluate in total 11 models, including model series Yi and LWM, as well as models of novel architectures, including Mamba and RWKV. 
+
+\label{models}
+\input{Table/baseline_model}
+
+\clearpage
+\section{Task Configurations}
+\label{task_configurations}
+\ruler~is designed to be configurable to allow for diverse sequence lengths and task complexities. For each task, there arises combinatorially large number of configurations one can adopt. In the main text, we evaluate the models with 13 representative tasks spanning the four categories of \ruler. Our task selection process is described in the next appendix section.
+% Since our tasks have flexible configurations to setup different complexities, we select total 13 tasks in \ruler. 
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Retrieval}: In S-NIAH, we include the passkey retrieval~\citep{landmark} and the vanilla NIAH~\citep{needle}, both use word-number as key-value and differ only by the background haystack. Additionally, we change the value type to UUID, for the purpose of testing model robustness at retrieving long strings from context. For MK-NIAH, we add three distractor needles into the haystack. We also include existing setups from previous works: line retrieval~\citep{longchat} and key-value retrieval~\citep{lostmiddle} with the haystack filled entirely with distractor needles. 
+For MV-NIAH and MQ-NIAH, we test 4 values and queries respectively. 
+    \item \textbf{Multi-hop tracing}: For VT, we insert 1 chain with 4 name-binding hops, totally 5 variable names need to be returned. 
+    \item \textbf{Aggregation}: For CWE, in total 10 common words need to be returned, each appears 30 times whereas the uncommon words appear 3 times each.
+For FWE, we set $\alpha$ to 2.0 in Zeta distribution for sampling synthetic words. 
+    \item \textbf{QA}: For QA, we augment SQuAD~\citep{squad} and HotpotQA~\citep{hotpotqa} to simulate long-context scenario. They are representative of single-hop and multi-hop question answering tasks respectively.
+\end{itemize}
+% For S-NIAH, we use the well-known passkey retrieval~\citep{landmark} and vanilla NIAH~\citep{needle} as the baseline. 
+% Additionally, we change the value type with UUID to test the robustness of retrieving a long sequence. 
+% For MK-NIAH, we add three extra needle keys into haystack as initial test as well as the line retrieval~\citep{longchat} and key-value retrieval~\citep{lostmiddle} with haystack filled with all distracted needles. 
+% For MV-NIAH and MQ-NIAH, we test 4 values and queries respectively. 
+
+
+\input{Table/benchmark_task}
+
+\clearpage
+\section{Task Correlation Analysis}
+\label{task_correlation}
+ \ruler~is designed under the assumption that tasks across different categories are able to reveal distinct model behaviors. We conduct a preliminary correlational study to confirm the validity of task categories and guide the selection of representative tasks. We evaluate eight open-sourced models at various context sizes across 18 task configurations. Each task can then be represented with a vector of model performance at various context sizes. The 18 task vectors are then clustered via agglomorative clustering algorithm, using correlation coefficient as the distance metric.
+ As shown in Figure~\ref{fig:corr_heatmap}, while certain tasks exhibit moderate correlations with others, tasks in each of the four categories (NIAH, VT, AG, QA) form cohesive clusters of their own without redundancy. We further eliminate a few tasks that correlate highly with other tasks within the same cluster, and finalize 13 tasks for later large scale evaluation.
+\input{Image/correlation_heatmap}
+
+\clearpage
+\section{Prompt Templates}
+\label{prompt_templates}
+We decompose the input prompt template into the model template in Table~\ref{tab:model_template} and the task template in Table~\ref{tab:task_template1} \ref{tab:task_template2} \ref{tab:task_template3}. The model template is the model chat format while the task template combines instruction, context, and query. To prevent models from refusing to answer our questions, we append the input with an answer prefix to elicit model responses. For VT and CWE, we use one task sample as in-context demonstration.
+\input{Table/template_model}
+
+\clearpage
+\input{Table/template_task}
+
+\clearpage
+\section{Passkey Retrieval and Vanilla NIAH Results}
+\label{perfect_results}
+% \input{Table/res_perfect}
+\input{Table/res_perfect2}
+
+\clearpage
+\section{Additional Results}
+\label{additional_results}
+\input{Table/res_main_base}
+\input{Table/res_niah2}
+\clearpage
+\input{Table/res_vt2}
+\input{Table/res_ag2}
+\clearpage
+\input{Table/res_qa2}
+
+
+
+% \paragraph{Single NIAH (S-NIAH)}\mbox{}
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{S-NIAH task1 ($\sim$passkey retrieval)}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: repeated sentences with ``The grass is green. The sky is blue. The sun is yellow. Here we go. There and back again.''
+%     \item \textbf{Needle}: One of the special magic numbers for \{word\} is: \{number\}.
+%     \item \textbf{Question}: What is the special magic number for \{word\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{S-NIAH task2 ($\sim$vanilla NIAH)}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: concatenated essays written by Paul Graham.
+%     \item \textbf{Needle}: One of the special magic numbers for \{word\} is: \{number\}.
+%     \item \textbf{Question}: What is the special magic number for \{word\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{S-NIAH task3}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: concatenated essays written by Paul Graham.
+%     \item \textbf{Needle}: One of the special magic uuids for \{word\} is: \{UUID\}.
+%     \item \textbf{Question}: What is the special magic uuid for \{word\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{S-NIAH task4}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: concatenated essays written by Paul Graham.
+%     \item \textbf{Needle}: One of the special magic words for \{word\} is: \{word\}.
+%     \item \textbf{Question}: What is the special magic word for \{word\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+% \paragraph{Multi-keys NIAH (MK-NIAH)}\mbox{}
+% \label{appendix-mk-niah}
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{MK-NIAH task1}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: 3 needles + concatenated essays written by Paul Graham.
+%     \item \textbf{Needle}: One of the special magic numbers for \{word\} is: \{number\}.
+%     \item \textbf{Question}: What is the special magic number for \{word\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{MK-NIAH task2 ($\sim$line retrieval)}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: filled with needles.
+%     \item \textbf{Needle}: One of the special magic numbers for \{word\} is: \{number\}.
+%     \item \textbf{Question}: What is the special magic number for \{word\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{MK-NIAH task3 ($\sim$kv retrieval)}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: filled with needles.
+%     \item \textbf{Needle}: One of the special magic uuids for \{UUID\} is: \{UUID\}.
+%     \item \textbf{Question}: What is the special magic uuid for \{UUID\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+% \paragraph{Multi-values NIAH (MV-NIAH)}\mbox{}
+% \label{appendix-mv-niah}
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{MV-NIAH task1}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: concatenated essays written by Paul Graham.
+%     \item \textbf{Needle}: 
+%     \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item One of the special magic numbers for \{word\} is: \{number1\}.
+%     \item One of the special magic numbers for \{word\} is: \{number2\}.
+%     \end{itemize} 
+%     \item \textbf{Question}: What are all the special magic numbers for \{word\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{MV-NIAH task2}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: concatenated essays written by Paul Graham.
+%     \item \textbf{Needle}: 
+%     \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item One of the special magic numbers for \{word\} is: \{number1\}.
+%     \item One of the special magic numbers for \{word\} is: \{number2\}.
+%     \item One of the special magic numbers for \{word\} is: \{number3\}.
+%     \item One of the special magic numbers for \{word\} is: \{number4\}.
+%     \end{itemize} 
+%     \item \textbf{Question}: What are all the special magic numbers for \{word\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+
+% \paragraph{Multi-queries NIAH (MQ-NIAH)}\mbox{}
+% \label{appendix-mq-niah}
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{MQ-NIAH task1}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: concatenated essays written by Paul Graham.
+%     \item \textbf{Needle}: 
+%     \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item One of the special magic numbers for \{word1\} is: \{number1\}.
+%     \item One of the special magic numbers for \{word2\} is: \{number2\}.
+%     \end{itemize} 
+%     \item \textbf{Question}: What are all the special magic numbers for \{word1\} and \{word2\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}
+
+
+% \begin{tcolorbox}[colback=gray!20, boxrule=0pt]
+% \small
+% \textbf{MQ-NIAH task2}:
+% \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item \textbf{Haystack}: concatenated essays written by Paul Graham.
+%     \item \textbf{Needle}: 
+%     \begin{itemize}[topsep=5pt, parsep=0pt, leftmargin=*]
+%     \item One of the special magic numbers for \{word1\} is: \{number1\}.
+%     \item One of the special magic numbers for \{word2\} is: \{number2\}.
+%     \item One of the special magic numbers for \{word3\} is: \{number3\}.
+%     \item One of the special magic numbers for \{word4\} is: \{number4\}.
+%     \end{itemize} 
+%     \item \textbf{Question}: What are all the special magic numbers for \{word1\}, \{word2\}, \{word3\}, and \{word4\} mentioned in the provided text?
+% \end{itemize} 
+% \end{tcolorbox}

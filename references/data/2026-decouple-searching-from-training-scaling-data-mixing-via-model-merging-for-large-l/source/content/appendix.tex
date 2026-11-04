@@ -1,0 +1,241 @@
+
+\section{Details of DeMix Corpora}
+\label{appd:data_comp}
+
+\subsection{Data Curation Pipeline}
+This subsection presents a unified pipeline for building the DeMix Corpora from heterogeneous sources including general-domain, multilingual, mathematical, and code data. Global exact and fuzzy deduplication is scaled to enhance the corpus’s overall quality and eliminate redundant content; dataset-specific perplexity filtering via a lightweight scoring model further refines data validity and relevance. A FastText-based quality classifier, trained on well-constructed positive-negative data mixtures and validated through controlled pre-training, is leveraged to identify and retain semantically meaningful high-quality data samples. In addition, for Chinese general-domain corpora, we introduce a dedicated quality classifier to filter low-quality samples and upsample high-quality signals, further improving the quality distribution of the Chinese data. Finally, hierarchical instance-level labeling—bootstrapped from high-confidence large-model annotations and distilled into a lightweight labeler—is introduced to enable subsequent data analysis and targeted data selection by category, with the corpus quality additionally verified through small-model training experiments and benchmark comparisons.
+
+\paragraph{Data Collection} The general-domain data we collected mainly covers well-known open-source datasets such as FineWeb-Edu \cite{penedo2024fineweb}, DCLM-Baseline \cite{li2024datacomp}, DOLMA-v1.7\cite{dolma}, Ultra-FineWeb \cite{wang2025ultra}, and the NVIDIA Nemotron corpus \cite{basant2025nvidia}. For mathematical data, we include sources such as FineMath \cite{liu2025finemath}, MegaMath \cite{zhou2025megamath}, and SwallowMath \cite{fujii2025rewriting}. For code data, we include sources such as OpenCoder \cite{huang2025opencoder} and SwallowCode \cite{fujii2025rewriting}. In addition, we incorporated multilingual data and reasoning data. A complete list of our data sources is provided in Table \ref{table:dataset}.
+
+\paragraph{Deduplication} We perform global exact deduplication and fuzzy deduplication on most datasets \cite{lee2022deduplicating}, while retaining the original data only for confirmed high-quality small-scale datasets. Although some works \cite{penedo2024fineweb, penedo2025fineweb2} argue that global deduplication may remove a substantial number of high-quality samples, we still adopt it for large-scale web data, primarily because the greatly increased data volume mitigates the impact of this issue.
+For fuzzy deduplication, we extract 24-grams from each document, compute 260 MinHash functions per document, and partition them into 20 bands of 13 hashes each, targeting documents with at least 90\% similarity. Any pair of documents that share an identical 13-MinHash signature in any band is considered duplicates.
+
+\paragraph{Perplexity Filtering} We perform perplexity-based data filtering using the Qwen3-0.6B base model as the scoring model. For each dataset, we manually inspect high-perplexity samples and determine dataset-specific thresholds. Based on these thresholds, samples with extremely low perplexity are removed, resulting in an overall data reduction of approximately 2\%.
+
+\paragraph{FastText Filtering} 
+We construct a binary data quality classifier based on FastText. Both the positive and negative sets contain over one million samples. The positive set is composed of randomly sampled data, low-perplexity data, and high-quality subsets from ELI5-category \cite{fan2019eli5} and OpenHermes-2.5 \cite{OpenHermes2.5}, while the negative set is partially sourced from Falcon-RefinedWeb \cite{penedo2023refinedweb} and high-perplexity data. 
+Since high-perplexity data is dominated by short samples, we apply weighted sampling to long samples to increase the likelihood of selecting low-quality long-form data.
+To determine appropriate source proportions for the positive and negative sets, we construct multiple candidate sample mixtures and train Qwen3-0.6B from scratch on each set separately. 
+Experimental results show that the model trained on the positive set achieves a lower average evaluation loss than the model trained on the negative set, demonstrating a clear quality distinction between the two sets. 
+Based on these validated samples, we subsequently train a FastText classifier. The resulting classifier removes approximately 3\% of the English corpus and effectively identifies low-quality web and code data.
+
+\paragraph{Quality Filtering for Chinese General-Domain Corpora}
+We propose a quality assessment and sampling framework for large-scale Chinese general-domain web corpora, inspired by prior work such as FineWeb-Edu\cite{penedo2024fineweb}. In this framework, education-related and information-dense signals are treated as proxies for high-quality text, with the goal of preferentially retaining and emphasizing content with higher informational value and structural coherence during corpus construction.
+Specifically, we categorize text samples into five quality levels: undetermined (e.g., non-Chinese or nonsensical content), extremely low quality, low quality, high quality, and extremely high quality. The labeling criteria jointly consider linguistic completeness, information density, structural coherence, and the degree to which the text exhibits knowledge-bearing or explanatory characteristics, without restricting the data to explicitly educational contexts.
+To obtain reliable quality annotations, we first manually labeled 5,000 Chinese samples and fine-tuned a 32B-parameter language model to learn the above quality distinctions. We then used this model to automatically annotate approximately 1 million Chinese web documents. Based on these pseudo-labeled samples, we trained a lightweight text quality classifier, which uses gte-multilingual-base as the text embedding backbone followed by a classification head.
+During corpus construction, the trained classifier is applied to remove samples classified as extremely low quality or undetermined, while samples labeled as extremely high quality are upsampled, thereby improving the overall quality distribution and structural characteristics of Chinese general-domain training data.
+
+% \paragraph{Instance-Level Data Labeling}
+\paragraph{Instance-Level Data Labeling} To estimate the domain distribution of our pre-training corpus, we build a three-level hierarchical taxonomy. We define level-1 labels following the standard graduate disciplinary classification, and derive level-2 and level-3 labels under each parent via Gemini 2.5 Pro \cite{comanici2025gemini} and GPT-4o \cite{achiam2023gpt}. We then annotate the corpus using Qwen3-235B-A22B \cite{yang2025qwen3} and retain 3.63M high-confidence labeled instances to train a 4B model, which is used to label the full pre-training dataset.
+
+\paragraph{Data Evaluation} To validate the quality of individual datasets, we train a relatively small model (Qwen-3-1.7B) on 50B tokens. For general datasets, we train from scratch. For math/code datasets, we mix in 80\%/60\% general data and train from a pre-trained mid checkpoint. The benchmarks we use are widely adopted, ensuring that they can exceed random performance after a small amount of training and maintain stable ranking across subsequent training stages.
+
+\paragraph{Candidate Data Preparation}
+
+DeMix is leveraged in the late stages of pre-training: for general data, we select only the highest-quality tier; for math and code, we discard the lowest-quality tiers, stratify the remaining corpora by both category and quality, and merge similar sources to reduce the dataset count. This constitutes a common engineering trade-off \cite{diao2025climb} and a standard practice for cross-domain data mixing \cite{basant2025nvidia, feng2024maximize}. By reducing the dimensionality of mixture ratios, we substantially alleviate the search burden of identifying a high-performance mixture. While this may lower the attainable performance upper bound, it is a necessary compromise given the exorbitant cost of large-scale pre-training.
+Ultimately, we obtain seven dataset categories that require fine-grained mixing.
+For each candidate dataset, we mix it with 50\% general data as a form of regularization, since an excessive proportion of domain-specific data can significantly degrade the model’s general capabilities during LLM pre-training \cite{lin2025rec, bansal2025context, allal2025_the_smol_training_playbook_the_secrets_to_building_world_class_llms}.
+Although we can only search within the subspace where non-general data accounts for less than 50\%, this constraint—that non-general data should not dominate the pre-training corpus—is consistent with the consensus \cite{basant2025nvidia, blakeman2025nemotron, allal2025smollm2}.
+
+\paragraph{Component Model Training} 
+
+While DeMix is adopted for the late stages, for early pre-training, the model exhibits limited capacity and thus cannot tackle more challenging tasks; we therefore evaluate data mixtures using general benchmarks, which is a single-objective optimization goal that can be cultivated during early training, making the construction of data mixtures relatively simple and straightforward. In practice, we find that direct upsampling/downsampling based on quality scores yield consistent and rational data mixtures.
+We train a 1.7B model from scratch using the stage-1 mixture for a sufficient number of tokens, which serves as the base model for component models. We then train seven component models $\{M_i\}$ on each candidate dataset $\{D_i\}$ on 50B tokens, ensuring that they possess sufficient emergent capabilities to solve challenging math and code problems.
+
+\subsection{Data Composition Across Stages}
+
+\begin{figure*}[t]
+  % \vskip 0.2in
+  \begin{center}
+    \centerline{\includegraphics[width=.9\columnwidth]{fig/fig_dataset.pdf}}
+    \caption{
+      Data mixtures for the three stages of pre-training in the DeMix Corpora, with approximately 14T, 6T, and 2T tokens, respectively. The three hierarchical levels from the inside out are domain, data category, and data origin.
+    }
+      \label{fig:mixture_stages}
+  \end{center}
+\end{figure*}
+
+\input{table/table_data}
+
+
+
+The data mixture used in LLM pre-training is inherently dynamic rather than static \cite{feng2024maximize, basant2025nvidia, blakeman2025nemotron}.
+During the initial phases, the priority is typically given to data diversity, whereas the later stages shift focus toward high data quality \cite{wang2021survey}. 
+In practice, early training stages typically emphasize data diversity, while late stages increasingly prioritize high-quality data to refine advanced capabilities \cite{wang2021survey}.
+Consequently, pre-training is often organized into multiple stages, with the proportion of high-quality math and code data significantly increased in the late stages \cite{basant2025nvidia, allal2025smollm2}. 
+As a result, modern pre-training pipelines are often organized into multiple stages, with the proportion of high-quality math and code data substantially increased in the late stages \cite{basant2025nvidia, allal2025smollm2}.
+
+In practice, we partition the pre-training data into three stages, with the proportion of high-quality data such as mathematical and coding data gradually increasing across successive stages. In the first stage, as the model primarily acquires broad general knowledge during the initial phase of training, data quality exerts a less significant impact than in subsequent stages. Consequently, we only adjust the data mixture using basic general benchmarks, performing upsampling and downsampling based on quality scores. In contrast, during Stages 2 and 3, data quality directly influences the final training performance; thus, we employ the DeMix framework to optimize the data mixture ratio. Furthermore, to prevent excessive repetition of individual samples, we reduce the threshold for the allowable number of repetitions in Stage 2, yielding a more balanced data distribution compared to Stage 3.
+
+We presents the detailed composition of DeMix Corpora in Figure \ref{fig:mixture_stages} and Table \ref{table:dataset}, including the amount of tokens after our curation pipeline and the token allocation in 3 training stages after data mixing by DeMix. 
+
+
+
+\section{Baseline Details.}
+\label{appd:train_detail}
+
+For RegMix and CLIMB, the only differences from DeMix lie in how proxy models are obtained and how the predictor is trained.
+For RegMix, we sample a required number of mixtures and train the model from the same initialization as the DeMix component models, using a fixed number of tokens. We then evaluate the trained models on to obtain benchmark scores, and fit a LightGBM predictor using the same hyperparameters as in DeMix. Finally, we apply the trained predictor to the same large set of sampled candidates and select the top-ranked mixtures as the final optimal mixture.
+For CLIMB, the only difference is that it adopts iterative sampling. Consistent with our DeMix procedure, it performs three iterations: for 28 points, we sample $16+8+4$; for 56 points, $32+16+8$; for 112 points, $64+32+16$.
+
+
+
+% \section{Delta of Model Parameters}
+
+% \begin{figure*}[t]
+%   \begin{center}
+%     \centerline{\includegraphics[width=.8\columnwidth]{fig/heatmap.pdf}}
+%     \caption{
+%       Illustration of model $\delta$ between different checkpoints during component model training.
+%     }
+% \label{fig:heatmap}
+%   \end{center}
+
+% \end{figure*}
+
+% As defined in Premise \ref{premise:small}, the delta of model parameters is given by $\delta=\frac{\sum|\mathcal{T}(D, \Theta_{\text{base}}) - \Theta_{\text{base}}|} {\sum|\mathcal{T}(D, \Theta_{\text{base}})| + \sum|\Theta_{\text{base}}|}$. A smaller $\delta$ indicates that the merged model is more stable and reliable. Figure \ref{fig:heatmap} shows that across our seven component models, $\delta$ is approximately 10\% with 30B tokens and 11\% with 50B tokens. These values reflect a relatively modest update magnitude. Therefore, our experiments generally operate within the Small Update Condition described in Premise \ref{premise:small}.
+
+\section{Detailed Mixtures in Experiments.}
+\label{appd:mixture}
+
+\input{table/table_mixture}
+
+We extend Table \ref{table:exp2} by listing the detailed mixture ratios in Table \ref{table:mixture}.
+
+\section{Additional Verification of the Model-Merging Approximation}
+\label{appd:merge_verification}
+
+The approximation in Eq.~\ref{equ:satisfy} is mainly motivated by prior studies on model merging and small-update regimes. 
+To further provide empirical evidence for its validity in our setting, we compare the merged proxy model with a model trained directly on mixed data. 
+The goal is to verify whether the merged proxy model can consistently approximate the performance of the corresponding mixed-data-trained model, especially when the magnitude of parameter updates is relatively small.
+
+Specifically, we select one math dataset as $D_1$ and one code dataset as $D_2$, and consider several mixture proportions between them. 
+For each mixture proportion, we compare two types of proxy models:
+\begin{itemize}
+    \item \textbf{Model merge}: we first train two component models separately on $D_1$ and $D_2$, and then merge their parameters according to the target mixture ratio.
+    \item \textbf{Data mix}: we directly train a model on the mixed dataset $D_1 + D_2$ with the same target mixture ratio.
+\end{itemize}
+We conduct this comparison under different token budgets. 
+The parameter-update magnitude $\delta$ is computed as defined in Eq.~\ref{eqa:delta}. 
+We define the consistency score as the ratio between the merged-model score and the data-mix model score on the same benchmark, averaged across all tested mixture proportions. 
+A consistency score closer to $1$ indicates that the merged proxy model better matches the model trained directly on the corresponding mixed data.
+
+The results are shown in Table~\ref{tab:merge_verification}. 
+When $\delta$ is small, the merged proxy model exhibits high consistency with the data-mix model, suggesting that Eq.~\ref{equ:satisfy} is well satisfied in the small-update regime. 
+As the token budget increases, $\delta$ naturally becomes larger, and the consistency moderately decreases. 
+Nevertheless, even under relatively larger updates, the merged proxy model still preserves a reasonably high level of consistency, especially considering that it avoids training a separate model for every candidate mixture. 
+These results provide additional empirical support for using merged proxy models to approximate mixed-data training during mixture search.
+
+\begin{table*}[t]
+\caption{
+Comparison between merged proxy models and models trained directly on mixed data.
+We use one math dataset $D_1$ and one code dataset $D_2$, and evaluate different $D_1/D_2$ mixture ratios.
+$\delta$ denotes the magnitude of parameter updates as defined in Eq.~\ref{eqa:delta}.
+Consistency is computed as the ratio between the merged-model score and the data-mix model score, averaged across the tested mixture ratios.
+}
+\centering
+\small
+\resizebox{\textwidth}{!}{
+\begin{tabular}{c c c c c c c c c c c c c}
+\toprule
+\multirow{3}{*}{Token Budget} 
+& \multirow{3}{*}{$\delta$}
+& \multirow{3}{*}{Type}
+& \multicolumn{8}{c}{$D_1/D_2$ Ratio}
+& \multicolumn{2}{c}{} \\
+\cmidrule(lr){4-11}
+\cmidrule(lr){12-13}
+& & 
+& \multicolumn{2}{c}{20\%/80\%}
+& \multicolumn{2}{c}{40\%/60\%}
+& \multicolumn{2}{c}{60\%/40\%}
+& \multicolumn{2}{c}{80\%/20\%}
+& \multicolumn{2}{c}{Consistency} \\
+\cmidrule(lr){4-5}
+\cmidrule(lr){6-7}
+\cmidrule(lr){8-9}
+\cmidrule(lr){10-11}
+\cmidrule(lr){12-13}
+& & 
+& Math & Code
+& Math & Code
+& Math & Code
+& Math & Code
+& Math & Code \\
+\midrule
+
+\multirow{2}{*}{2B} 
+& \multirow{2}{*}{3.10\%}
+& Model merge 
+& 5.79 & 21.39 
+& 6.26 & 20.09 
+& 7.17 & 17.76 
+& 8.38 & 15.94 
+& \multirow{2}{*}{1.04} & \multirow{2}{*}{0.97} \\
+& 
+& Data mix 
+& 6.03 & 21.56 
+& 6.25 & 20.59 
+& 6.64 & 18.16 
+& 7.39 & 16.76 
+& & \\
+
+\midrule
+
+\multirow{2}{*}{10B} 
+& \multirow{2}{*}{6.90\%}
+& Model merge 
+& 6.49 & 25.12 
+& 9.48 & 22.50 
+& 11.55 & 18.05 
+& 14.57 & 14.52 
+& \multirow{2}{*}{0.96} & \multirow{2}{*}{0.81} \\
+& 
+& Data mix 
+& 8.01 & 27.85 
+& 9.28 & 23.31 
+& 12.32 & 26.04 
+& 13.66 & 20.99 
+& & \\
+
+\midrule
+
+\multirow{2}{*}{30B} 
+& \multirow{2}{*}{10.10\%}
+& Model merge 
+& 8.09 & 30.06 
+& 11.17 & 23.09 
+& 15.34 & 19.56 
+& 19.95 & 15.42 
+& \multirow{2}{*}{0.82} & \multirow{2}{*}{0.75} \\
+& 
+& Data mix 
+& 11.79 & 30.87 
+& 15.11 & 31.48 
+& 18.26 & 29.45 
+& 20.01 & 25.12 
+& & \\
+
+\midrule
+
+\multirow{2}{*}{50B} 
+& \multirow{2}{*}{10.50\%}
+& Model merge 
+& 8.48 & 33.19 
+& 11.88 & 25.50 
+& 15.74 & 20.97 
+& 20.87 & 14.31 
+& \multirow{2}{*}{0.79} & \multirow{2}{*}{0.75} \\
+& 
+& Data mix 
+& 11.84 & 32.98 
+& 17.36 & 33.10 
+& 19.71 & 30.66 
+& 22.11 & 27.44 
+& & \\
+
+\bottomrule
+\end{tabular}
+}
+\label{tab:merge_verification}
+\end{table*}

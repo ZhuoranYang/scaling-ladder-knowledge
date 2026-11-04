@@ -1,0 +1,270 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage[breaklinks,colorlinks,
+            linkcolor=red,
+            anchorcolor=blue,
+            citecolor=blue
+            ]{hyperref}
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+% \usepackage[numbers]{natbib}
+
+
+\usepackage{graphicx} % Required for inserting images
+\usepackage{wrapfig}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{bm}
+\usepackage{subcaption}
+\usepackage{comment}
+\usepackage{cite}
+% \usepackage[numbers, compress]{natbib}
+% \usepackage{cleveref}
+\usepackage{dsfont}
+\usepackage{cleveref}
+\input{extra_math}
+\input{extra_symbol}
+\usepackage{graphicx}   % For including images
+\usepackage{subcaption} % For subfigures
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{hypothesis}{Hypothesis}[section]
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{corollary}{Corollary}[section]
+\newtheorem{remark}{Remark}[section]
+\newtheorem{definition}{Definition}[section]
+\newtheorem{assumption}{Assumption}[section]
+\newtheorem{example}{Example}[section]
+\crefname{theorem}{Theorem}{Theorems}
+\crefname{lemma}{Lemma}{Lemmas}
+\crefname{proposition}{Proposition}{Propositions}
+\crefname{remark}{Remark}{Remarks}
+\crefname{corollary}{Corollary}{Corollaries}
+\crefname{definition}{Definition}{Definitions}
+\crefname{assumption}{Assumption}{Assumptions}
+\crefname{conjecture}{Conjecture}{Conjectures}
+\crefname{axiom}{Axiom}{Axioms}
+\crefname{example}{Example}{Examples}
+
+\usepackage{comment}
+
+\makeatletter
+\renewcommand{\paragraph}{%
+  \@startsection{paragraph}{4}%
+  {\z@}{0ex}{-1em}%
+  {\normalfont\normalsize\bfseries}%
+}
+\makeatother
+
+
+\newcommand{\kaifeng}[1]{{\color{purple}Kaifeng: #1}}
+\newcommand{\kaifengclaw}[1]{{\color{purple}Kaifeng Claw: #1}}
+\newcommand{\tingkai}[1]{{\color{orange}Tingkai: #1}}
+\newcommand{\haodong}[1]{[{\color{orange}Haodong: #1}]}
+\newcommand{\binghui}[1]{{\color{green}binghui: #1}}
+\newcommand{\kairong}[1]{{\color{red}kairong: #1}}
+\allowdisplaybreaks[1]
+\newcommand{\fakeE}{\Tilde{\E}}
+\newcommand{\fakeH}{\Tilde{\mH}}
+\newcommand{\fakesquH}{\Tilde{\mH^2}}
+
+\newcommand{\ME}{\mathrm{ME}}
+\newcommand{\OP}{\mathrm{OP}}
+\newcommand{\bias}{\mathrm{bias}}
+\newcommand{\var}{\mathrm{var}}
+\newcommand{\deltaA}{\delta_{\mathrm{A}}}
+\newcommand{\normnone}[1]{\|#1\|}
+\newcommand{\lnormnone}[1]{\left\|#1\right\|}
+
+\iclrfinalcopy
+
+\title{Larger Datasets Can Be Repeated More: \\ A Theoretical Analysis of Multi-Epoch \\ Scaling in Linear Regression}
+
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+
+% \author{Antiquus S.~Hippocampus, Natalia Cerebro \& Amelie P. Amygdale \thanks{ Use footnote for providing further information
+% about author (webpage, alternative address)---\emph{not} for acknowledging
+% funding agencies.  Funding acknowledgements go at the end of the paper.} \\
+% Department of Computer Science\\
+% Cranberry-Lemon University\\
+% Pittsburgh, PA 15213, USA \\
+% \texttt{\{hippo,brain,jen\}@cs.cranberry-lemon.edu} \\
+% \And
+% Ji Q. Ren \& Yevgeny LeNet \\
+% Department of Computational Neuroscience \\
+% University of the Witwatersrand \\
+% Joburg, South Africa \\
+% \texttt{\{robot,net\}@wits.ac.za} \\
+% \AND
+% Coauthor \\
+% Affiliation \\
+% Address \\
+% \texttt{email}
+% }
+
+\author{
+Tingkai Yan\thanks{Equal contribution.}~~$^{\beta}$
+\quad Haodong Wen\footnotemark[1]~~$^{\alpha}$
+\quad  
+Binghui Li\footnotemark[1]~~$^{\gamma}$
+\quad \\
+\bf Kairong Luo$^\nu$ 
+\quad
+Wenguang Chen$^{\nu\lambda}$ 
+\quad
+Kaifeng Lyu\thanks{Corresponding author.}~~$^{\alpha}$\\
+% \thanks{Corresponding authors.}\\
+$^\alpha$Institute for Interdisciplinary Information Sciences, Tsinghua University\\
+$^\beta$School of Mathematical Sciences, Peking University\\
+$^\gamma$Center for Machine Learning Research, Peking University \\
+$^\nu$Department of Computer Science and Technology, Tsinghua University\\
+$^\lambda$Peng Cheng Laboratory\\
+\texttt{yantingkai66@gmail.com}, \quad \texttt{whd25@mails.tsinghua.edu.cn} \\
+\texttt{libinghui@pku.edu.cn}, \quad \texttt{luokr24@mails.tsinghua.edu.cn}\\
+\texttt{\{cwg,klyu\}@mail.tsinghua.edu.cn}
+}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+%\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+
+
+\maketitle
+
+    % , leaving much available data underutilized.
+    % Data scaling laws of Large Language model training suggests that the loss after training decreases polynomially as the data size increase. 
+\begin{abstract}
+    %While the scaling laws of large language models (LLMs) are widely studied for one-pass training over large corpora,
+    While data scaling laws of large language models (LLMs) have been widely examined in the one-pass regime with massive corpora,
+    their form under limited data and repeated epochs remains largely unexplored.
+    %Large Language Model (LLM) training often processes vast text corpora in a single pass, whose test loss during this training process is captured by an underlying data scaling law.
+    %However, this scaling remains underexplored when we run out of data (i.e., multi-epoch scaling).
+    This paper presents a theoretical analysis of how a common workaround, training for multiple epochs on the same dataset, reshapes the data scaling laws in linear regression.
+    Concretely, we ask: to match the performance of training on a dataset of size $N$ for $K$ epochs, how much larger must a dataset be if the model is trained for only one pass?
+    We quantify this using the \textit{effective reuse rate} of the data, $E(K, N)$, which we define as the multiplicative factor by which the dataset must grow under one-pass training to achieve the same test loss as $K$-epoch training.
+    Our analysis precisely characterizes the scaling behavior of $E(K, N)$ for SGD in linear regression under either strong convexity or Zipf-distributed data: (1) When $K$ is small, we prove that $E(K, N) \approx K$, indicating that every new epoch yields a linear gain; (2) As $K$ increases, $E(K, N)$ plateaus at a problem-dependent value that grows with $N$ ($\Theta(\log N)$ for the strongly-convex case), implying that larger datasets can be repeated more times before the marginal benefit vanishes.
+    These theoretical findings point out a neglected factor in a recent empirical study by \citet{muennighoff2023scaling}, which claimed that training LLMs for up to $4$ epochs results in negligible loss differences compared to using fresh data at each step, \textit{i.e.}, $E(K, N) \approx K$ for $K \le 4$ in our notation. 
+    Supported by further empirical validation with LLMs,
+    our results reveal that the maximum $K$ value for which $E(K, N) \approx K$ in fact depends on the data size and distribution, 
+    and underscore the need to explicitly model both factors in future studies of scaling laws with data reuse.
+
+    %Supported by further empirical validation with LLMs, our results reveal that the maximum $K$ value for which $E(K, N) \approx K$ in fact depends on the data size and distribution, and underscore the need to explicitly model both factors in future studies of scaling laws with data reuse.
+    
+    %depends on the dataset size $N$.
+    %\haodong{not complement, but reveal some factual mistake of their conclusion} 
+    
+    %Concretely, given a $K$-epoch training on $N$ samples, how many fresh samples would one-pass training require to match 
+    %Concretely, we ask: to what extent does training for $K$ epochs on $N$ samples increase the effective dataset size under one-pass training?
+    % Large Language Model (LLM) training often processes vast text corpora in a single pass, leaving much available data underutilized.
+    % We present a theoretical analysis of how training for multiple epochs on the same dataset reshapes the data scaling laws.
+    % Concretely, we ask: to what extent does training for $K$ epochs on $N$ samples increase the effective dataset size under one-pass training? We capture this through the effective reuse rate $E(K, N)$, defined as the factor by which multi-epoch training enlarges the dataset relative to one-pass training.
+    % Specifically, we analyze SGD in two linear regression settings: (1) strongly convex problems and (2) data distributions with a Zipf-law Hessian spectrum. We show that $E(K, N) \approx K$ when $K$ is small, reflecting nearly linear gains from additional epochs.
+    % As $K$ increases, however, $E(K, N)$ saturates at a problem-dependent function that grows with $N$.
+    % This implies that larger datasets can be repeated more times before diminishing returns set in.
+    % Our theoretical findings complement the empirical study of \citet{muennighoff2023scaling}, which observed that training LLMs for up to $4$ epochs yields negligible loss differences compared to using fresh data (i.e., $E(K, N) \approx K$ for $K \le 4$ in our notation).
+    % % Our analysis highlights that the scaling behavior of multi-epoch training is fundamentally governed by dataset size and distribution.
+    % % We hope this work offers theoretical insight and empirical evidence for modeling data reuse in large-scale training, and motivates future research on scaling laws that explicitly capture these dependencies.
+    % Supported by further empirical validation with LLMs, our results reveal how this behavior depends on dataset size and data distribution, and underscore the need to explicitly model both factors in future studies of scaling laws with data reuse.
+    %Concretely,
+    %suppose we train a model on a dataset of size $N$ for $K$ epochs, how many times would we need to enlarge the dataset to match the same performance, if we only train on it for one pass instead?
+    %if we increase the number of epochs to $K$, how much better the performance can we achieve compared to adding more fresh samples?
+    %if we train a model on a dataset of size $N$ for $K$ epochs, 
+    %effectively, how many fresh samples would one-pass training require to match the same performance?
+    %training on how many fresh samples would one-pass training require to match the performance?
+    %compared to adding more fresh samples, how much 
+    %how much better the performance can we achieve by repeating the dataset $K$ times than adding more fresh samples?
+    %for a dataset of size $N$, if we train a model on it for $K$ epochs, how much better performance can we achieve compared to adding more fresh samples?
+    %if $\mathcal{L}(K, N)$ is the expected loss of $K$-epoch training on $N$ samples,
+    %for what factor $E(K, N)$ does $\mathcal{L}(K, N) = \mathcal{L}(1, N')$ hold for $N' = E(K, N) \cdot N$?
+    %to what extent does training for $K$ epochs on $N$ samples increase the effective dataset size compared to one-pass training?
+    %\haodong{replace "match" with another word} the same performance? 
+    %We quantify this using the \textit{effective reuse rate} of the data, $E(K, N)$, which we define as the factor by which the dataset must grow under one-pass training to match the test loss of multi-epoch training.
+    %in two linear regression settings:
+    %(1) when the problem is strongly convex, we show that $E(K, N)$ grows proportionally to $\log N$ and saturates to $K$ when $\log N \gg K$;
+    %(2) for a class of data distributions following a Zipf law, $E(K, N)$ exhibits a similar behavior but grows at a different rate before saturation. 
+    %(1) when the problem is strongly convex, we show that
+    
+    %how this behavior depends on the underlying data size and distribution, and underscore the need to explicitly model both factors in future studies of scaling laws with data reuse.
+\end{abstract}
+
+\input{iclr_01_intro}
+
+\input{iclr_02_related_work}
+
+\input{iclr_03_setup}
+
+\input{iclr_04_strongly_convex}
+
+\input{iclr_05_one_hot}
+
+\input{iclr_06_experiments}
+
+\input{iclr_07_conclusion}
+
+
+\bibliography{iclr2026_conference}
+\bibliographystyle{iclr2026_conference}
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+\appendix
+
+% \input{appendix_one_hot_additional_results}
+
+\input{appendix_LLM_statement}
+
+% \input{appendix_one_hot_additional_results}
+
+\input{appendix_additional_related_works}
+
+\input{appendix_additional_experiments}
+
+% \input{appendix_metamath_experiments}
+
+\input{appendix_log_spectrum}
+
+\input{appendix_notations}
+
+%\input{appendix_strongly_conv_tech_challenge}
+
+\input{appendix_outline_strongly_convex}
+
+\input{appendix_proof_strongly_convex}
+
+\input{appendix_outline_one_hot}
+
+\input{appendix_proof_one_hot}
+
+\input{appendix_tech_lemmas}
+
+\input{appendix_discussion}
+
+\end{document}

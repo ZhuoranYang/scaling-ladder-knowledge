@@ -1,0 +1,74 @@
+---
+title: "Reading Jiaxuan’s scientific scaling ladder blog"
+---
+
+::: {.callout-note}
+For the latest conversation evidence and **96-GPU × 30-day** allocation, see the [industry audit](../workflow/industry-practice-audit.qmd), [data-engineering companion](../data/marin-data-engineering.qmd), [trainer playbook](../training/trainer-playbook.qmd), [checkpoint evaluation](../evaluation/checkpoint-evaluation.qmd), and [current numerical plan](../plans/plan-96-h100.qmd). Earlier 128×40 examples remain historical alternatives.
+:::
+
+
+Jiaxuan’s blog describes how small training experiments can support a larger pretraining decision. The main thread is: define the decision, make runs comparable, vary the right axes, fit a predictive model, then test it on larger runs excluded from selection. The blog synthesizes experiments from other teams; it does not report a new ladder trained by Jiaxuan.
+
+## Where the documents live
+
+| Document | Role | Repository path |
+|---|---|---|
+| [Saved Jiaxuan blog](scientific-scaling-ladder.md) | Original source overview, with local figures | `doc/reading/scientific-scaling-ladder.md` |
+| [Supplied Markdown notes](../../scaling_ladder_notes.md) | Your detailed restructuring and derivations | `scaling_ladder_notes.md` |
+| [Quarto notes](deep-dive-notes.qmd) | Readable edition with companion links at each section/subsection | `doc/reading/deep-dive-notes.qmd` |
+| [Primary-source review](notes-review.qmd) | Checked claims, qualifications and remaining uncertainty | `doc/reading/notes-review.qmd` |
+| [Workflow overview](../workflow/workflow.qmd) | Sequence for designing and validating experiments | `doc/workflow/workflow.qmd` |
+| [Source housekeeping](../sources/source-guide.qmd) | How to find source files and maintain the collection | `doc/sources/source-guide.qmd` |
+| [Complete source catalogue](../../references/SOURCES.md) | Papers and reports grouped by topic | `references/SOURCES.md` |
+
+The paper-specific `source/` directories under `references/` contain downloaded LaTeX. The saved blog itself is in `doc/`; it is not hidden inside one of those paper directories.
+
+## The central question changes the experiment
+
+**Forecasting a fixed recipe:** does a declared architecture/data/optimizer recipe extrapolate? Its small runs follow prescribed rules.
+
+**Finding a frontier:** what is the lowest achievable loss under a budget? The fitting points need sufficient tuning to support that claim.
+
+**Comparing candidates:** does a data, architecture or optimizer change help at the target scale? Match the tuning policy and measure the difference with uncertainty.
+
+**Predicting tasks:** can a continuous loss or difficulty-based model forecast capabilities? Validate that additional mapping rather than treating loss as accuracy.
+
+A useful way to read each section is to ask: what is controlled, what varies, what is measured, what decision follows, and which independent run could disprove the inference?
+
+## Crosswalk: blog sections, notes, and companions
+
+The notes reorder the material. Their §1 moves loss-law mathematics forward from blog §8, and their §4 folds in some design material. Use this table rather than assuming identical section numbers.
+
+| Blog section | Notes section | Protocol explanation | Deeper companion |
+|---|---|---|---|
+| 1. Scope and terminology | 0 and introductory definitions | [Scope](../experiments/01-scope.qmd) | [Workflow](../workflow/workflow.qmd) |
+| 2. Objectives and acceptance | 2; 1.3 | [Objectives](../experiments/02-objectives.qmd) | [Decision units](../deep-dives/loss-and-allocation.qmd#compute-equivalence); [validation gates](../deep-dives/capabilities-and-validation.qmd#gates) |
+| 3. Measurement | 3 | [Measurement protocol](../experiments/03-measurement.qmd) | [Parameter, token and FLOP accounting](../deep-dives/measurement-and-compute.qmd) |
+| 4. Baseline and scaling rules | 4 | [Architecture protocol](../experiments/04-architecture.qmd) | [Width/depth/μP evidence and flowchart](../architecture/architecture-evidence.qmd) |
+| 5. Grid and budget | 5; 4.1 | [Grid protocol](../experiments/05-grid-budget.qmd) | [Geometry, dependence and inference](../deep-dives/grid-and-inference.qmd) |
+| 6. Hyperparameters and wrap-up | 6 | [Optimizer protocol](../experiments/06-optimizers.qmd) | [Schedules and timescales](../deep-dives/schedules-and-timescales.qmd) |
+| 7. Data ladder | 7 | [Data protocol](../experiments/07-data-mixture.qmd) | [Exposure, proxies and repetition](../deep-dives/data-and-repetition.qmd) |
+| 8. Loss-law fitting | 1; 8 | [Fitting protocol](../experiments/08-fitting.qmd) | [Allocation mathematics](../deep-dives/loss-and-allocation.qmd); [estimation](../deep-dives/grid-and-inference.qmd#fitting) |
+| 9. Task prediction | 9 | [Downstream protocol](../experiments/09-downstream.qmd) | [Loss-to-capability prediction](../deep-dives/capabilities-and-validation.qmd) |
+| 10. Validation and launch | 10 | [Validation protocol](../experiments/10-validation.qmd) | [Holdouts and stability](../deep-dives/capabilities-and-validation.qmd#holdouts) |
+| 11. Specialized ladders | 11 | [Staged/context protocol](../experiments/11-specialized.qmd) | [Nemotron production examples](../efforts/nemotron-pretraining.qmd) |
+| 12. Execution and upkeep | 12; Appendix C | [Execution records](../experiments/12-execution.qmd) | [Source housekeeping](../sources/source-guide.qmd) |
+| Appendix A. Public configurations | Appendix A | [Published ladder comparisons](../experiments/13-public-ladders.qmd) | [AI2/μP configurations](../architecture/architecture-evidence.qmd); [Nemotron](../efforts/nemotron-pretraining.qmd) |
+
+## A practical reading order
+
+1. Read the blog’s scope and decision sections, then the [workflow](../workflow/workflow.qmd). State the question you want the ladder to answer.
+2. Read notes §1 with [the allocation derivation](../deep-dives/loss-and-allocation.qmd). Understand which assumptions make the closed-form optimum valid.
+3. Work through [measurement](../deep-dives/measurement-and-compute.qmd) and [grid design](../deep-dives/grid-and-inference.qmd) before choosing numerical model sizes.
+4. Study [architecture evidence](../architecture/architecture-evidence.qmd), [optimizer schedules](../deep-dives/schedules-and-timescales.qmd), and [data exposure](../deep-dives/data-and-repetition.qmd) as separate experiments.
+5. Finish with [task prediction and validation](../deep-dives/capabilities-and-validation.qmd), then return to the run table you would actually launch.
+
+## Follow the complete efforts
+
+Read the [OLMo deep dive](../efforts/olmo-pretraining.qmd) for corpus construction, 30M mixture proxies, microannealing, the separate Task Ladder and staged production training. The [Marin deep dive](../efforts/marin-pretraining.qmd) covers ingestion, exposure-matched mixture proxies, Delphi and the executable heuristic workflow. Then use [the beginning-to-end design](../workflow/from-data-to-pretraining.qmd) to plan a project starting from an existing corpus.
+
+## How deep are these documents?
+
+The section protocols give the overall experimental sequence. The detailed companions unpack assumptions, equations, worked examples and failure diagnoses. The architecture and Nemotron pages provide longer empirical case studies. The supplied notes retain additional claims and numerical examples; the [review](notes-review.qmd) distinguishes checked items from material needing further primary-source inspection.
+
+When a new question exposes a gap, add a focused companion and link it from the relevant notes subsection. Keep the original blog and supplied Markdown as identifiable source documents.

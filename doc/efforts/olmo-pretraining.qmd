@@ -1,0 +1,95 @@
+---
+title: "OLMo in depth: from corpus construction to validated training"
+---
+
+OLMo's main lesson is that corpus preparation, mixture selection, capability prediction and final training require different experiments. There is no single “OLMo ladder” that answers every question. This guide separates OLMo 2, OLMo 3, and the AI2 Task Ladder, using the downloaded technical reports.
+
+## Four experiments with different jobs
+
+| Experiment | Reported configuration | Question answered |
+|---|---|---|
+| Task-prediction ladder | 190M/370M/760M/1.3B; four horizons per size | Can small-model task metrics predict larger target performance? |
+| OLMo 3 mixture proxies | 30M models, 3B tokens, different mixtures | Which bucket weights improve proxy task BPB? |
+| OLMo 3 microanneals | Usually 5B candidate tokens + 5B web tokens from a shared checkpoint | Does a source improve a late-stage continuation? |
+| Production pretraining/midtraining | Full-size models, staged mixtures and LR schedules | Does the complete selected recipe produce the intended base model? |
+
+Sources: [AI2 task ladder v2, §2.1](https://arxiv.org/abs/2412.04403v2); [OLMo 3, §§3.4.4–3.5.1](https://arxiv.org/abs/2512.13961). The tasks, initialization histories and budgets differ, so a win in one row is not evidence for all the others.
+
+## Build the corpus: deduplicate first, then control repetition
+
+OLMo 3 constructs a clean web pool before selectively upsampling high-value data. Its main report describes:
+
+1. Global exact deduplication by document text hashes.
+2. MinHash candidate discovery followed by Jaccard checks for near-duplicate documents.
+3. Substring deduplication to remove repeated boilerplate while retaining an occurrence of repeated material.
+
+The reported web pool shrinks from 38.7B to 9.7B documents, a 75% document-count reduction. This is a property of that starting pool, not an expected reduction for an already processed Nemotron-CC snapshot. The procedure enables deliberate repetition later, instead of inheriting unknown duplication from crawls. [OLMo 3, §3.4.1](https://arxiv.org/abs/2512.13961).
+
+The final inventory also includes non-web sources, including code and PDF-derived material. Quality and topic annotation make it possible to ask which subsets are valuable. A reproducible record needs both the available pool and the sampled training mixture: their weights are not necessarily equal.
+
+**What to copy:** record source/version, processing changes, dropped/retained counts, tokenizer, quality/topic labels and exposure caps. Inspect false-positive deduplication in code and structured records rather than treating a document-similarity threshold as universally appropriate.
+
+## Learn a mixture using inexpensive task-sensitive proxies
+
+OLMo 3 samples mixture weights from a Dirichlet distribution centered on the natural distribution, then trains 30M models for 3B tokens. The report describes a rule of thumb of roughly five proxy runs per domain. It evaluates proxies on its Base Easy suite and fits a separate generalized linear response model for each task's BPB. It then minimizes predicted mean task BPB under available-data and repetition constraints. [OLMo 3, §3.4.4](https://arxiv.org/abs/2512.13961).
+
+The target mixture is planned around a 6T-token budget, with domain reuse limited to approximately 4–7 exposures in the reported procedure. If $U_j$ is bucket capacity, $D$ the target horizon and $k_j$ its maximum exposures, then $w_j\le k_jU_j/D$. Recompute the bound if filtering changes $U_j$.
+
+The report builds mixtures in three rounds. It first optimizes web categories, next optimizes programming-language composition within a fixed 25% code contribution and 75% web contribution, then incorporates PDF categories. Its conditional mixing treats an existing optimized mix as a virtual domain, preserving its internal ratios while searching new dimensions. Those fixed proportions belong to the reported experiment; they are not a universal recommendation for every pretraining workload.
+
+As a scale check, the report evaluates optimized web weights on 1B models at 5× Chinchilla and reports an average BPB improvement of 0.056, with some task regressions. This is why a domain scorecard is needed alongside a macro-average. [OLMo 3, §3.4.4/Fig. 9](https://arxiv.org/abs/2512.13961).
+
+## Screen new sources using continuation experiments
+
+OLMo 2 develops the microannealing approach; OLMo 3 gives a standard matched setup: sample 5B candidate tokens, mix with 5B web tokens, and compare the resulting 10B continuation with a 10B web-only baseline from the common starting checkpoint. Variants are used for smaller sources and different questions. [OLMo 2, §4](https://arxiv.org/abs/2501.00656v3); [OLMo 3, §3.5.1](https://arxiv.org/abs/2512.13961).
+
+The value of this comparison is its controlled starting state and approximate compute matching. Its limit is equally important: it measures marginal value near that checkpoint under a short anneal. It does not prove a candidate should receive the same weight from initialization through trillions of tokens.
+
+OLMo 3 integrates promising sources in 100B-token candidate mixtures. It also quickly instruction-tunes integration checkpoints to test whether base-model improvements survive post-training. These tests check interactions: several individually useful sources can compete for the same capability gains or shift the best optimization settings. [OLMo 3, §3.5.1](https://arxiv.org/abs/2512.13961).
+
+## Understand the separate AI2 Task Ladder
+
+The Task Ladder varies both size and token horizon: four fitting sizes each train for $20N\times\{1,2,5,10\}$ tokens. It then predicts larger targets using a loss model plus task-accuracy calibration. Its actual depths are 12/16/16/16, with target depths 32/40; head and MLP shapes also vary. This is empirical evidence for a particular forecasting procedure, not an isolated optimization of depth or a demonstration of width-only μP transfer. [AI2 v2, §2.1/Table 1](https://arxiv.org/abs/2412.04403v2).
+
+Use [the architecture evidence guide](../architecture/architecture-evidence.qmd) for its full numerical table. Use the [capability companion](../deep-dives/capabilities-and-validation.qmd) to distinguish validation of the intermediate loss from validation of the complete accuracy forecast.
+
+## Train and finish the selected model
+
+OLMo 2 explicitly separates long web-heavy pretraining from shorter quality-focused midtraining. Its Table 3 reports:
+
+| Configuration | 7B | 13B | 32B |
+|---|---:|---:|---:|
+| Layers | 32 | 40 | 64 |
+| Hidden width | 4,096 | 5,120 | 5,120 |
+| Attention query/KV heads | 32/32 | 40/40 | 40/8 |
+| Sequence length | 4,096 | 4,096 | 4,096 |
+| Sequence batch | 1,024 | 2,048 | 2,048 |
+| Peak LR | $3\times10^{-4}$ | $9\times10^{-4}$ | $6\times10^{-4}$ |
+
+These entries are reported production choices, not a monotonic LR scaling law. The later 32B configuration also changes attention grouping. [OLMo 2 v3, §2/Table 3](https://arxiv.org/abs/2501.00656v3).
+
+Its shorter stage anneals toward zero on Dolmino mixtures. The report describes multiple branches from a shared pretraining checkpoint, followed by weight averaging: three 50B branches for 7B; for 13B/32B, three 100B branches plus a 300B branch. Sum only incremental branch costs when accounting for total compute; repeated branches share their trunk and do not become independent full training runs. [OLMo 2, §2 and §4.5](https://arxiv.org/abs/2501.00656v3).
+
+OLMo 3 also separates pretraining, midtraining and long-context development. Its improvements should be attributed to the documented stage, not conflated with post-training. A reproduction needs the complete stage manifest, evaluation protocol and selected final-checkpoint policy.
+
+## What this suggests for our project
+
+1. Create a clean, versioned pool and fixed validation distribution.
+2. Use cheap mixture proxies for broad weight exploration.
+3. Confirm promising weights on larger models, including per-domain regressions.
+4. Use common-checkpoint continuations to screen late-stage sources.
+5. Combine selected sources in a larger integration experiment.
+6. Build a separate size/token ladder if the decision requires target-scale forecasting.
+7. Validate the full stage sequence before committing to the flagship.
+
+This is our synthesis of the effort, not one exact OLMo reproduction. Do not mix OLMo 2 architecture, OLMo 3 mixture coefficients and another optimizer's LR without recalibration.
+
+## Local evidence and implementation entry points
+
+- [OLMo 2 PDF](../../references/model-reports/2025-olmo-2-technical-report/paper.pdf) and [source](../../references/model-reports/2025-olmo-2-technical-report/arxiv-source.tar).
+- [OLMo 3 PDF](../../references/model-reports/2025-olmo-3-technical-report/paper.pdf) and [source](../../references/model-reports/2025-olmo-3-technical-report/arxiv-source.tar).
+- [AI2 Task Ladder PDF](../../references/evaluation/2024-ai2-task-scaling-model-ladders/paper.pdf).
+- [Olmix PDF](../../references/data/2026-olmix-a-framework-for-data-mixing-throughout-lm-development/paper.pdf).
+- OLMo 3's `code/` folder contains collected OLMo-core, Dolma 3, OLMES and related repository snapshots. Inspect metadata for versions and roles; current defaults need not reproduce the paper revision.
+
+Continue to [the beginning-to-end design](../workflow/from-data-to-pretraining.qmd) or return to the [blog crosswalk](../reading/jiaxuan-reading-guide.qmd).

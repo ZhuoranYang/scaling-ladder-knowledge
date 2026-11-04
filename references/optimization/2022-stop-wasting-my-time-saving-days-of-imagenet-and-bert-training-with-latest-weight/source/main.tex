@@ -1,0 +1,319 @@
+\documentclass{article}
+
+
+% if you need to pass options to natbib, use, e.g.:
+    \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2022
+
+
+% ready for submission
+% \usepackage{neurips_2022}
+
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+    \usepackage[preprint]{neurips_2022}
+
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+%     \usepackage[final]{neurips_2022}
+
+
+% to avoid loading the natbib package, add option nonatbib:
+%    \usepackage[nonatbib]{neurips_2022}
+
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+
+
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\definecolor{mydarkblue}{rgb}{0,0.08,0.55}
+\hypersetup{  % Change citation and link colors from eye-cancer-green to nice blue.
+    colorlinks=true,
+    linkcolor=mydarkblue,
+    citecolor=mydarkblue,
+    filecolor=mydarkblue,
+    urlcolor=mydarkblue
+}
+\input{math.tex}
+\usepackage{graphicx}
+\usepackage{cleveref}
+\usepackage{wrapfig}
+% \usepackage{subfigure}
+\usepackage{subcaption}
+\usepackage{dirtytalk}
+\usepackage{textcomp}
+\usepackage{listings}
+
+
+\RequirePackage{algorithm}
+\RequirePackage{algorithmic}
+
+\newcommand\loss{\gL}
+
+\title{Stop Wasting My Time! \\ Saving Days of ImageNet and BERT Training \\ with Latest Weight Averaging}
+
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+
+\author{%
+Jean Kaddour \\
+Centre for Artificial Intelligence\\
+University College London \\
+\texttt{jean.kaddour.20@ucl.ac.uk} \\
+}
+
+
+
+ \newcommand{\apr}{\raisebox{0.5ex}{\texttildelow}}
+
+
+\newcommand{\uwa}{\text{UNI}}
+\newcommand{\ema}{\text{EXP}}
+\newcommand{\twa}{\text{TWA}}
+\newcommand{\params}{\boldsymbol{\theta}}
+\newcommand{\jk}[1]{{\color{red}{[JK: #1]}}}
+\newcommand{\qu}[1]{\textit{\say{#1}}}
+\newcommand{\method}{LAWA\,}
+\newcommand{\lawasol}{\params^{\text{\method}}}
+\begin{document}
+
+\maketitle
+
+
+\begin{abstract}
+Training vision or language models on large datasets can take days, if not weeks. We show that averaging the weights of the $k$ latest checkpoints, each collected at the end of an epoch, can speed up the training progression in terms of loss and accuracy by dozens of epochs, corresponding to time savings up to \apr$68$ and \apr$30$ GPU hours when training a ResNet50 on ImageNet and RoBERTa-Base model on WikiText-103, respectively. 
+We also provide the code and model checkpoint trajectory to reproduce the results and facilitate research on reusing historical weights for faster convergence\footnote{\href{https://github.com/jeankaddour/lawa}{https://github.com/jeankaddour/lawa}}.
+\end{abstract}
+
+
+\section{Introduction}
+
+The arsenal of deep learning methods (e.g., architectures, regularizers, pre-trainers, etc.) has been growing rapidly; for the last decade, thousands of them have been proposed yearly. Arguably, many are brittle and not as universally effective as initially claimed \cite{lipton2018troubling}. One way to filter \qu{what really works} is by testing methods on large datasets. For example, for vision tasks, methods that demonstrated success on ImageNet have often proven to be successful in other tasks \cite{beyer2020we}. 
+
+Large datasets, however, require access to expensive multi-GPU machines to enable data parallelism and reasonable training durations. Less well-funded researchers do not have access to supercomputers, and lengthy training runs make quick, iterative experimentation of research ideas difficult. Simple task-, model-, and optimizer-agnostic methods that can be easily added to existing training pipelines and speed up training time have the potential to make deep learning research more accessible.
+
+In the 90s, \citet{polyak_avg} studied how to accelerate the convergence speed of stochastic gradient descent in the convex loss function regime. They proved that the running average of the model weights iterates $\bar \params = \frac{1}{t} \sum_{i=1}^t \params_i$ converges to the loss minimizer $\params^{*}$ asymptotically with the highest possible rate. When visualizing a convex loss function, the geometric intuition is simple: whenever the optimizer oscillates around a minimum, the average of the iterates will be closer to it. 
+
+However, in deep learning, loss functions are highly non-convex \cite{Goodfellow-et-al-2016}. Weight averaging has been mainly used to improve the model's generalization performance at the end of or after training \cite{SWA,WASAM}.
+
+\paragraph{Contribution} We revisit weight averaging applied to neural networks from a convergence speed perspective. Inspired by \citet{TWA}, we focus on the \emph{middle} stage of training: after the dramatic changes of the local loss landscape during the very first training steps \cite{gur2018gradient,frankle2020early} but \emph{before} the optimizer converges. Because the weights still undergo substantial change in that middle phase, averaging \emph{all} collected models, e.g., by maintaining a moving average \cite{SWA, WASAM}, can be sub-optimal. Therefore, we propose to average the $k$ latest checkpoints (each collected at the end of an epoch) throughout training, which we refer to as \emph{LAtest Weight Averaging} (LAWA). 
+
+ 
+\begin{figure}
+\includegraphics[width=\textwidth]{results/key_results.pdf}
+\caption{\textbf{\method speeds up convergence on ImageNet and (Ro)BERT(a) training}. We highlight the GPU hours saved by \method as the longest time until the baseline optimizer (SGD or Adam) matches \method's performance. We plot the losses and top-5 accuracies in \Cref{app:loss}.}
+\label{fig:key_results}
+\end{figure}
+
+
+\section{LAtest Weight Averaging (LAWA)}
+\begin{wrapfigure}{r}{0.45\textwidth}
+\vspace{-6ex}
+\begin{center}
+\begin{minipage}{0.45\textwidth}
+\begin{algorithm}[H]
+\caption{Pseudocode in PyTorch style}
+\definecolor{codeblue}{rgb}{0.25,0.5,0.5}
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+\lstset{
+  language=Python,
+  backgroundcolor=\color{white},
+  basicstyle=\fontsize{8.25pt}{8.25pt}\ttfamily\selectfont,
+  columns=fullflexible,
+  breaklines=true,
+  captionpos=b,
+  commentstyle=\fontsize{8.25pt}{8.25pt}\color{gray},
+  keywordstyle=\fontsize{8.25pt}{8.25pt}\color{codeblue},
+}
+% # ckpts: list of collected checkpoints
+
+\vspace{-1.2ex}
+\begin{lstlisting}[language=python]
+# k: number of latest checkpoints
+ckpts = []
+lawa_model = copy.deepcopy(model)
+for epoch in range(num_epochs):
+    for (x,y) in train_loader:
+        train_step(x, y, model, optimizer)
+    ckpts.append(get_params(model))
+    if epoch + 1 >= k:
+        update_lawa_model(lawa_model, ckpts)
+        del ckpts[0]
+
+def update_lawa_model(lawa_model, ckpts):
+    for p, avg_p in zip(list(lawa_model.parameters()),torch.mean(ckpts)):
+        p.copy_(avg_p)
+\end{lstlisting}
+\vspace{-1.5ex}
+\label{alg:lawa}
+\end{algorithm}
+\end{minipage}
+\vspace{-5ex}
+\end{center}
+\end{wrapfigure}
+
+
+\textbf{The key idea} is to collect model checkpoints once at the end of each epoch in a queue. 
+\method's solution at the end of epoch $E$ is $\lawasol_E := \frac{1}{k} \sum_{i=E-k+1}^{E} \params_i$. 
+
+
+\textbf{Requirements} include few training loop modifications, as shown in \Cref{alg:lawa}, and additional memory. In practice, we store the checkpoints in RAM or on disk and only transfer them to the GPU once we want to evaluate $\lawasol$. To improve the time complexity of the averaging operation, one can use a circular queue \footnote{Coding interview preparers might remember this \href{https://leetcode.com/problems/moving-average-from-data-stream/}{Leetcode problem}.}.
+
+\textbf{The number of latest weights $k$} is a hyper-parameter, and we achieve good results across both experiments with default value $k=6$, as shown in \Cref{fig:k_comparison}. However, we observe that averaging too many checkpoints ($k>16$) results in worse performance.
+
+\begin{figure}
+\begin{subfigure}[b]{0.47\textwidth}
+    \centering
+    \includegraphics[width=\columnwidth]{results/in/different_k.pdf}
+    \label{fig:diff_k_in}
+    \caption{ResNet50 / ImageNet.}
+\end{subfigure}
+\begin{subfigure}[b]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\columnwidth]{results/bert/different_k_bert.pdf}
+    \label{fig:diff_k_bert}
+    \caption{RoBERTa-Base / WikiText103.}
+\end{subfigure}
+    \caption{\textbf{\method is fairly insensitive w.r.t. $k$}, but high $k$ can hurt its performance early on.}
+    \label{fig:k_comparison}
+\end{figure}
+
+
+
+\textbf{The averaging coefficients} can also follow a different pattern, e.g., in \Cref{app:exp}, we experiment with an exponential moving average (assigning higher weights to the more recent checkpoints) and observe that this works worse than uniform coefficients. One can also learn the averaging coefficients \cite{model_soups,TWA}, but for simplicity and to avoid additional computational costs, we do not do so. 
+
+\textbf{The checkpoint saving frequency} might be thought of as a hyper-parameter; however, in this work, we always set it to one epoch. When there is so much data that we are in a sub-one-epoch training regime \cite{kaplan2020scaling,chinchilla}, we may collect checkpoints every $\nu$ steps and need to tune $\nu$. Another heuristic might be to collect a checkpoint whenever the validation loss has not improved \cite{merity2017regularizing}.
+
+\textbf{If the network includes batch norm layers,} then their statistics for $\lawasol_E$ are unknown. Prior work \cite{SWA} has suggested computing them by an inference pass through the training dataset. We do not observe a large effect of doing so compared to simply copying $\params_E$'s statistics, possibly because we only average the $k$ latest weights instead of keeping one running average over many epochs \cite{SWA}.
+
+\section{Results}\label{sec:results}
+
+We run all experiments on a machine with 4x NVIDIA 3090s and report its wall-clock time.
+
+\subsection{Image Classification: ResNet50 on ImageNet}
+
+We consider the ImageNet $1000$-classes classification task \cite{imagenet}, which includes $1.28$M training images and $50$k validation images. To train a ResNet50 \cite{resnet}, we use the official PyTorch implementation \cite{pytorch} and train for $90$ epochs using SGD with a momentum value of $0.9$ and a cosine learning rate schedule. Our 4-GPU machine takes \apr$26$min for one epoch. For $\lawasol$, we re-compute the batch norm layer statistics with a full inference pass through the training dataset before evaluating $\lawasol$. 
+
+In \Cref{fig:key_results}(a), we observe that \method reaches a high accuracy dramatically faster, e.g., validation accuracy of around \apr$66$\% (the final accuracy is \apr$76$\%) is reached \apr$40$ epochs (\apr $68$ hours) earlier than the baseline optimizer (SGD). However, we also note that its head start decreases towards the end of the training, and the highest reached accuracy is not reached much earlier. This observation raises the question of whether we can use \method to ``jump forward'' and continue the training from $\lawasol$ to reach the optimal accuracy faster, which we further discuss in \Cref{sec:fw}. 
+
+
+\subsection{Masked Language Modeling: RoBERTa-Base on WikiText-103}
+\label{exp:BERT}
+
+Next, we pre-train a (Ro)BERT(a)-Base \cite{devlin2018bert,roberta} model with masked language modeling (MLM) objective on the WikiText-103 dataset \cite{wikitext} with $103$M and $218$k tokens for training and validation set, respectively. We follow the training recipe provided by \texttt{fairseq} \cite{ott2019fairseq}: We train with Adam \cite{adam} for $200$ epochs, using a batch size of $2048$, a polynomial learning rate decay with $10$k warmup steps and a peak learning rate of $0.0005$. Our 4-GPU machine needs \apr$10$min for one training epoch.  
+
+In \Cref{fig:key_results}(b), we report the training and validation MLM cross-entropy (CE) losses as a function of the number of training steps (as typically done in NLP). We observe that \method consistently improves the losses, and it reaches Adam's final best validation loss \apr$45$ epochs ahead, saving \apr$30$ GPU hours. Interestingly, $\lawasol$'s final validation performance is noticeably better than $\params^{\text{ADAM}}$'s, confirming previous results on improved generalization obtained with weight averaging \cite{SWA,WASAM}. 
+
+\section{Future Work} \label{sec:fw}
+
+
+\paragraph{Continuing training from $\lawasol$.} 
+It is tempting to think that we may ``jump forward'' training by applying the \method procedure and then continue training from there if some target accuracy has not been reached yet. One issue is that we would need to adjust the learning rate each time we ``jump''. In practice, we may not know by how much (if at all) we accelerated the training progression. Hence, it remains unclear how to adjust a learning rate scheduler or the state variables of an adaptive optimizer. 
+
+\paragraph{$k$ scheduler.} In \Cref{fig:k_comparison}, we observe that at different times, different $k$ values perform better; e.g., during the end of the training, higher $k$ performs better; motivating a scheduler for $k$.
+
+\paragraph{Accelerating training from the very beginning.} We focus on speeding up training during the middle stage of training: after the first training steps but long before the optimizer converges. The reason for that is that in the very early training phase, the gradient typically moves with large magnitudes until it converges to a smaller subspace of the loss function's Hessian, in which it then remains over long periods of training \cite{gur2018gradient,frankle2020early} (middle stage).  We empirically confirm that averaging during the early phase worsens the baseline's performance, as can be seen in \Cref{fig:additional_bert_results}. 
+
+\paragraph{Combining \method with other acceleration techniques.} As we will discuss in the next section, there are several other techniques available to accelerate neural network training. For example, the SAM optimizer \cite{SAM} can accelerate training too \cite{mosaicml2022composer}, and \citet{WASAM} show that SAM combined with weight averaging can further boost the final test performance.
+
+\paragraph{Relationships between \method and optimization hyper-parameters.} For example, SGD becomes unstable for certain learning rates \cite{wu2018sgd,Jastrzebski2020The}; can we similarly characterize when \method is effective?
+
+\paragraph{Applying other operations to a set of checkpoints.} For example, by learning a hyper-network \cite{ha2016hypernetworks} that takes in one or more checkpoints and predicts the model parameters at later training stages.
+
+\paragraph{When does it not work?} \method may not always cause speed-ups because \citet{WASAM} reported some negative results on using weight averaging to improve the model's final performance. 
+
+
+\section{Related work} \label{sec:rw}
+The idea of weight averaging is not novel; it has been studied widely in linear settings \cite{polyak_avg,neu2018iterate,lakshminarayanan2018linear}. 
+
+\citet{szegedy2015going} used weight averaging to create the GoogLeNet model, which, at that time, set a new state of the art in the ImageNet 2014 challenge \cite{imagenet}. \citet{SWA} introduce \emph{Stochastic Weight Averaging} (SWA), a weight averaging strategy starting from pre-trained models to move them to better-generalizing regions in the same loss basin. \citet{WASAM} extensively study SWA's effectiveness, including non-typical domains like graph-structured data, and suggest combining it with SAM \cite{SAM} to boost its final performance further. \citet{model_soups} propose to average weights of multiple models with different hyper-parameter configurations. All three works (i) average weights toward the end or even after convergence, (ii) focus on the models' final test performances, and (iii) incorporate one moving-averaged model, while we show in \Cref{fig:k_comparison} that too large $k$ can result in suboptimal results, especially at earlier training times.
+
+This work is heavily inspired by \citet{TWA}'s \emph{Trainable Weight Averaging} (TWA), who propose to learn averaging coefficients for training speed-ups. Concurrently, \citet{guo2022stochastic} observe that running the SWA procedure multiple times accelerates convergence. In some sense, \method generalizes their procedure by keeping an average of the $k$ latest checkpoints instead of running SWA sequentially. Another related optimizer utilizing an auxiliary set of ``fast weights'' before updating the weights of interest is the \emph{Lookahead} (LA) optimizer \cite{lookahead}. We compare \method and LA in \Cref{app:la}.
+
+Another line of work has shown that training data re-weighting can speed up  training. For example, some re-weighting methods focus on proxy models \cite{coleman2019selection,mindermann2022prioritized}, importance sampling \cite{csiba2018importance,katharopoulos2018not} or removing spurious correlations \cite{survey,tang2020long}.
+
+
+
+\section*{Acknowledgements} I thank Matt J. Kusner and Mingtian Zhang for feedback and fruitful discussions.
+I acknowledge support from the Engineering and Physical Sciences Research Council with grant number EP/S021566/1. 
+\bibliographystyle{icml}
+\bibliography{references}
+
+\newpage
+
+\appendix
+
+\section{Losses and Top-5 Accuracies} \label{app:loss}
+For completeness, we also plot the training and validation losses for both experiments and the top-5 accuracies for the ImageNet experiment. 
+
+\Cref{fig:additional_imagenet_results} shows similar speed up trends of \method over SGD as discussed in the main body (\Cref{fig:key_results}).
+
+\Cref{fig:additional_bert_results} shows the training and validation losses for RoBERTa-Base trained on WikiText103. Here, we also include losses during earlier stages of training and point out that during these more fluctuant phases, LAWA performs worse. We expect this behavior because previous works pointed out that the network undergoes dramatic changes in early phases \cite{sagun2017empirical,gur2018gradient,frankle2020early}.
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{results/additional_metrics_in.pdf}
+    \caption{\textbf{Additional ResNet50 / ImageNet Metrics:} training/validation top-5 accuracies and losses.}
+    \label{fig:additional_imagenet_results}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{results/additional_BERT.pdf}
+    \caption{\textbf{Starting point of LAWA being effective:} on RoBERTa-Base / WikiText103.}
+    \label{fig:additional_bert_results}
+\end{figure}
+
+
+\section{\method vs. Lookahead}\label{app:la}
+
+We compare \method ($k=10$) against Lookahead \cite{lookahead} on the moderately-sized CIFAR-100 dataset (50k training images) and train a ResNet34 \cite{resnet}. We follow commonly used hyper-parameters (see e.g., \cite{wrn,pyr}), and train with SGD for $200$ epochs, using a batch size of $256$, a momentum value of $0.9$ and a cosine learning rate scheduler \cite{loshchilov2017sgdr,SAM} with initial learning rate $\eta = 0.1$. For LA, we use $\alpha=0.8$ and $k_{LA}=5$, as suggested by the authors for this particular CIFAR100 dataset.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{results/cifar/cifar.pdf}
+    \caption{\textbf{LAWA ($k=10$) outperforms Lookahead \cite{lookahead}}. We plot the mean and standard deviation of ResNet34/CIFAR-100 experiments across three random seeds.}
+    \label{fig:cifar100}
+\end{figure}
+
+\Cref{fig:cifar100} shows the training/test accuracy/loss as a function of the number of epochs. \method reaches high test accuracy around $90$ epochs earlier than SGD/LA. 
+
+Initially, we started experimenting with this learning task before scaling up to larger datasets. Since we only observed slight but not dramatic improvements in LA over the baseline, we did not evaluate LA in the larger-scale ImageNet and BERT experiments. However, note that we apply \method to the SGD checkpoints; an interesting future direction can be to combine \method with LA, i.e., to average over checkpoints obtained with LA.
+
+
+
+\section{Uniform vs. Exponentially Decayed Averaging Coefficients}
+\label{app:exp}
+We compare uniform (UNI, corresponding to $\lawasol$ by default) and exponentially-decaying (EXP) weight coefficients. We follow the same ResNet34 / CIFAR100 setup as in the previous section.
+
+For EXP, we set $\alpha = 0.9$ and compute \begin{equation}
+\params^{\ema}_0 = \params_0, \quad \forall E > 0: \params^{\ema}_E := \alpha \params_E + (1 - \alpha) \params^{\ema}_{E-1}.\end{equation}
+We set $k=10$ for both strategies. \Cref{fig:exp_vs_uni} shows that UNI slightly outperforms EXP; however, the difference is not large.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\columnwidth]{results/ema_vs_swa.pdf}
+    \caption{\textbf{Uniform coefficients (i.e., \method by default) slightly outperform exponentially-decaying ones for $k=10$.} We plot the mean and standard deviation of ResNet34/CIFAR-100 experiments across three random seeds.}
+    \label{fig:exp_vs_uni}
+\end{figure}
+
+\end{document}
+

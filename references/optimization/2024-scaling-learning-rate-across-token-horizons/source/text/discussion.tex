@@ -1,0 +1,29 @@
+
+\section{Discussion}
+
+
+
+
+\textbf{Limitations.} To limit the scope and computational requirements of our study we have intentionally focused on a narrow area -- scaling token horizons and changing LR with otherwise fixed LLM recipes. With this limited scope, there are naturally many limitations to our study. We have only extended the scaling laws to roughly 800B tokens, while many SOTA LLMs are trained significantly longer \citep{llama3}. It is well-known that optimal LR depends on model size, and this study has only scratched the surface of this important topic. Beyond just model size, model architectural modifications like mixture of experts \citep{moe2017}, \rebuttal{model width and depth,} different attention types \citep{2023gqa}, and state-space models \citep{gu2023mamba} could plausibly interact with both the LR and token horizon. \rebuttal{The number of repeated tokens can also play a role, and we only provide small-scale experiments on these theme in \Cref{fig:fixed_tokens} in the Appendix. Other dimensions to consider are additional hyperparameters such as weight decay which interacts with LR \citep{bjorck2021understanding}, LR schedules, and multi-modality \citep{kosmos1}. For computational reasons, we defer these topics to future work.}
+
+
+
+
+
+ 
+
+
+
+
+
+\textbf{Advice for Practioners.} Our experiments show that the optimal LR decreases with the token horizon. This necessitates hyperparameter transfer across token horizons. For practitioners who are working on larger models (say $>= 760m$) we recommend simply using \Cref{eq:scaling_law} where we have already found $\beta =0.32$ to generalize across architectures. To find the optimal LR $LR^*(D_1)$ at some long horizon $D_1$ practitioners can just find the optimal LR $LR^*(D_2)$ at a short horizon $D_2$ and then estimate:
+\begin{equation}
+LR^*(D_2) \approx LR^*(D_1) \bigg( \frac{D_2}{D_1} \bigg)^{-0.32}
+\end{equation}
+Since practitioners typically find the optimal LR for smaller horizons anyway during hyperparameter search, this methodology has no overhead over current practices. For practitioners with ample compute resources, we recommend finding the best LR at multiple short horizons using the quadratic fitting of \Cref{sec:initial_abl}. Thereafter the constants in \Cref{eq:powerlaw} can be found, and the optimal LR at longer horizons can be estimated. For practitioners using methods that provide zero-shot transfer of optimal LR across width (\cite{mup} and \cite{everett2024scaling}), we recommend using an adjustment of \Cref{eq:scaling_law} ($N\propto {n_{layer}}{d^2_{model}})$ which yields the formula $LR^*(n_{layer},D) = C {n^{-\alpha}_{layer}} D^{-\beta}$. Then $C$ needs to be found using the usual muP sweep for LR with small width, depth and horizon. This allows hyperparameter transfer of LR across depth.
+
+\textbf{Conclusions.} We have investigated how LR and token horizon interact when training LLMs. First, we have shown that the optimal LR decreases as the token horizon gets longer. This finding is robust across model sizes. Secondly, we have shown that the optimal LR follows reliable scaling laws and that fitting these allows for hyperparameter transfer across token horizons. As a case study, we have applied our methods to the training of LLama, and have shown evidence that Llama-1 was trained with a LR which was significantly larger than optimal. We argue thus argue that hyperparameter transfer across token horizons is an understudied aspect of LLM training. 
+
+
+\johan{TODO -- run [https://github.com/google-research/arxiv-latex-cleaner]}
+

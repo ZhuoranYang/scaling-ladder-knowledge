@@ -1,0 +1,162 @@
+        %auto-ignore
+
+\section{SGD Training Dynamics of Infinitely Deep Linear Networks}\label{sec:linearsgd}
+
+In this section, we continue to study the linear neural network with residual connections under Depth-$\mu$P. Using the Tensor Program framework~\citep{yang2023tensor}, we rigorously derive the training dynamics of SGD for the linear residual network when the width and the depth sequentially go to infinity.  The road map of our analysis consists the following three steps.
+\begin{enumerate}
+    \item We first take the width of the network to infinity by the Tensor Program framework~\cite{yang2023tensor}. As a result, instead of tracking vectors and matrices along the training trajectory, we track random variables that correspond to the vectors, that is, for a vector $x\in \R^n$ that appears in the computation of the training, the coordinates of $x$ can be viewed as iid copies of random variable $\ket x$ (called a \emph{ket}) when $n\to\infty$. \footnote{The definition of $\ket x$ requires the coordinates of $x$ is $\cO(1)$ w.r.t. $n$, and $\ket x$ is trivial if the coordinates of $x$ is $o(1)$ w.r.t. $n$. Therefore, for $x$ whose coordinates are not $\Theta(1)$, we normalize $x$ by multiplying polynomial of $n$ so the resulting vector has coordinates $\Theta(1)$. } 
+    \item Since the network is linear, every random variable can be written as a linear combination of a set of zero-mean ``base'' random variables by the Master Theorem of Tensor Programs~\cite{yang2023tensor}. Therefore, we can track the random variables by analyzing the coefficients of their corresponding linear combinations, along with the covariance between the ``base'' random variables.
+    \item Since the number of random variables and the number of ``base'' random variables scale linearly with $L$, the coefficients of all random variables can be represented by a six-dimensional tensor, where two of the dimensions have shape $L$. We  then map the tensor to a set of functions whose input domain is $[0,1]\times [0,1]$. Finally, we claim that the functions converge when $L\to\infty$, and identify their limits as the solution of a set of functional integrals.
+\end{enumerate}
+In \Cref{sec:verify_linear}, we conduct a thorough empirical verification of our theory in the linear case. The experiments clearly show the convergence of deep linear residual networks under Depth-$\mu$P. 
+
+\paragraph{Assumptions and Notations}
+Recall the linear network is given by
+\begin{align*}
+    x^0 & = U \xi, \\
+    \forall l\in [L], \quad x^l & = \frac a{\sqrt L} W^{l} x^{l-1} + x^{l - 1},  \\
+    f &= V^\top x^L.
+\end{align*}
+For convenience, we assume $a=1$, the SGD learning rate of $W^l$ is $1$. We add $t$ as a subscript to any notation to denote the same object but at $t$-th training step, e.g., the input at step $t$ is a single datapoint $\xi_t$, the hidden output of $l$-th layer at step $t$ is $x_t^l$, and the model output at step $t$ is $f_t$. Let $T$ be the number of training steps. Let $\ell_t$ be the loss function absorbing the label at time $t$, and $\chi_t$ be the derivative of the loss at time $t$, i.e., $\chi_t=\ell'_t(f_t)$. Let $\del x_t^l=\partial \ell_t/\partial x_t^l$, and $\tilde\del x_t^l=n \del x_t^l$ is the normalized version of $\del x_t^l$.
+
+The Tensor Program analysis heavily depends on the scaling of initialization and learning rate of $U, V, W$ w.r.t $n$. In this paper, we use $\mu$P as the scaling w.r.t. $n$ since it maximizes feature learning in the large width limit \citep{yang2021tensor}. 
+Without loss of generality, we follow \cite{yang2021tensor} and assume the input and output dimension is $1$, i.e., $\xi\in \RR$, $f\in \RR$. For a clean presentation, we additionally assume $U, V$ are frozen during training in this section and each coordinate of $W$ is initialized with i.i.d. Gaussian of variance $1/n$.   %
+
+\subsection{Width Limit under $\mu$P}
+As the first step, we take the width of the network $n$ to infinity using Tensor Programs (TP). As briefly mentioned in the road map of the section, the TP framework characterizes each vector involved in the training procedure by a random variable when $n\to\infty$. For a vector $x\in\R^{n}$ that has roughly iid coordinates, we write $\ket x \in \R$ (called a \emph{ket}) to denote a random variable such that $x$'s entries look like iid
+copies of $\ket{x}$. Then for any two vector $x, y\in \R^n$ that have roughly iid coordinates, their limiting inner product by $n$ can be written as $\lim_{n\to\infty} \frac{x^\top y} n=\E \ket{x}\cdot \ket{y}$, which we write succinctly as $\braket{x}{y}$. %
+Deep linear network with SGD is a simple example for this conversion from vectors to random variables. As shown in Program~\ref{alg:tp-linear}, we define a series of scalars ($\mathring f_t$ and $\mathring \chi_t$) and random variables ($\ket{U}, \ket{nV}, \ket{x_t^l}, \ket{\delta x_t^l},\ket{W_t^l x_t^{l-1}}, \ket{W_t^{l\top} \delta x_t^l}$) using the ket notations. For better understanding, we provide a brief introduction to TP below.
+
+\SetAlgorithmName{Program}{program}{List of Programs}
+\SetKwInput{KwData}{Initial random variables}
+\begin{algorithm}[ht]
+\caption{Random Variables induced from Tensor Program for the Linear Network with LR $\eta =1$ and frozen $U, V$. }\label{alg:tp-linear}
+\KwData{$\ket{U}, \ket{nV}$ are independent standard Gaussian.}
+\For{$t=0,\ldots, T-1$}{
+  $\ket{x_t^0} \odefeq \xi_t \ket{U}$\;
+  \For{$l=1,\ldots, L$}{
+  %
+  $\ket{W_t^l x_t^{l-1}} \odefeq \ket{W_0^l x_t^{l-1}} - \frac1{\sqrt L} \sum_{s=0}^{t-1} \ket{\tilde\del x_s^{l}} \braket{x_s^{l-1}}{x_t^{l-1}}$\;
+  $\ket{x_t^l} \odefeq \ket{x_t^{l-1}} + \frac1{\sqrt L} \ket{W_t^l x_t^{l-1}}$\;
+  }
+  $\mathring f_t \odefeq \braket{x_t^L}{nV}$\;
+  $\mathring \chi_t \odefeq \ell_t'(\mathring f_t)$\;
+  $\ket{\delta x_t^L} \odefeq \mathring \chi_t \ket{nV}$\;
+  \For{$l=L,\ldots, 1$}{
+  %
+  $\ket{W_t^{l\top} \tilde\del x_t^l} \odefeq  \ket{W_0^{l\top} \tilde\del x_t^l} - \frac1{\sqrt L} \sum_{s=0}^{t-1} \ket{x_s^{l-1}} \braket{\tilde\del x_s^l}{\tilde\del x_t^l}$\;
+  $\ket{\tilde\del x_t^{l-1}} \odefeq \ket{\tilde\del x_t^l} + \frac1{\sqrt L} \ket{W_t^{l\top} \tilde\del x_t^l}$\;
+  }
+}
+where $\ket{W_0^l x_t^{l-1}}$ and $\ket{W_0^{l\top} \tilde\del x_t^l}$ are defined in \Cref{def:zhatzdot}.
+\end{algorithm}
+
+\paragraph{Tensor Programs (TP) in a nutshell.} When training a neural network, one can think of this procedure as a process of successively creating new vectors and scalars from an initial set of random vectors and matrices (initialization weights), and some deterministic quantities (dataset in this case). In the first step, the forward propagation creates the features $x^l_0$ where the subscript $0$ refers to initialization, and the scalar $f_0$, which is the network output. In the first backward pass, the output derivative $\chi_0$ is computed, then the gradients $\del x^l_0$ are backpropagated. (Since the coordinates of  $\del x_0^l$ vanish to 0 when $n\to \infty$, TP instead tracks its normalized version $\tilde\del x_0^l\defeq n\cdot \del x_0^l$.) New vectors are created and appended to the TP as training progresses. When the width $n$ goes to infinity, vectors of size $n$ in the TP (e.g., the features $x^l_t$, and normalized gradients $\tilde\del x^l_t$) see their coordinates converge to roughly iid random variables (e.g., $\ket{x^l_t}$ and $\ket{\tilde\del x^l_t}$ in Program~\ref{alg:tp-linear}), and other scalar quantities (e.g., $f_t$ and $\chi_t$) converge to deterministic values (e.g., $\mathring f_t$ and $\mathring \chi_t$ in Program~\ref{alg:tp-linear}) under proper parametrization ($\mu$P). The Master Theorem \citep{yang2022tensor} captures the behaviour of these quantities by characterizing the \emph{infinite-width} limit of the training process. For more in-depth definitions and details about TP, we refer the reader to \cite{yang2022tensor}.
+
+Now when we look back to Program~\ref{alg:tp-linear}, the definitions of scalars and random variables should be clear (except for $\ket{W_0^l x_t^{l-1}}$ and $\ket{W_0^{l\top} \tilde\del x_t^l}$). One can find straightforward correspondence between those and their finite counterpart, for example: \begin{itemize}
+    \item $\mathring f_t$ corresponds to $f_t$, and $\mathring \chi_t$ corresponds to $\chi_t$;
+    \item $\ket{x_t^l}$ corresponds to $x_t^l$ and $\ket{\tilde\del x_t^l}$ corresponds to $\tilde\del x_t^l$. (Recall $\tilde\del x_t^l=n\cdot \del x_t^l$ is the normalized version of $\del x_t^l$.)
+    \item By SGD, $W_t^l = W_0^l - \frac{1}{\sqrt L}\sum_{s=0}^{t-1} \del x_s^l \otimes x_s^{l-1} $, which corresponds to $\ket{W_t^l x_t^{l-1}} = \ket{W_0^l x_t^{l-1}} - \frac1{\sqrt L} \sum_{s=0}^{t-1} \ket{\tilde\del x_s^{l}} \braket{x_s^{l-1}}{x_t^{l-1}}$.
+\end{itemize}
+
+Now we can dive into the definition of $\ket{W_0^l x_t^{l-1}}$ and $\ket{W_0^{l\top} \tilde\del x_t^l}$. Let $\cW$ be the set of initial random matrices of size $n\times n$, i.e., $\{W_0^1, \ldots, W_0^L\}$, and $\cW^\top\odefeq \{W^\top: W\in \cW\}$. Let $\cV_W$ denote the set of all vectors in training of the form $W y$ for some $y$. Then for every $W\in \cW\cup \cW^\top$, and $Wy\in \cV_W$, we can decompose $\ket{Wy}$ into the sum of $\hatket{Wy}$ and $\dotket{Wy}$, where $\hatket{Wy}$ is a random variable that act as if $W$ were independent of $y$, and $\dotket{Wy}$ is the random variable capturing the correlation part between $W$ and $y$. Specifically, let us briefly track what happens to $W^l_0 x^{l-1}_t$ during training. In the first step, we have $W^l_0 x^{l-1}_0$ which has roughly Gaussian coordinates (in the large width limit). In this case, we have $\dotket{W^l_0 x^{l-1}_0} = 0$. 
+After the first backprop, we have $ \del x^{l-1}_0 = \del x^{l}_0 + \frac{1}{\sqrt{L}} W^{l\top}_0 \del x^{l}_0$, which means that the update in $W^{l-1}$ will contain a term of the form $W^{l\top}_0 z$ for some vector $z$. This implies that $W^{l}_0 x^{l-1}_1$ will contain a term of the form $W^{l}_0 W^{l\top}_0 z'$ for some vector $z'$. This term induces an additional correlation term that appears when we take the width to infinity. The $\dotket{W^{l}_0 x^{l-1}_1}$ is defined by isolating this additional correlation term from $W^{l}_0 W^{l\top}_0 z'$. The remaining term is Gaussian in the infinite-width limit, which defines the term $\hatket{W^{l}_0 x^{l-1}_1}$. Formally, we present the following definition.
+\begin{defn}\label{def:zhatzdot}
+    %
+    
+    We define $\ket{Wy} \odefeq \hatket{Wy} + \dotket{Wy}$ for every $W \in \calW\cup \calW^\top$ and $Wy\in \calV_W$, where
+    \begin{itemize}
+        \item $\hatket{Wy}$ is a Gaussian variable with zero mean. $\forall W \in \calW\cup \calW^\top, Wy, Wz\in \calV_W$,
+        \[ \Cov\left(\hatket{Wy}, \hatket{Wz}\right) \odefeq \braket{y}{z}.\]
+        $\forall W, W' \in \calW\cup \calW^\top, Wy\in \calV_W, W'z\in \calV_{W'}$, $\hatket{Wy}$ and $\hatket{W'z}$ are independent if $W\neq W'$.
+        $\hatket{Wy}$ is also independent from $\ket{U}$ and $\ket{nV}$.
+        \item $\dotket{Wy}$ is defined to be a linear combination of $\{\ket{z}: W^\top z \in \calV_{W^\top}\}$. Then we can unwind any $\ket{y}$ inductively as a linear combination of $\hatket \bullet$, $\ket{U}$ and $\ket{nV}$, which allows us to fully define 
+        \[\dotket{Wy}\odefeq\sum_{W^\top z\in \calV_{W^\top}} \ket{z} \cdot \frac{\partial \ket{y}}{\partial \hatket{W^\top z}}. \]
+    \end{itemize}
+\end{defn}
+
+\subsection{Depthwise Scaling of Random Variables}
+
+As mentioned in \Cref{def:zhatzdot}, both $\ket{x_t^l}$ and $\ket{\tilde\del x_t^{l-1}}$ can be written as linear combination of ``base'' random variables: $\{\hatket{W_0^m x_s^{m-1}}\}_{s\in \{0,\ldots, t\}, m\in [L]},\{\hatket{W_0^{m\top} \tilde\del x_s^{m}}\}_{s\in \{0,\ldots, t\}, m\in [L]}, \ket{U}$ and $\ket{nV}$. Moreover, the coefficients of the linear combinations can be calculated in a recursive way: 
+by expanding $\ket{W_0^l x_t^{l-1}}$ using \Cref{def:zhatzdot}, we have 
+\[\ket{x_t^l} = \ket{x_t^{l-1}} + \frac1{\sqrt L} \hatket{W_0^l x_t^{l-1}} + \frac1{\sqrt L} \sum_{s=1}^{t-1} \ket{\tilde\del x_s^{l}} \left(\frac{\partial \ket{x_t^{l-1}}}{\partial \hatket{W_0^{l\top} \tilde\del x_s^{l}}} - \frac1{\sqrt L} \braket{x_s^{l-1}}{x_t^{l-1}} \right).\]
+The recursive formula for $\ket{\tilde\del x_t^l}$ is similar. 
+
+Using this induction, we claim in the linear combinations, the coefficient of every $\hatket{\bullet}$ is $\cO(1/\sqrt{L})$, and the coefficient of $\ket{U}$ and $\ket{nV}$ is $\cO(1)$. We also claim the covariance between any pairs of random variables in the form of $\ket{x_t^l}$ and $\ket{\tilde\del x_t^{l-1}}$ is $\cO(1)$. 
+\begin{prop}\label{prop:derivatives}
+     $\forall t, \forall s \leq t, \forall l,m$, $\forall \ket{y}\in \{\ket{x_t^l}, \ket{\tilde\del x_t^l}\}$, 
+     \[\frac{\partial \ket{y}}{\partial \hatket{W_0^mx_s^{m-1}}} = \cO\left(\frac1{\sqrt L}\right),
+     \frac{\partial \ket{y}}{\partial \hatket{W_0^{m\top}\tilde\del x_s^m}} = \cO\left(\frac1{\sqrt L}\right),
+     \frac{\partial \ket{y}}{\partial \ket{U}} = \cO\left(1\right),
+     \frac{\partial \ket{y}}{\partial \ket{nV}} = \cO\left(1\right).\]
+     $\forall t, s,l,m$, $\forall \ket{y}\in \{\ket{x_t^l}, \ket{\tilde\del x_t^l}\}$, $\forall \ket{z}\in \{\ket{x_s^m}, \ket{\tilde\del x_s^m}\}$,
+     \[\braket y z=\cO(1).\]
+\end{prop}
+
+The reasoning of \Cref{prop:derivatives} is provided in \Cref{app:proof_linear}. Note the computation of covariance can also be written as a recursive formula. The reasoning relies essentially on an inductive argument. 
+
+\subsection{Infinite Depth Limit}
+
+Now we formalize our argument above and obtain the formula describing the dynamics of the network when $L\to \infty$. We first write the coefficients of the linear combinations as a six dimensional tensor $\mathbf \Gamma_{t,s,a,b, l, m}$, where $t,s\in \{0,\ldots, T-1\}, a,b\in \{0, 1\}, l, m\in [L]$. Specifically, $\mathbf \Gamma_{t,s,a,b, l, m}$ represents the derivative of $\ket{x_t^l}$ and  $\ket{\tilde\del x_t^l}$ w.r.t. $\hatket{W_0^mx_s^{m-1}}$ and $\hatket{W_0^{m\top}\tilde\del x_s^m}$. Here, we use $0$ to denote kets appears in the forward pass ($\ket{x_t^l}$ and $\hatket{W_0^mx_s^{m-1}}$), and $1$ to denote kets in the backward pass ($\ket{\tilde\del x_t^l}$ and $\hatket{W_0^{m\top}\tilde\del x_s^m}$). Formally, $\mathbf \Gamma_{t,s,0,0,l,m}=\frac{\partial \ket{x_t^l}}{\partial \hatket{W_0^mx_s^{m-1}}}$, $\mathbf \Gamma_{t,s,0,1,l,m}=\frac{\partial \ket{x_t^l}}{\partial \hatket{W_0^{m\top}\tilde\del x_s^m}}$, $\mathbf \Gamma_{t,s,1,0,l,m}=\frac{\partial \ket{\tilde\del x_t^l}}{\partial \hatket{W_0^{m} x_s^{m-1}}}$, $\mathbf \Gamma_{t,s,1,1,l,m}=\frac{\partial \ket{\tilde\del x_t^l}}{\partial \hatket{W_0^{m\top}\tilde\del x_s^m}}$.
+
+However, it is hard to describe the limit of $\mathbf \Gamma$ because its size increases along with $L$. Therefore, we define the following set of functions $\{\Gamma_{t,s,a,b}:[0,1]\times (0, 1] \to \R\}_{t \in \{0,\ldots, T-1\},s\in \{-1, \ldots, t\}, a,b\in \{0,1\}}$:
+For $s \geq 0$, %
+\[\Gamma_{t,s,a,b}\left(p,q\right) = \sqrt L \cdot \mathbf{\Gamma}_{t,s,a,b,\lceil Lp\rceil,\lceil Lq\rceil}\]
+For $s=-1$, $\Gamma_{t,-1,0,0}\left(p,q\right)=\frac{\partial \ket{x_t^{\lceil Lp\rceil}}}{\partial \ket{U}}, 
+\Gamma_{t,-1,0,1}\left(p,q\right)=\frac{\partial \ket{x_t^{\lceil Lp\rceil}}}{\partial \ket{nV}}, \Gamma_{t,-1,1,0}\left(p,q\right)=\frac{\partial \ket{\tilde\del x_t^{\lceil Lp\rceil}}}{\partial \ket{U}}, 
+\Gamma_{t,-1,1,1}\left(p,q\right)=\frac{\partial \ket{\tilde\del x_t^{\lceil Lp\rceil}}}{\partial \ket{nV}}.$
+
+Here $l, m$ are normalized to $[0,1]$ so the input domain of $\Gamma$s are identical for different $L$; $\mathbf{\Gamma}_{t,s,a,b,l,m}$ is multiplied by $\sqrt L$ because $\mathbf{\Gamma}_{t,s,a,b,l,m}=\cO(1/\sqrt L)$ by \Cref{prop:derivatives}; and the extra $s=-1$ case helps us also capture the derivative w.r.t. $\ket U$ and $\ket{nV}$.
+
+Similarly, we can also define another set of function $\{C_{t,s,a}:(0, 1]\to \R\}_{t,s\in \{-1, \ldots, T-1\}, a\in \{0,1\}}$ to describe the covariance between the ``base'' random variables:  $\forall p\in (0,1]$, let $l=\lceil Lp\rceil$,
+\begin{itemize}
+    \item $C_{t,s,0}\left(p\right) \odefeq \Cov(\hatket{W_0^lx_t^{l-1}}, \hatket{W_0^lx_s^{l-1}})=\braket{x_t^{l-1}}{x_s^{l-1}}$,
+    \item $C_{t,s,1}\left(p\right) \odefeq \Cov(\hatket{W_0^{l\top}\tilde\del x_t^l}, \hatket{W_0^{l\top}\tilde\del x_s^l})=\braket{\tilde\del x_t^l}{\tilde\del x_s^l}$,
+\end{itemize}
+For $t=-1$, $C_{-1,-1,0}\left(p\right) \odefeq \Cov(\ket{U}, \ket{U})=1$, and $C_{-1,-1,1}\left(p\right) \odefeq \Cov(\ket{nV}, \ket{nV})=1$,
+By \Cref{def:zhatzdot}, the ``base'' random variables of different ``groups'' are independent, so we only tracks the covariance listed above.
+
+Using this definition of $\Gamma$ and $C$, it is convenient to write their  recursive formula in the following lemma. 
+
+\begin{lemma}[Finite depth recursive formula for $\Gamma$ and $C$ (Informal version of \Cref{lemma:finite_depth_gamma_formal})]\label{lemma:finite_depth_gamma}
+$\Gamma$ and $C$ can be computed recursively as follows:
+    \begin{align*} 
+     \Gamma_{t,r,0,b}\left(\frac l L, q\right) = &~\Gamma_{t,r,0,b}\left(\frac{l-1}L, q\right) + \ind_{[(t=r) \wedge (b=0) \wedge (l=\lceil L q\rceil)]} \\
+     & + \frac1L \sum_{s=0}^{t-1} \Gamma_{s,r,1,b}\left(\frac l L, q\right)\left(\Gamma_{t,s,0,1}\left(\frac{l-1}L, \frac l L\right)-C_{t,s,0}\left(\frac l L\right)\right).
+    \end{align*}
+    \begin{align*} 
+     \Gamma_{t,r,1,b}\left(\frac {l-1} L, q\right) = &~\Gamma_{t,r,1,b}\left(\frac{l}L, q\right) + \ind_{[(t=r) \wedge (b=1) \wedge (l=\lceil L q\rceil)]} \\
+     & + \frac1L \sum_{s=0}^{t-1} \Gamma_{s,r,0,b}\left(\frac {l-1} L, q\right)\left(\Gamma_{t,s,1,0}\left(\frac{l}L, \frac l L\right)-C_{t,s,1}\left(\frac l L\right)\right).
+     \end{align*}
+     \[C_{t,s,a}(p)=\sum_{t'=-1}^{t}\sum_{s'=-1}^{s}\sum_{b\in\{0,1\}}\int_0^1 \Gamma_{t,t',a,b}(l/L,q) C_{t',s',b}(q)\Gamma_{s,s',a,b}(l/L,q) \dd q,\] where $l=\lceil Lp\rceil -1$ if $a=0$, and  $l=\lceil Lp\rceil$ if $a=1$.
+\end{lemma}
+
+The proof of \Cref{lemma:finite_depth_gamma} is straightforward from Program \ref{alg:tp-linear}. 
+In \Cref{app:proof_linear}, we also give a formal proof that $\Gamma$ and $C$ converge when $L$ grows to infinity, in the case where $L$ is powers of $2$. The restriction on $L$ being powers of $2$ is imposed for the convenience of the proof, and the convergence of $\Gamma$ and $C$ is true in the general case.
+Moreover, we derive the infinite depth behavior based on the recursion of $\Gamma$ and $C$ in \Cref{lemma:finite_depth_gamma}.
+
+\begin{prop}[Infinite depth limit of $\Gamma$ and $C$ (Informal version of \Cref{prop:infinite_depth_linear_formal})]\label{prop:infinite_depth_linear}
+In the limit $L\to \infty$, we  have 
+\begin{align*}
+  & \Gamma_{t,r,0,b}(p, q)=\ind_{[(t=r) \wedge (b=0) \wedge (p\geq q)]} + \int_0^p \sum_{s=0}^{t-1}\Gamma_{s,r,1,b}(p',q)\cdot (\Gamma_{t,s,0,1}(p', p')- C_{t,s,0}(p'))\dd p'; \\
+     & \Gamma_{t,r,1,b}(p, q) = \ind_{[(t=r) \wedge (b=1) \wedge (p\leq q)]} + \int_p^1 \sum_{s=0}^{t-1} \Gamma_{s,r,0,b}(p',q) \cdot (\Gamma_{t,s,1,0}(p',p') - C_{t,s,1}(p'))\dd p';\\
+     & C_{t,s,a}(p)=\sum_{t'=-1}^{t}\sum_{s'=-1}^{s}\sum_{b\in\{0,1\}}\int_0^1 \Gamma_{t,t',a,b}(p,q) C_{t',s',b}(q)\Gamma_{s,s',a,b}(p,q) \dd q.
+\end{align*}
+\end{prop}
+
+The proof of \Cref{prop:infinite_depth_linear} follows from Lemma \ref{lemma:finite_depth_gamma}. A rigorous proof requires first showing the existence of a solution of the integral functional satisfied by the couple $(\Gamma, C)$. The solution is typically a fixed point of the integral functional in \Cref{prop:infinite_depth_linear}. After showing the existence, one needs to show that $(\Gamma, C)$ converges to this limit. This typically requires controlling the difference between finite-depth and infinite-depth solutions and involves obtaining upper-bounds on error propagation. The existence is guaranteed under mild conditions on the integral functional. We omit here the full proof for existence and assume that the functional is sufficiently well-behaved for this convergence result to hold. The formal proof of the convergence of $\Gamma$ and $C$ for $L=2^k$ ($k\in \N$) in \Cref{app:proof_linear} is a showcase of the correctness of the proposition.
+
+This gives a convergence in distribution:
+
+\begin{theorem}
+    In the $L \to \infty$ limit, the kets $\ket{x^L_s}, s = 0, 1, \ldots,$ converge in distribution as a zero-mean Gaussian process with kernel
+    \[\braket{x^L_s}{x^L_t} = C_{t,s,1}(1).\]
+    Thus, for each fixed neuron index $\alpha$, the collection $\{x^L_{\alpha s}\}_{s\ge 0}$ converges in distribution to a zero-mean Gaussian process with kernel $C_{t,s,1}(1)$ in the $n\to\infty$ then $L\to\infty$ limit.
+\end{theorem}
+
+For audience familiar with stochastic processes, we in fact have a weak convergence of the entire continuous-depth-indexed process $\{\ket{x^{p}_s}, \ket{\delta x^{p}_s}\}_{p \in [0, 1],s\ge0}$ in the Skorohod topology.
+
+ 
+
+    
+

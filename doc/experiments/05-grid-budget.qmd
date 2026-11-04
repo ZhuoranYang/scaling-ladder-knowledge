@@ -1,0 +1,35 @@
+---
+title: "Experimental grid, checkpoints, and compute budget"
+---
+
+> **Reading note.** This is an explanatory reconstruction of Jiaxuan Zou’s literature synthesis. Published experiments belong to the cited teams. Numbered protocols and illustrative matrices are our planning synthesis unless explicitly attributed.
+
+The blog's §5 explains why the geometry of the experiments must match the question. If every run uses $D=qN$ for a constant token-to-parameter ratio $q$, size and data are perfectly correlated. A fit cannot reliably identify their separate effects from that line alone.
+
+## Choose a layout
+
+| Layout | Useful for | Main risk |
+|---|---|---|
+| Cartesian $(N,D)$ grid | Separate size and token effects | Expensive tuning |
+| IsoFLOP slices | Compute-optimal allocation | Missing minima if sizes span too narrow a range |
+| L-shaped sampling | Economical surface estimation | Interior predictions depend strongly on functional form |
+| Fixed-TPP progression | Forecast a prescribed recipe | Cannot identify a general two-dimensional surface |
+
+An illustrative grid uses three fitting sizes and three token horizons per size, plus a fourth size reserved for holdout. Choose numerical sizes from measured throughput and target TPP, not from the labels of a published model family. For an IsoFLOP budget $C_i$, the approximation gives $D_{ij}=C_i/(6N_j)$; substitute actual FLOP accounting before launching.
+
+## Procedure
+
+1. Pilot the smallest models to measure noise, stability, and throughput.
+2. Reserve tuning, replication, annealing, failure-recovery, and holdout compute.
+3. Spread fitting points across both axes needed for the target decision.
+4. Reserve whole size or compute tiers to test the actual extrapolation direction.
+5. Evaluate trajectories at comparable progress fractions and decide how early transients will be excluded before seeing final holdouts.
+6. Use remaining budget to resolve the dominant uncertainty: seeds for noise, larger tiers for extrapolation, or high-TPP runs for horizon mismatch.
+
+Checkpoints share initialization and data history. WSD branches share their prefix. Count prefix compute once in the budget and cluster related observations together when estimating uncertainty.
+
+**Deliverable:** a run table with size, tokens, FLOPs, seed, branch parent, tuning budget, fit/development/holdout role, and contingency allocation.
+
+**Sources:** [blog §5](../reading/scientific-scaling-ladder.md#5-experimental-design-and-budget); [Hoffmann et al., 2022, Chinchilla](https://arxiv.org/abs/2203.15556); [Choshen et al., 2025](https://arxiv.org/abs/2410.11840); [Skaling, 2026](https://arxiv.org/abs/2608.07222).
+
+[Blog/notes crosswalk](../reading/jiaxuan-reading-guide.qmd) · [Detailed companion](../deep-dives/grid-and-inference.qmd)

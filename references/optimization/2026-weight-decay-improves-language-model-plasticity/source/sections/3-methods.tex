@@ -1,0 +1,80 @@
+\section{Background and Methods}
+\label{sec:methods}
+
+
+
+
+In this section, we provide further background, define the research question, and describe the experimental setup.
+
+
+\textbf{Weight decay in AdamW.} Motivated by prior findings that regularization helps vision models maintain plasticity \citep{dohare2024loss}, this paper investigates weight decay's role in language model plasticity. We focus on the weight decay hyperparameter $\lambda$ in the AdamW optimizer which, for each optimizer step $t \geq 1$, performs two decoupled updates: a gradient update given by
+\begin{equation}
+\theta_t' = \theta_t - \gamma_t \,\hat{m}_t \big/ (\sqrt{\hat{v}_t} + \epsilon)
+\end{equation}
+
+followed by a weight decay update given by
+\begin{equation}
+\theta_{t+1} = \theta_t' - \gamma_t \lambda \theta_{t}
+\end{equation}
+
+based on model parameters $\theta$, learning rate $\gamma$, first- and second-order moment estimates of the gradient $\hat{m}$ and $\hat{v}$, and a small constant $\epsilon$ added for numerical stability \citep{loshchilov2019decoupled}. For language model pretraining, the choice $\lambda=0.1$ has emerged as a kind of default, used in many pretraining runs where the optimization hyperparameters are known \citep{brown2020language, touvron2023llama2, olmo2024olmo2}. %In this paper, we pretrain models with varying $\lambda$ to investigate the effects on model plasticity. % commented out because we say this again below
+
+
+
+
+\textbf{Language model plasticity.} 
+To assess the plasticity of a pretrained model, we fine-tune the model on a task and then measure its performance on this task. The better the performance on this downstream task, the better the pretrained model was able to learn new data during fine-tuning, thus the higher the plasticity of the pretrained model. This approach to measuring model plasticity is consistent with prior literature~\citep{berariu2021study,dohare2024loss}.
+
+
+In this context, we now specify the research question:
+
+
+\begin{finding} 
+\textbf{Research Question.} How does weight decay during language model pretraining affect model plasticity, i.e., the pretrained model's ability to learn new knowledge during subsequent training?
+\end{finding}
+
+We investigate this research question empirically. We perform experiments that systematically vary weight decay during pretraining, then fine-tune and evaluate the models' performance on various downstream tasks. 
+Our experiments span various model families, model sizes, training regimes (TPP ratios), fine-tuning tasks, and evaluation metrics. The setup is as follows.
+
+\textbf{Pretraining.} We train \llama{} models on the FineWeb-Edu dataset \citep{penedo2024fineweb} and \olmo{} models on the \href{https://huggingface.co/datasets/allenai/olmo-mix-1124}{OLMo-Mix-1124 dataset}. We vary model size and TPP ratio, training models at the 20 TPP Chinchilla-optimal ratio \citep{hoffmann2022training} and at the 140 TPP overtrained ratio.
+This setup yields five model groups: \llamazeropointfiveB{}, \llamaoneB{}, \llamafourB{}, \olmoonex{}, and \olmosevenx{}.
+For each model group, we pretrain variants with different weight decay.
+
+
+
+\textbf{Fine-tuning.} We perform supervised fine-tuning (SFT) of the pretrained models on a variety of downstream tasks: CoT reasoning, language understanding and commonsense reasoning, and safety alignment.
+For CoT reasoning, we perform fine-tuning using six datasets spanning diverse domains: \metamathqa{} (math reasoning), \medmcqa{} (medical reasoning), \pubmedqa{} (biomedical research), \mmluprocot{} (various subjects including chemistry, computer science, economics, history, law, etc.), \race{} (reading comprehension), and \simplescaling{} (math, science, and logical reasoning) \citep{yu2023metamathqa, pal2022medmcqa, jin2019pubmedqa, wang2024mmlupro, mmluprocot2025, lai2017race, muennighoff2025s1}.
+For language understanding and commonsense reasoning, we perform fine-tuning using five standard benchmark datasets: \hellaswag{}, \winogrande{}, \piqa{}, \arceasy{}, and \arcchallenge{} \citep{zellers2019hellaswag, sakaguchi2021winogrande,bisk2020piqa,clark2018think}.
+For safety alignment, we perform fine-tuning using the dataset from \citet{bianchi2024safety}.
+
+
+
+
+
+
+\textbf{Evaluation of model performance after fine-tuning.} For CoT reasoning tasks, we evaluate the fine-tuned models in a zero-shot manner, prompting them to generate solutions to test set questions, and assess both the correctness and quality of the solutions using six evaluation metrics \citep{qi2025evolm}.
+
+\vspace{-0.2cm}
+\begin{itemize}[leftmargin=*, itemsep=1pt]
+\item \textbf{Greedy} (i.e., \textbf{Pass@1}): A single deterministic response is generated (temperature = 0). The question is marked correct if this response is correct.
+
+\item \textbf{Maj@16}, \textbf{RM@16}, and \textbf{Pass@16}: Sixteen responses are sampled (temperature = 1). The question is marked correct if the majority answer is correct (Maj@16), if the response with the highest outcome reward model (ORM; Skywork-Reward-Llama-3.1-8B-v0.2) score is correct (RM@16), or if any of the responses are correct (Pass@16).
+
+\item \textbf{Correct Ratio}: Sixteen responses are sampled (temperature = 1). Among questions with at least one correct response, we compute the proportion of correct responses out of the sixteen sampled responses.
+
+\item \textbf{ORM Score}: In addition to solution correctness, we also measure solution quality. Sixteen responses are sampled (temperature = 1). Each response is assigned a score using an ORM (Skywork-Reward-Llama-3.1-8B-v0.2) and the average score is computed.
+
+\end{itemize}
+
+\vspace{-0.2cm}
+
+For language understanding and commonsense reasoning tasks, we evaluate models using cloze-style accuracy. For the safety alignment task, we use a harmfulness reward model to evaluate the harmfulness of model outputs~\citep{bianchi2024safety}.
+
+\textbf{Weight decay’s effect on model plasticity across hyperparameter settings.} The setup described above investigates weight decay's effect on model plasticity under standard default settings for other hyperparameters. But does the effect of weight decay on model plasticity depend on the choices of other hyperparameters?
+To investigate this question, we perform sweeps over pretraining and fine-tuning hyperparameters.
+For pretraining hyperparameters, we pretrain additional \olmoonex{} models, varying both weight decay and learning rate during pretraining, and then fine-tune these models.
+For fine-tuning hyperparameters, we use \olmoonex{} models (which were pretrained with different weight decay values) and vary weight decay, learning rate, and batch size during fine-tuning.
+
+Additional details on the experimental setup are in Appendix~\ref{app:pt} (pretraining), Appendix~\ref{app:ft} (fine-tuning and evaluation), and Appendix~\ref{app:hyperparam-exps} (weight decay’s effect on model plasticity across hyperparameter settings).
+
+

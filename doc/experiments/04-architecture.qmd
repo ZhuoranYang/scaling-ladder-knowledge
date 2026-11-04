@@ -1,0 +1,39 @@
+---
+title: "Architecture: a controlled baseline and structural ladders"
+---
+
+> **Reading note.** This is an explanatory reconstruction of Jiaxuan Zou’s literature synthesis. Published experiments belong to the cited teams. Numbered protocols and illustrative matrices are our planning synthesis unless explicitly attributed.
+
+The blog's §4 separates fixed settings, prescribed scaling rules, and independent experimental variables. An architecture ladder is interpretable only when it states which of these roles each setting plays.
+
+## Concrete empirical starting point
+
+Read [the width/depth and μP evidence guide](../architecture/architecture-evidence.qmd) for exact published configurations. AI2’s ladder uses widths 768/1,024/1,536/2,048 with depths 12/16/16/16; its target depths are 32/40. This is a task-prediction experiment, not an isolated depth-optimization sweep. The guide compares that practice with fixed-depth μP transfer and explicit shape studies. [Bhagia et al., v2, §2.1/Table 1](https://arxiv.org/html/2412.04403v2#S2.T1).
+
+## Step-by-step protocol
+
+1. Start from a target-compatible decoder baseline. Freeze tokenizer, normalization, activation, positional encoding, embedding tying, attention family, context length, precision, and initialization.
+2. Declare a width/depth progression. For each configuration, record hidden width, layer count, head dimension, attention groups, MLP dimension, trunk parameters, and output-head cost.
+3. Sweep aspect ratio at matched parameter or compute budgets as a separate ablation. Retune enough to avoid mistaking optimization difficulty for inferior architecture.
+4. For MoE, separate active-size scaling, expert-count/sparsity scaling, and expert-granularity sweeps. Keep routing, balancing, shared experts, and drop behavior explicit.
+5. Measure throughput and memory on the intended hardware. Compare equivalent quality at a training and serving cost the project can afford.
+6. Validate the winning structure at a larger scale and at the intended token horizon and precision.
+
+For a rough dense baseline, $N_{\mathrm{body}}\approx12d^2n$. Holding $N_{\mathrm{body}}$ fixed means increasing width $d$ forces depth $n$ downward under this approximation. This changes sequential computation and attention's relative cost, so equal parameter counts do not imply equal wall-clock time.
+
+## Minimal run matrix
+
+| Family | Size tiers | Structural variable | Controls |
+|---|---|---|---|
+| Dense baseline | Three fitting tiers | Prescribed width/depth rule | Fixed primitives and token horizon |
+| Aspect-ratio ablation | Two or more tiers | Width/depth at matched budget | Comparable tuning |
+| MoE candidate | Separate tiers | One of sparsity or granularity | Fixed active-size convention |
+| Holdout | Larger unseen tier | Selected complete architecture | Frozen recipe |
+
+This matrix is an illustrative planning template, not a budget recommendation or a published optimum.
+
+**Acceptance checklist:** comparable compute accounting; no boundary winner left unexplored; numerical stability; downstream task floors; memory and throughput constraints; fresh holdout after recipe selection.
+
+**Sources:** [blog §4 and §5.6](../reading/scientific-scaling-ladder.md#4-baseline-recipe-and-scaling-rules); [Gemstones, 2025](https://arxiv.org/abs/2502.06857); [Krajewski et al., 2024](https://arxiv.org/abs/2402.07871); [OLMoE, 2024](https://arxiv.org/abs/2409.02060).
+
+[Blog/notes crosswalk](../reading/jiaxuan-reading-guide.qmd) · [Detailed companion](../architecture/architecture-evidence.qmd)

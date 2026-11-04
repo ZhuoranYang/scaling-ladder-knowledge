@@ -1,0 +1,1207 @@
+\section{Proof of Main Results in Strongly Convex Linear Regression}\label{sec:proof-convex}
+
+% \haodong{we have no $R^{var}$ or $R^{bias}$ in the main context!!}
+\subsection{Step I: A Concrete Version of Bias-Variance Decomposition}
+Before we begin our proof, we first present the following lemma, which provides the formal version of the loss estimate for a specific range of learning rate parameters. We define a $\widehat{\cR}(K,N, \eta)$ as the estimator of $\Bar{\cR}(K,N;\eta)$ 
+\begin{align*}
+    \widehat{\cR}(K,N;\eta)&:= \underbrace{\widehat{\cR}_1(K,N; \eta)}_{\textit{bias term}} + \underbrace{ \widehat{\cR}_2(K,N; \eta)}_{\textit{var term across epochs}} + \underbrace{ \widehat{\cR}_3(K,N;\eta)}_{\textit{var term within epoch}},
+\end{align*}
+where
+\begin{align*}
+    \widehat{\cR}_1(K,N;\eta) := \frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2KN}\mH (\vw_0 - \vw^*),
+\end{align*}
+\begin{align*}
+    \widehat{\cR}_2(K,N;\eta) := \frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right),
+\end{align*}
+\begin{align*}
+    \widehat{\cR}_3(K,N;\eta) :=  \frac{\eta\sigma^2}{2}\inp{\mH}{(\mI - (\mI - \eta \mH)^{2KN})(2\mI-\eta\mH)^{-1}}.
+\end{align*}
+\subsection{Step II: Risk Approximation and Error Bound Analysis}\label{sec:proof-thm-convex-L-estimate}
+In this section, we rigorously formulate the analytic risk approximation in \Cref{thm:convex-L-estimate} and provide its proof. \Cref{thm:convex-L-estimate} indicates that the error bound is of higher order than the main term when the parameters are restricted to a limited range of values.
+\begin{lemma}\label{thm:convex-L-estimate}
+    Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we further assume that for every $\vx$ in the training set, $\|\vx\| \leq D$ for some constant $D>0$. Consider a $K$-epoch SGD with learning rate $\eta \in \left[\Omega\left(\frac{1}{T}\right), o(T^{-\frac{3}{4}})\right]$, $K = o\left(\eta^{-1} T^{-\frac{3}{4}}\right)$ and data shuffling. Then, after $T = KN$ steps, the estimator of the expected excess risk satisfies:
+    \begin{align*}
+        \Bar{\cR}(K,N;\eta) = \widehat{\cR}(K,N; \eta)\left(1+o(1)\right).
+    \end{align*}
+\end{lemma}
+
+% \haodong{in lack of more evidence for this decomposition. May be very confusing here.}
+Recall from \Cref{step:bias-var-decomposition} that the risk $\Bar{\cR}(K,N;\eta)$ can be decomposed into the \textit{bias term} $\Bar{\cR}^{\bias}(K,N;\eta):= \frac{1}{2}\left\|\vtheta_t^{\bias}\right\|_{\mH}^2$ and \textit{variance term} $\Bar{\cR}^{\var}(K,N;\eta):=\frac{1}{2}\left\|\vtheta_t^{\var}\right\|_{\mH}^2$, which implies that \Cref{thm:convex-L-estimate} is a direct corollary of the following two lemmas:
+\begin{lemma}[Variance Term] \label{lem:variance-estimate}
+    Suppose that \Cref{asp:strongly-convex} holds. Then for a $K$-epoch SGD with dataset size $N$ and learning rate $\eta \in [\Omega(\frac{1}{T}),o(\frac{1}{T^{\frac{1}{2}}})]$ and shuffling, when $\text{poly}(T)\gtrsim d$, we have the estimator of the variance term $\bar{\cR}^{\var}(K,N;\eta):= \E_{\vw \sim \cW_{K,N,\eta}}\left[\cR(\vw)^{\var}\right]$ after $T:=KN$ steps
+    \begin{align*}
+        \Tilde{\cR}^{\var}(K,N;\eta)&:=\frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right)\\
+    &~~~~+\frac{\eta\sigma^2}{2}\inp{\mH}{(\mI - (\mI - \eta \mH)^{2KN})(2\mI-\eta\mH)^{-1}},
+    \end{align*}
+    where the expectation is taken on the training set and shuffle, and the estimate error is 
+    \begin{align*}
+        \left|\Tilde{\cR}^{\var}(K,N;\eta) - \bar{\cR}^{\var}(K,N;\eta)\right| = O(\eta^3T^{\frac{3}{2}}K^2\sqrt{\log d}).
+    \end{align*}
+    when $K \leq \frac{\log 2}{\eta \sqrt{\Tilde{C}8eD^4T\log d}}$.
+\end{lemma}
+\begin{lemma}[Bias Term] \label{lem:bias-estimate}
+Under \Cref{asp:strongly-convex}, for a $K$-epoch SGD with dataset size $N$, learning rate $\eta$ and shuffling, when $\text{poly}(T)\gtrsim d$, we have the estimator of the bias term $\bar{\cR}^{\bias}(K,N;\eta):= \E_{\vw \sim \cW_{K,N,\eta}}\left[\cR(\vw)^{\bias}\right]$ after $T:=KN$ steps
+\begin{align*}
+    \Tilde{\cR}^{\bias}(K,N;\eta)&:= \frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2KN}\mH (\vw_0 - \vw^*).
+\end{align*}
+Then we have the following estimate errors:
+\begin{enumerate}[leftmargin=*]
+    % \item \haodong{used in non-strongly convex case.} When $K\leq \frac{\log 2}{\eta \sqrt{\Tilde{C}8eD^4T\log d}}$ and $\text{poly}(T)\gtrsim d$, the estimate distance is given by 
+    % \begin{align*}
+    %     \left|\E[\cR(\vw_T)^{\bias}] - \fakeE[\cR(\vw_T)^{\bias}]\right| = O\left(K\sqrt{\eta^2T\log d}\right)
+    % \end{align*}
+    \item When $K\geq 2$ and $K = o\left(\frac{N^{\frac{1}{5}}}{\left(\log N\right)^{\frac{6}{5}}}\right)$:
+    \begin{enumerate}[leftmargin=*]        
+        \item When $\eta \leq \frac{2\log T}{3\lambda_d T}$, the estimate distance is given by
+        \begin{gather*}
+            \left|\Tilde{\cR}^{\bias}(K,N;\eta) - \bar{\cR}^{\bias}(K,N;\eta)\right| = O\left((1-\eta \lambda_d)^{N(2K-1)}K\sqrt{\eta^2KN}\right).
+        \end{gather*} 
+        \item When $\eta \geq \frac{2\log T}{3\lambda_d T}$, the estimate distance is given by
+        \begin{gather*}
+           \left|\Tilde{\cR}^{\bias}(K,N;\eta) - \bar{\cR}^{\bias}(K,N;\eta)\right| = O\left(\frac{1}{T^{\frac{4}{3}}}\right).
+        \end{gather*}  
+    \end{enumerate}
+    \item When $K = 1$:
+    \begin{gather*}
+       \left|\Tilde{\cR}^{\bias}(1,T;\eta) - \bar{\cR}^{\bias}(1,T;\eta)\right| =  O\left(\eta^2 Te^{-2\lambda_d\eta T}\right).
+    \end{gather*}
+    % \tingkai{Haodong:omit all the terms with d, because we consider it to be a constant.}
+    % \begin{enumerate}
+    %     \item When $\eta \geq \frac{\log T}{3\lambda_dT}$, the bound of the estimate distance can be tightened to 
+    %         \begin{align*}
+    %         \left|\E[\cR(\vw_T)^{\bias}] - \fakeE[\cR(\vw_T)^{\bias}]\right| = O\left(\eta^2T^{\frac{1}{3}}\right).
+    %         \end{align*}
+    %     \item  When $\eta\leq \frac{\log T}{3\lambda_dT}$, the bound of the estimate distance can be given by
+    %         \begin{align*}
+    %         \left|\E[\cR(\vw_T)^{\bias}] - \fakeE[\cR(\vw_T)^{\bias}]\right| = O\left(\eta\right).
+    %         \end{align*}
+    % \end{enumerate}
+\end{enumerate}
+% We have 
+
+% where the expectation is taken on training set and shuffle, and the error bound is 
+
+% when $K \leq \frac{\|\E\mA\|\log 2}{\eta \sqrt{\Tilde{C}8eD^4T\log d}}$.    
+% Moreover, 
+\end{lemma}
+
+\subsubsection{Variance Term Analysis: Proof of \Cref{lem:variance-estimate}}\label{app:var-term-proof}
+We first recall some notations Appendix~\ref{app:notation} that $\mZ^{(k)}_{a \to b} = \prod_{i=a}^b(\mI - \eta \vx_{\pi_k(i)}\vx_{\pi_k(i)}^{\top})$, $\vb^{(k)} = \sum_{l=0}^{N-1}\mZ_{N-1 \to l+1}^{(k)}\xi_{\pi_k(l)}\vx_{\pi_k(l)}$, $\mA^{(k)} = \mZ^{(k)}_{N-1 \to 0}$, $ \mT^{(k)} = \prod_{i=K}^{k+1}\mA^{(i)}$, and $\mT^{(K)} = \mI$. For simplicity, and if it does not cause confusion, we omit the superscript ``var'' in all the training parameters $\vtheta^{\var}$ in the proof of \Cref{lem:variance-estimate}. 
+% To emphasize that our analyse is applied on the multi-pass setting, we add the subscript ``ME'' ot the excess risk $\cR(\vw_T)$. 
+Now we derive the recursion before and after the $k$-th epoch.
+\begin{align*}
+    \vtheta_{kN} &= (\mI-\eta \vx_{\pi_k(N-1)}\vx_{\pi_k(N-1)}^{\top})\vtheta_{kN-1}+\eta\xi_{\pi_k(N-1)}
+    \vx_{\pi_k(N-1)} \\
+    &= \eta \sum_{l=0}^{N-1}\mZ_{N-1 \to l+1}^{(k)}\xi_{\pi_k(l)}\vx_{\pi_k(l)}+ \mA^{(k)}\vtheta_{(k-1)N} \\
+    &=\eta \vb^{(k)}+\mA^{(k)}\vtheta_{(k-1)N},
+\end{align*}
+where $\pi_k(i)$ is the $i$-th index after the permutation $\pi_k$ in the $K$-th epoch. Further writing out the above recursion gives the parameter after $K$ epochs
+\begin{align*}     
+    \vtheta_{KN} &= \eta\sum_{k=1}^{K}\mA^{(K)}\cdots\mA^{(k+1)}\vb^{(k)}.
+\end{align*}
+A natural move here is to replace $\vtheta_{KN}$ with the expression above in the variance term
+\begin{align}
+    &\bar\cR^{\var}(K,N;\eta) = \E\frac{1}{2}\vtheta_{KN}^{\top}\mH\vtheta_{KN} = \E\frac{1}{2}\inp{\mH}{\vtheta_{KN}\vtheta_{KN}^{\top}} \notag\\
+    &=\frac{\eta^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\pi_1\cdots \pi_K}\sum_{i,j=1}^K\mT^{(i)}\vb^{(i)}\left(\vb^{(j)}\right)^{\top}\left(\mT^{(j)}\right)^{\top}} \notag\\
+    &=\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\pi_1\cdots \pi_K}\sum_{i,j=1}^K\mT^{(i)}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\left(\mT^{(j)}\right)^{\top}}\notag\\
+    &=\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\mT^{(i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\left(\mT^{(j)}\right)^{\top}} \notag \\
+    &+\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\mT^{(i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}\right)^{\top}}. \label{equ:var-term-decompose}
+\end{align}
+where in the third equation, we take expectations with respect to the label noise$(\xi_l)_{l=0}^{N-1}$, and in the last equation, we decompose the variance term into two parts, according to whether the $\vb^{(i)}$ and $\vb^{(j)}$ are from the same epoch or not. 
+
+After explicitly writing the variance term, and to get a close-form formula for it, we then take pseudo expectations of $\mT^{(i)}$, $\mT^{(j)}$, $\mS_{l}^{(ii)}$, and $\mS_{l}^{(ij)}$ separately to get the approximation of $\bar\cR^{\var}(K,N;\eta)$, given as follows:
+\begin{align*} 
+    \Tilde{\cR}^{\var}(K,N;\eta)&:=\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K\fakeE\mT^{(i)}\left(\sum_{l=0}^{N-1}\sum_{\pi_i, \pi_j}\fakeE \mS_l^{(ij)}\right)\fakeE\mT^{(i)}} \\
+    &+\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{N!}\sum_{i=1}^K\fakeE\mT^{(i)}\left(\sum_{l=0}^{N-1}\sum_{\pi_i}\fakeE \mS_l^{(ii)}\right)\fakeE\mT^{(i)}}. \\
+\end{align*} 
+The intuition of the ``pseudo expectation'' and the related definitions are in Appendix~\ref{app:notation}. Fix $l$, notice that when $i\neq j$, by \Cref{equ:faek-S}, 
+\begin{align*}
+    \sum_{\pi_i, \pi_j}\fakeE\mS_l^{(ij)} &:=\sum_{\pi_i, \pi_j}\fakeE \left[\mZ_{N-1 \to \pi_i^{-1}(l)+1}^{(i)}\vx_l\vx_l^{\top} \mZ_{\pi_j^{-1}(l)+1 \to N-1}^{(j)}\right] \\
+    &:=\sum_{\pi_i, \pi_j}\left(\mI-\eta\mH\right)^{N-1-\pi_i^{-1}(l)}\mH\left(\mI-\eta\mH\right)^{N-1-\pi_j^{-1}(l)}. \\
+\end{align*}
+For a fixed $i$, for all $m\in[0,N-1]$, there are $(N-1)!$ permutations $\pi_i$ that satisfies $\pi_i(m)=l$. So
+\begin{align}
+    \sum_{\pi_i, \pi_j}\fakeE\mS_l^{(ij)} 
+    &=\left((N-1)!\right)^2\sum_{m,n=0}^{N-1}\left(\mI-\eta\mH\right)^{N-1-m}\mH\left(\mI-\eta\mH\right)^{N-1-n}.\label{equ:S_ij}
+\end{align}
+By applying a similar derivation to the $i = j$ case, we obtain that 
+\begin{align}
+    \sum_{\pi_i}\fakeE\mS_l^{(ii)} 
+    &=(N-1)!\sum_{m=0}^{N-1}\left(\mI-\eta\mH\right)^{N-1-m}\mH\left(\mI-\eta\mH\right)^{N-1-m}.\label{equ:S_ii}
+\end{align}
+Plugging \Cref{equ:S_ij} and \Cref{equ:S_ii} into the expression of $\Tilde{\cR}^{\var}(K,N;\eta)$, and we have
+\begin{align*}
+    &\Tilde{\cR}^{\var}(K,N;\eta)\\ 
+    &=\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{N^2}\sum_{\substack{i\neq j \\i,j=1}}^K\fakeE\mT^{(i)}\left(\sum_{l=0}^{N-1}\sum_{m,n=0}^{N-1}(\mI-\eta \mH)^{2N-2-m-n}\mH\right)\fakeE\mT^{(i)}} \\
+    &+\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{N}\sum_{i=1}^K\fakeE\mT^{(i)}\left(\sum_{l=0}^{N-1}\sum_{m=0}^{N-1}(\mI-\eta \mH)^{2N-2-2m}\mH\right)\fakeE\mT^{(i)}} \\
+    &=\underbrace{\frac{\sigma^2}{2}\E\inp{\mH}{\frac{1}{N}\sum_{\substack{i\neq j \\i,j=1}}^K(\mI-\eta\mH)^{N(K-i)}\left(\mI-\left(\mI-\eta \mH\right)^N\right)^2\mH^{-1}(\mI-\eta\mH)^{N(K-j)}}}_{:=\Psi_1} \\
+    &+\underbrace{\frac{\eta\sigma^2}{2}\E\inp{\mH}{\sum_{i=1}^K(\mI-\eta\mH)^{N(K-i)}\left(\mI-\left(\mI-\eta\mH\right)^{2N}\right)(2\mI-\eta\mH)^{-1}(\mI-\eta\mH)^{N(K-i)}}}_{\Psi_2}.
+\end{align*}
+where the second equation uses \Cref{equ:faek-T}. The quantity $\Psi_1$ accounts for the variance term across different epochs and $\Psi$ Then we calculate $\Psi_1$ and $\Psi_2$ separately. For $\Psi_1$, we have
+\begin{align*}
+    \Psi_1 &=\frac{\sigma^2}{2}\inp{\mH}{\frac{1}{N}\sum_{\substack{i,j=1}}^K(\mI-\eta\mH)^{N(K-i)}\left(\mI-\left(\mI-\eta \mH\right)^N\right)^2\mH^{-1}(\mI-\eta\mH)^{N(K-j)}} \\
+    &-\frac{\sigma^2}{2}\inp{\mH}{\frac{1}{N}\sum_{\substack{i=1}}^K(\mI-\eta\mH)^{N(K-i)}\left(\mI-\left(\mI-\eta \mH\right)^N\right)^2\mH^{-1}(\mI-\eta\mH)^{N(K-i)}} \\
+    &=\frac{\sigma^2}{2}\inp{\mH}{\frac{1}{N}\left(\left(\mI-\left(\mI-\eta \mH\right)^{KN}\right)\left(\mI-\left(\mI-\eta \mH\right)^{N}\right)^{-1}\right)^2\mH^{-1}\left(\mI-\left(\mI-\eta \mH\right)^N\right)^2} \\
+    &-\frac{\sigma^2}{2N}\inp{\mH}{\left(\mI-\left(\mI-\eta\mH\right)^{2KN}\right)\left(\mI-\left(\mI-\eta\mH\right)^{2N}\right)^{-1}\left(\left(\mI-\left(\mI-\eta\mH\right)^{N}\right)^2\right)\mH^{-1}} \\
+    &=\frac{\sigma^2}{2N}\tr\left(\left(\mI-\left(\mI-\eta\mH\right)^{KN}\right)^2\right)\\
+    &-\frac{\sigma^2}{2N}\tr\left(\left(\mI-\left(\mI-\eta\mH\right)^{N}\right)^2\left(\mI-\left(\mI-\eta\mH\right)^{2N}\right)^{-1}\left(\mI-\left(\mI-\eta\mH\right)^{2KN}\right)\right) \\
+    &=\frac{\sigma^2}{N}\tr\left(\left(\mI-\left(\mI-\eta\mH\right)^{KN}\right)\left(\mI+\left(\mI-\eta\mH\right)^{N}\right)^{-1}\left(\left(\mI-\eta\mH\right)^{N}-\left(\mI-\eta\mH\right)^{KN}\right)\right).
+\end{align*}
+The last equation is obtained by direct algebraic calculation.
+% \kaifengclaw{Readability breakpoint: from the double sum over $(i,j)$ to the closed trace form, several identities are compressed at once (geometric-series over matrix powers, cancellation with $\mH^{-1}$, and diagonal/off-diagonal regrouping). Consider adding 2--3 intermediate display lines or citing a helper lemma so readers can follow this reduction line-by-line.} 
+For $\Psi_2$, by direct matrix calculation, we get
+\begin{align*}
+    \Psi_2&=\frac{\eta\sigma^2}{2}\E\inp{\mH}{(2\mI-\eta\mH)^{-1}\left(\mI-\left(\mI-\eta\mH\right)^{2KN}\right)}.
+    % &=:\Tilde{\E}\cR^{\var}_{\ME}(\vw_{KN})
+\end{align*}
+Next we obtain the error bound for $\left|\Tilde{\cR}^{\var}(K,N;\eta) - \bar{\cR}^{\var}(K,N;\eta)\right|$, which can be represented as
+\begin{align*}
+    &\left|\Tilde{\cR}^{\var}(K,N;\eta) - \bar{\cR}^{\var}(K,N;\eta)\right| \\
+    &\leq\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\mT^{(i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\left(\mT^{(j)}\right)^{\top}}\right. \\
+    &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K(\mI-\eta\mH)^{N(K-i)}\left(\sum_{l=0}^{N-1}\sum_{\pi_i, \pi_j}\fakeE \mS_l^{(ij)}\right)(\mI-\eta\mH)^{N(K-j)}}\right| =:I_1\\
+    &+\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\mT^{(i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}\right)^{\top}}\right. \\
+    &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{N!}\sum_{i=1}^K(\mI-\eta\mH)^{N(K-i)}\left(\sum_{l=0}^{N-1}\sum_{\pi_i}\fakeE \mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}}\right| =:I_2,
+\end{align*}
+where the first inequality uses the triangle inequality. The term $I_1$ represents the error term between epochs, and $I_2$ represents the error term within one epoch. We will bound $I_1$ and $I_2$ separately in the proof.
+\paragraph{Upper bound for $I_1$.}
+To bound $I_1$, a natural move here is to plug in a term that takes pseudo expectation over $(\mT^{(i)})_{i=1}^K$ but does not take pseudo expectation over $(\mS_l^{(ij)})_{l,i,j}$, and divide $I_1$ into two terms.
+\begin{align*}
+    I_1&\leq \left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\mT^{(i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\left(\mT^{(j)}\right)^{\top}}\right. \\
+    &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)(\mI-\eta\mH)^{N(K-j)}}\right| \\
+    &+ \left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)(\mI-\eta\mH)^{N(K-j)}}\right. \\
+    &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K(\mI-\eta\mH)^{N(K-i)}\left(\sum_{l=0}^{N-1}\sum_{\pi_i, \pi_j}\fakeE \mS_l^{(ij)}\right)(\mI-\eta\mH)^{N(K-j)}}\right| \\
+    &=:I_{11}+I_{12}.
+\end{align*}
+Next we bound the terms $I_{11}$ and $I_{12}$ separately. Notice that 
+\begin{align}
+    &\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)(\mI-\eta\mH)^{N(K-j)} \notag\\
+    &=(N!)^{K-2}\sum_{\substack{i\neq j \\i,j=1}}^K(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)(\mI-\eta\mH)^{N(K-j)} \label{equ:open-permu}
+\end{align}
+because the summands do not depend on the permutations except $\pi_i, \pi_j$,  plugging \Cref{equ:open-permu} into the expression of $I_1$ we have
+\begin{align*}
+    I_{11}&\leq\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\mT^{(i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\left(\mT^{(j)}\right)^{\top}}\right. \\
+    &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)(\mI-\eta\mH)^{N(K-j)}}\right| .\\
+\end{align*}
+Then we use \Cref{equ:faek-T} to split $I_{11}$ into three terms and by triangle inequality:
+\begin{align*}
+    I_{11}&\leq\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\fakeE\mT^{(i)}}\right| \\
+    &+\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\fakeE\mT^{(i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\left(\mT^{(j)}-\fakeE\mT^{(j)}\right)}\right| \\
+    &+\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\left(\mT^{(j)}-\fakeE\mT^{(j)}\right)}\right|. \\
+\end{align*}
+Next, we use \Cref{lem:dot-product} and the fact that $\mS_l^{(ij)}\lesssim\mI$ to bound the matrix inner products:
+\begin{align*}       
+    I_{11}&\leq \frac{\eta^2\sigma^2ND^2\text{tr}(\mH)}{2(N!)^{K-2}}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\left(\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|+\E\left\|\mT^{(j)}-\fakeE\mT^{(j)}\right\|\right. \\
+    &+\left.\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|\left\|\mT^{(j)}-\fakeE\mT^{(j)}\right\|\right). \\
+\end{align*}
+Notice that \Cref{lem:numerical-power} and \Cref{lem:shuffle-poly-A-EA-expectation} implies that 
+\begin{align*}
+    \E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\| &\leq (\sqrt{\deltaA \eta^2NK}+\|\E\mA\|)^K - \|\E\mA\|^K \\
+    &\leq (\sqrt{\deltaA \eta^2NK}+1)^K - 1 \\
+    &\leq 2K\sqrt{\deltaA \eta^2NK} ~~~~ \text{when} ~~~~K \leq \frac{\log 2}{\eta \sqrt{\deltaA T}},
+\end{align*}
+where $\deltaA = \Tilde{C}8eD^4 \log d$ is the constant appeared in \Cref{lem:un-shuffle-A-EA-expectation}, and $\Tilde{C}$ is some absolute constant. The second inequality uses the fact that $(\sqrt{\deltaA \eta^2NK}+\|\E\mA\|)^K - \|\E\mA\|^K$ motonously increases with $\|\E\mA\|$.
+A similar approach combining \Cref{lem:numerical-power} and \Cref{lem:shuffle-poly-A-EA-expectation-l2} derives another concentration inequality for $\mT^{(i)}$:
+\begin{align*}
+    \E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|^2 &\leq \left(2K\sqrt{\deltaA \eta^2NK}\right)^2 ~~~~ \text{when} ~~~~K \leq \frac{\log 2}{\eta \sqrt{\deltaA T}}.
+\end{align*}
+Applying Cauchy-Schwarz's inequality and the concentration inequalities for $\left(\mT^{(i)}\right)_i$, we get that 
+\begin{align*}       
+    I_{11}
+    &\leq \frac{\eta^2\sigma^2ND^2\text{tr}(\mH)}{2(N!)^{K-2}}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\left(\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|+\E\left\|\mT^{(j)}-\fakeE\mT^{(j)}\right\|\right. \\
+    &+\left.\left(\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|^2\right)^{\frac{1}{2}}\left(\E\left\|\mT^{(j)}-\fakeE\mT^{(j)}\right\|^2\right)^{\frac{1}{2}}\right) \\
+    &\leq\frac{\eta^2\sigma^2ND^2\text{tr}(\mH)}{2}\sum_{\substack{i\neq j \\i,j=1}}^K\left(4K\sqrt{\deltaA\eta^2NK}+\left(2K\sqrt{2\deltaA\eta^2NK}\right)^2\right).
+\end{align*}
+Our next step is to bound $I_{12}$. We first make use of the fact that $\mI-\eta\mH\lesssim\mI$, and get that 
+\begin{align*}
+    I_{12}&\leq \left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}-\fakeE \mS_l^{(ij)}\right)}\right|. \\
+\end{align*}
+% \begin{align*}
+%     I_{12}
+%     &= \left|\frac{\eta^2\sigma^2}{2}\E\left\langle \mH, \frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{l=0}^{N-1}\sum_{m=0}^{N-1}\sum_{n=0}^{N-1}((N-1)!)^2\left(\mZ_{N-1 \to m+1}^{(i)}\mH\mZ_{n+1 \to N-1}^{(j)}\right.\right.\right. \\
+%     &\left.\left.\left.-\E\mZ_{N-1 \to m+1}^{(i)}\mH\E\mZ_{n+1 \to N-1}^{(j)}\right)\right\rangle\right| \\   
+%     &\leq \frac{\eta^2\sigma^2\text{tr}(\mH)\|\mH\|N}{2N^2}\E\sum_{\substack{i\neq j \\i,j=1}}^K\left(\sum_{m=0}^{N-2}\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|+
+%     \sum_{n=0}^{N-2}\left\|\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right\|\right. \\
+%     &\left.+\sum_{m=0}^{N-2}\sum_{n=0}^{N-2}\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|\left\|\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right\|\right) \\
+%     &\leq \frac{\eta^2\sigma^2\text{tr}(\mH)\|\mH\|N}{2N^2}\sum_{\substack{i\neq j \\i,j=1}}^K\left(\sum_{m=0}^{N-2}\E\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|+
+%     \sum_{n=0}^{N-2}\E\left\|\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right\|\right. \\
+%     &\left.+\sum_{m=0}^{N-2}\sum_{n=0}^{N-2}\left(\E\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|^2\right)^{\frac{1}{2}}\left(\E\left\|\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right\|^2\right)^{\frac{1}{2}}\right) \\
+%     &\leq \frac{\eta^2\sigma^2\text{tr}(\mH)\|\mH\|N}{2N^2}\sum_{\substack{i\neq j \\i,j=1}}^K\left(\sum_{m=0}^{N-2}\left(\sqrt{\deltaA\eta^2(N-1-m)}\right)+
+%     \sum_{n=0}^{N-2}\left(\sqrt{\deltaA\eta^2(N-1-n)}\right)\right. \\
+%     &\left.+\sum_{m=0}^{N-2}\sum_{n=0}^{N-2}\left(\sqrt{2\deltaA\eta^2(N-1-m)}\right)\left(\sqrt{2\deltaA\eta^2(N-1-n)}\right)\right) \\ 
+%     &\lesssim \eta^3K^2\sqrt{N\log d} ~~~\text{when} ~~~\eta = o(\frac{1}{\sqrt{T}}).
+%     % &\leq \frac{\eta^2\sigma^2\text{tr}(\mH)}{2}\E\inp{\mH}{\frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\left(\mZ_{N-1 \to \pi_i(l)+1}^{(i)}-\E\mZ_{N-1 \to \pi_i(l)+1}^{(i)}\right)\mH \left(\mZ_{\pi_j(l)+1 \to N-1}^{(j)}-\E\mZ_{\pi_j(l)+1 \to N-1}^{(j)}\right)\right)} \\
+% \end{align*}
+Recall that for a fixed $i$, for all $m\in[0,N-1]$, there are $(N-1)!$ permutations $\pi_i$ that satisfies $\pi_i(m)=l$. So
+\begin{align*}
+    I_{12}
+    &\leq \left|\frac{\eta^2\sigma^2}{2}\E\left\langle \mH, \frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{l=0}^{N-1}\sum_{m=0}^{N-1}\sum_{n=0}^{N-1}((N-1)!)^2\left(\mZ_{N-1 \to m+1}^{(i)}\mH\mZ_{n+1 \to N-1}^{(j)}\right.\right.\right. \\
+    &\left.\left.\left.-\E\mZ_{N-1 \to m+1}^{(i)}\mH\E\mZ_{n+1 \to N-1}^{(j)}\right)\right\rangle\right|. \\
+\end{align*}
+Notice that 
+\begin{align*}
+    &\mZ_{N-1 \to m+1}^{(i)}\mH\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{N-1 \to m+1}^{(i)}\mH\E\mZ_{n+1 \to N-1}^{(j)} \\
+    &=\left(\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right)\mH\E\mZ_{n+1 \to N-1}^{(j)}+\E\mZ_{N-1 \to m+1}^{(i)}\mH\left(\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right) \\
+    &+\left(\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right)\mH\left(\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right).
+\end{align*}
+Applying \Cref{lem:dot-product} and using the fact that $\E\mZ_{N-1 \to m+1}^{(i)}\lesssim\mI$, 
+\begin{align*}
+    I_{12}&\leq \frac{\eta^2\sigma^2\text{tr}(\mH)\|\mH\|N}{2N^2}\E\sum_{\substack{i\neq j \\i,j=1}}^K\left(\sum_{m=0}^{N-2}\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|\right.\\
+    &\left.+\sum_{n=0}^{N-2}\left\|\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right\|\right. \\
+    &\left.+\sum_{m=0}^{N-2}\sum_{n=0}^{N-2}\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|\left\|\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right\|\right). \\
+\end{align*}
+Applying Cauchy-Schwarz inequality and \Cref{lem:un-shuffle-A-EA-expectation} gives
+\begin{align*}           
+    I_{12}&\leq \frac{\eta^2\sigma^2\text{tr}(\mH)\|\mH\|N}{2N^2}\sum_{\substack{i\neq j \\i,j=1}}^K\left(\sum_{m=0}^{N-2}\E\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|\right.\\
+    &\left.+\sum_{n=0}^{N-2}\E\left\|\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right\|\right. \\
+    &\left.+\sum_{m=0}^{N-2}\sum_{n=0}^{N-2}\left(\E\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|^2\right)^{\frac{1}{2}}\left(\E\left\|\mZ_{n+1 \to N-1}^{(j)}-\E\mZ_{n+1 \to N-1}^{(j)}\right\|^2\right)^{\frac{1}{2}}\right) \\
+    &\leq \frac{\eta^2\sigma^2\text{tr}(\mH)\|\mH\|N}{2N^2}\sum_{\substack{i\neq j \\i,j=1}}^K\left(\sum_{m=0}^{N-2}\left(\sqrt{\deltaA\eta^2(N-1-m)}\right)+
+    \sum_{n=0}^{N-2}\left(\sqrt{\deltaA\eta^2(N-1-n)}\right)\right. \\
+    &\left.+\sum_{m=0}^{N-2}\sum_{n=0}^{N-2}\left(\sqrt{2\deltaA\eta^2(N-1-m)}\right)\left(\sqrt{2\deltaA\eta^2(N-1-n)}\right)\right) \\ 
+    &\lesssim \eta^3K^2\sqrt{N\log d}+\eta^4 K^2N^2\log d ~~~\text{when} ~~~\eta = o(\frac{1}{\sqrt{T}}).
+    % &\leq \frac{\eta^2\sigma^2\text{tr}(\mH)}{2}\E\inp{\mH}{\frac{1}{(N!)^2}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\left(\mZ_{N-1 \to \pi_i(l)+1}^{(i)}-\E\mZ_{N-1 \to \pi_i(l)+1}^{(i)}\right)\mH \left(\mZ_{\pi_j(l)+1 \to N-1}^{(j)}-\E\mZ_{\pi_j(l)+1 \to N-1}^{(j)}\right)\right)} \\
+\end{align*}
+\paragraph{Upper bound for $I_2$.}We bound $I_2$ using a similar technique as what we did for $I_1$. We first plug in a term that takes pseudo expectation over $(\mT^{(i)})_{i=1}^K$ but does not take pseudo expectation over $\mS_l^{(ii)}$ for every $l$ and $i$, and decompose $I_2$ into two terms:
+\begin{align*}
+    I_2&\leq \left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\mT^{(i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}\right)^{\top}}\right. \\
+    &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{N!}\sum_{i=1}^K(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}}\right| \\
+    &+ \left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{N!}\sum_{i=1}^K(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}}\right. \\
+    &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{N!}\sum_{i=1}^K(\mI-\eta\mH)^{N(K-i)}\left(\sum_{l=0}^{N-1}\sum_{\pi_i}\fakeE \mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}}\right| \\
+    &=:I_{21}+I_{22}.
+\end{align*}
+Next we bound the terms $I_{21}$ and $I_{22}$ separately. Notice that 
+\begin{align*}
+    &\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}\\
+    &=(N!)^{K-1}\sum_{\substack{i=1}}^K(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}
+\end{align*}
+because the summands do not depend on the permutations except $\pi_i$, we have
+\begin{align*}
+    I_{21}&=\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\mT^{(i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}\right)^{\top}}\right. \\
+    &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}}\right|. \\   
+\end{align*}
+Then we use the fact that $\fakeE\mT^{(i)}=(\mI-\eta\mH)^{N(K-i)}$ to split $I_{21}$ into three terms:
+\begin{align*}
+    I_{21}&\leq\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}}\right| \\
+    &+\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)}\right| \\
+    &+\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)}\right|. \\
+\end{align*}
+Next, we use \Cref{lem:dot-product} and the fact that $\mS_l^{(ij)}\lesssim\mI$ to bound the matrix inner products, and apply the concentration inequalities we derived for $\left((\mT)^{(i)}\right)_i$:
+\begin{align*}
+    I_{21}&\leq \frac{\eta^2\sigma^2ND^2\text{tr}(\mH)}{2(N!)^{K-1}}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\left(\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|+\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|\right. \\
+    &+\left.\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|^2\right) \\
+    &\leq\frac{\eta^2\sigma^2ND^2\text{tr}(\mH)}{2}\sum_{i=1}^K\left(4K\sqrt{\deltaA\eta^2KN}+\left(2K\sqrt{2\deltaA\eta^2KN}\right)^2\right).
+\end{align*}
+% \begin{align*}
+%     I_{21}&=\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\mT^{(i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}\right)^{\top}}\right. \\
+%     &-\left.\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}}\right| \\   
+%     &=\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)(\mI-\eta\mH)^{N(K-i)}}\right| \\
+%     &+\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}(\mI-\eta\mH)^{N(K-i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)}\right| \\
+%     &+\left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}-\fakeE\mT^{(i)}\right)}\right| \\
+%     &\leq \frac{\eta^2\sigma^2ND^2\text{tr}(\mH)}{2(N!)^{K-1}}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\left(\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|+\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|\right. \\
+%     &+\left.\E\left\|\mT^{(i)}-\fakeE\mT^{(i)}\right\|^2\right) \\
+%     &\leq\frac{\eta^2\sigma^2ND^2\text{tr}(\mH)}{2}\sum_{i=1}^K\left(4K\sqrt{\deltaA\eta^2KN}+\left(2K\sqrt{2\deltaA\eta^2KN}\right)^2\right)
+% \end{align*}
+Then we bound $I_{22}$. Recall that $\mI-\eta\mH\lesssim\mI$, we get  
+\begin{align*}
+    I_{22}
+    &\leq \left|\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{N!}\sum_{i=1}^K\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}-\fakeE \mS_l^{(ii)}\right)}\right|. \\
+\end{align*}
+Recall that for a fixed $i$, for all $m\in[0,N-1]$, there are $(N-1)!$ permutations $\pi_i$ that satisfies $\pi_i(m)=l$. So
+\begin{align*}
+    I_{22}
+    &\leq \left|\frac{\eta^2\sigma^2}{2}\E\left\langle \mH, \frac{1}{N!}\sum_{i=1}^K\sum_{l=0}^{N-1}\sum_{m=0}^{N-1}(N-1)!\left(\mZ_{N-1 \to m+1}^{(i)}\mH\mZ_{m+1 \to N-1}^{(i)}\right.\right.\right. \\
+    &\left.\left.\left.-\E\mZ_{N-1 \to m+1}^{(i)}\mH\E\mZ_{m+1 \to N-1}^{(i)}\right)\right\rangle\right| \\
+    &= \left|\frac{\eta^2\sigma^2}{2}\E\left\langle \mH, \frac{1}{N!}\sum_{i=1}^K\sum_{l=0}^{N-1}(N-1)!\sum_{m=0}^{N-2}\left(\left(\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right)\mH\right.\right.\right. \\
+    &\quad \left.\left. \left.\left(\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right)\right)\right\rangle\right|. \\
+\end{align*}
+
+Using \Cref{lem:un-shuffle-A-EA-expectation}, we have
+\begin{align*}    
+    I_{22}&\leq \frac{\eta^2\sigma^2\text{tr}(\mH)\|\mH\|N}{2N}\E\sum_{i=1}^K\left(\sum_{m=0}^{N-2}\left\|\mZ_{N-1 \to m+1}^{(i)}-\E\mZ_{N-1 \to m+1}^{(i)}\right\|^2\right) \\
+    &\leq \frac{\eta^2\sigma^2\text{tr}(\mH)\|\mH\|N}{2N}\sum_{i=1}^K\sum_{m=0}^{N-2}\left(\sqrt{2\deltaA\eta^2(N-1-m)}\right)^2 \\
+    &\lesssim \eta^4N^2K\log d ~~~\text{when} ~~~\eta = o(\frac{1}{\sqrt{T}}).
+\end{align*}
+Combining all the arguments above, we derive that
+\begin{align*}
+    &\left|\Tilde{\cR}^{\var}(K,N;\eta) - \bar{\cR}^{\var}(K,N;\eta)\right| \\
+    &\leq I_{11}+I_{12}+I_{21}+I_{22} \\
+    &\leq C\frac{\eta^2\sigma^2ND^2\text{tr}(\mH)}{2}\sum_{\substack{i,j=1}}^K\left(4K\sqrt{\deltaA\eta^2NK}+\left(2K\sqrt{\deltaA\eta^2NK}\right)^2\right) \\
+    &+O(\eta^3K^2\sqrt{N\log d}+\eta^4K^2N^2\log d)+O(\eta^4N^2K\log d) \\
+    &= O(\eta^3N^\frac{3}{2}K^{\frac{7}{2}}\sqrt{\log d}) ~~~\text{when} ~~~\eta = o(\frac{1}{\sqrt{T}}).
+\end{align*}
+The above equation completes the proof.
+\subsubsection{Bias Term Analysis: Proof of \Cref{lem:bias-estimate}}\label{app:bias-proof}
+For simplicity, and as we did in the proof of \Cref{lem:variance-estimate}, in this section we omit the superscript "bias" for all the training paramters $\vtheta^{\bias}$. Analogous to the proof of \Cref{lem:variance-estimate}, we can derive the parameter recursion as 
+\begin{align*}
+    \vtheta_{kN} &= (\mI-\eta \vx_{\pi_k(N-1)}\vx_{\pi_k(N-1)}^{\top})\vtheta_{kN-1} \\
+    &= \cdots \\
+    &= (\mI-\eta \vx_{\pi_k(N-1)}\vx_{\pi_k(N-1)}^{\top})\cdots(\mI-\eta \vx_{\pi_k(0)}\vx_{\pi_k(0)}^{\top})\vtheta_{(k-1)N} \\
+    &=\mA^{(k)}\vtheta_{(k-1)N}.
+\end{align*}
+For the parameter after $K$-epochs updates, we have
+\[\vtheta_{KN}=\mA^{(K)}\cdots\mA^{(1)}\vtheta_0=\prod_{l=K}^1 \mA^{(l)}\vtheta_0.\]
+We also have the approximation for the bias term   
+\begin{align*}
+    \bar{\cR}^{\bias}(K,N;\eta) &= \frac{1}{2}\inp{\mH}{\E\vtheta_{KN}^2} \\
+    &= \E\frac{1}{2}\vtheta_{KN}^{\top}\mH\vtheta_{KN} \\
+    &= \E\frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \mA^{(l)}\right)^{\top}\mH\left(\prod_{l=K}^1 \mA^{(l)}\right)\vtheta_0 \\
+    &\approx \frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \E\mA^{(l)}\right)^{\top}\mH\left(\prod_{l=K}^1 \E\mA^{(l)}\right)\vtheta_0 \\
+    &=\underbrace{\frac{1}{2}\vtheta_0^{\top}\left((\mI-\eta\mH)^{KN}\right)\mH\left((\mI-\eta\mH)^{KN}\right)\vtheta_0}_{=:\Tilde{\cR}^{\var}(K,N;\eta)}.
+    %&\leq \frac{1}{2}\|\vtheta_0\|^2\|\mH\|\E\|\mM\|^{2k}
+\end{align*}
+The estimate error can be given as
+\begin{align}
+    &\left|\Tilde{\cR}^{\bias}(K, N;\eta) -\bar{\cR}^{\bias}(K,N;\eta)\right| \notag\\
+    &= \left|\E\frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \mA^{(l)}\right)^{\top}\mH\left(\prod_{l=K}^1 \mA^{(l)}\right)\vtheta_0-\frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \E\mA^{(l)}\right)^{\top}\mH\left(\prod_{l=K}^1 \E\mA^{(l)}\right)\vtheta_0\right| \notag\\
+    &= \left|\E\frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \mA^{(l)}-\left\|\E\mA\right\|^K\right)^{\top}\mH\left(\prod_{l=K}^1 \mA^{(l)}-\left\|\E\mA\right\|^K\right)\vtheta_0\right| \notag\\
+    &+2\left|\E\frac{1}{2}\vtheta_0^{\top}\|\E\mA\|^{K}\mH\left(\prod_{l=K}^1 \mA^{(l)}-\left\|\E\mA\right\|^K\right)\vtheta_0\right|\notag \\
+    &\leq\E\frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(\lnormnone{\mA^K-\left(\E\mA\right)^K}^2+2\|\E\mA\|^K\lnormnone{\mA^K-\left(\E\mA\right)^K}\right). \label{equ:convex-bias-A-EA-bound} 
+\end{align}
+where the last equation uses the fact that $\normnone{\E\mA} \le 1$. Next, we discuss the approximation error bound for the bias term in \Cref{equ:convex-bias-A-EA-bound}, with different categorizations based on the range of $K$.
+\begin{enumerate}[leftmargin=*]
+    % \item When $K \leq \frac{\log 2}{\eta \sqrt{\Tilde{C}8eD^4T\log d}}$, according to \Cref{lem:expectation}, \Cref{lem:squareexpectation} and \Cref{lem:numerical-power}, we have
+    % \begin{align*}
+    %      &|\E\cR_{\ME}(\vw_{kN})-\fakeE\cR_{\ME}(\vw_{kN})| \\
+    %      &\leq\frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(\left((\sqrt{\Tilde{C}16eD^4\eta^2NK\log d}+1)^K-1\right)^2+2\left((\sqrt{\Tilde{C}8eD^4\eta^2NK\log d}+1)^K-1\right)\right) \\
+    %      &\leq \frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(\left(2K\sqrt{\Tilde{C}16eD^4\eta^2NK\log d}\right)^2+2\left(2K\sqrt{\Tilde{C}8eD^4\eta^2NK\log d}\right)\right) \\
+    %      &=O\left(K\sqrt{\eta^2NK\log d}\right)
+    % \end{align*}
+    % \item When $K \leq \frac{\log 2}{\eta \sqrt{\Tilde{C}8eD^4T\log d}}$, we have
+    % \begin{align*}
+    %      &|\E\cR_{\ME}(\vw_{kN})-\fakeE\cR_{\ME}(\vw_{kN})| \\
+    %      &\leq\frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(\left((\sqrt{2\deltaA\eta^2NK}+\|\E\mA\|)^K-\|\E\mA\|\right)^2\right)\\
+    %      &~~~~+\frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(2\left((\sqrt{\deltaA\eta^2NK}+\|\E\mA\|)^K-\|\E\mA\|\right)\right)\\
+    %      &\leq\frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(\left((\sqrt{2\deltaA\eta^2NK}+1)^K-1\right)^2+2\left((\sqrt{\deltaA\eta^2NK}+1)^K-1\right)\right) \\
+    %      &\leq \frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(\left(2K\sqrt{2\deltaA\eta^2NK}\right)^2+2\left(2K\sqrt{\deltaA\eta^2NK}\right)\right) \\
+    %      &=O\left(K\sqrt{\eta^2NK\log d}\right).
+    % \end{align*}
+    % Where the first inequality uses \Cref{lem:shuffle-poly-A-EA-expectation} and \Cref{lem:shuffle-poly-A-EA-expectation-l2}, the second inequality uses the fact that $\|\E\mA\| \le 1$, and the last inequality is by \Cref{lem:numerical-power} when $K \leq \frac{\log 2}{\eta \sqrt{\Tilde{C}8eD^4T\log d}}$.
+    
+    \item Under \Cref{asp:strongly-convex} and $K = o\left(\frac{N^{\frac{1}{5}}}{\left(\log N\right)^{\frac{6}{5}}}\right)$:
+    \begin{enumerate}[leftmargin=*]
+        \item $\eta \leq \frac{2\log T}{3\lambda_dT}$. We now verify that $K=o\left(\frac{\|\E\mA\|}{\eta\sqrt{T}}\right)$ under given conditions.
+        We have
+        \begin{align*}
+            \|\E\mA\|&=\left(1-\eta\lambda_d\right)^{N}=\left(1-\eta\lambda_d\right)^{\frac{T}{K}}\geq \left(1-\eta\lambda_d\right)^{\frac{T}{2}} \\
+            &\geq \left(1-\frac{2\log T}{3T}\right)^{\frac{T}{2}}=e^{\frac{T}{2}\log\left(1-\frac{2\log T}{3T}\right)} \\
+            &=e^{-\frac{\log T}{3}+O(\frac{2\log^2 T}{9T})}=\Theta(\frac{1}{T^{\frac{1}{3}}}).
+        \end{align*}
+        thus
+        \begin{align*}
+            \frac{\|\E\mA\|}{\eta\sqrt{T}}=\Omega(\frac{T^{\frac{1}{6}}}{\log T}).
+        \end{align*}
+        Also, given $K = o\left(\frac{N^{\frac{1}{5}}}{\left(\log N\right)^{\frac{6}{5}}}\right)$, we obtain that
+        \begin{align*}
+            K =o\left(\frac{T^{\frac{1}{6}}}{\log N}\right)=o\left(\frac{T^{\frac{1}{6}}}{\log T}\right).
+        \end{align*}
+        The second equality uses $\log T=\log N+\log K=\Theta(\log N)$. Now we use the results in \Cref{lem:shuffle-poly-A-EA-expectation} and \Cref{lem:shuffle-poly-A-EA-expectation-l2}, and then the estimated distance can be given as 
+        \begin{align*}
+            &\left|\Tilde{\cR}^{\bias}(K, N;\eta) -\bar{\cR}^{\bias}(K,N;\eta)\right| \\
+            % &= \left|\E\frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \mA^{(l)}\right)^{\top}\mH\left(\prod_{l=K}^1 \mA^{(l)}\right)\vtheta_0-\frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \E\mA^{(l)}\right)^{\top}\mH\left(\prod_{l=K}^1 \E\mA^{(l)}\right)\vtheta_0\right|\\
+            % &\leq\E\frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(\|\mA^K-\left(\E\mA\right)^K\|^2+2\|\E\mA\|^K\|\mA^K-\left(\E\mA\right)^K\|\right) \\
+            % &\leq\frac{1}{2}\|\mH\|\|\vtheta_0\|^2\left(\left((\sqrt{\Tilde{C}16eD^4\eta^2NK\log d}+\|\E\mA\|)^K-\|\E\mA\|^K\right)^2\\            &+2\|\E\mA\|^K\left((\sqrt{\Tilde{C}8eD^4\eta^2NK\log d}+\|\E\mA\|)^K-\|\E\mA\|^K\right)\right) \\
+            &\leq \frac{1}{2}\|\mH\|\|\vtheta_0\|^2\|\E\mA\|^{2K}\left(\left((\frac{\sqrt{2\deltaA\eta^2NK}}{\|\E\mA\|}+1)^K-1\right)^2+2\left((\frac{\sqrt{2\deltaA\eta^2NK}}{\|\E\mA\|}+1)^K-1\right)\right) \\
+            &\leq \frac{1}{2}\|\mH\|\|\vtheta_0\|^2\|\E\mA\|^{2K}\left(\frac{8K^2\deltaA\eta^2NK}{\|\E\mA\|^2}+4K\frac{\sqrt{2\deltaA\eta^2NK}}{\|\E\mA\|}\right) \\
+            &=O\left(\|\E\mA\|^{2K-1}K\sqrt{\eta^2NK}\right),
+        \end{align*}
+        where the second inequality is by \Cref{lem:numerical-power}.
+        \item $\eta \geq \frac{2\log T}{3\lambda_dT}$. 
+        We have
+        \begin{align*}
+            &\left|\Tilde{\cR}^{\bias}(k, N;\eta) -\bar{\cR}^{\bias}(k,N;\eta)\right|\leq\Tilde{\cR}^{\bias}(k, N;\eta) +\bar{\cR}^{\bias}(k, N;\eta) \\
+            &\leq\left.\left[\Tilde{\cR}^{\bias}(k, N;\eta) +\bar{\cR}^{\bias}(k, N;\eta)\right] \right|_{\eta=\frac{2\log T}{3\lambda_dT}} \\
+            &\leq\left.\left[\left|\bar{\cR}^{\bias}(k, N;\eta) - \Tilde{\cR}^{\bias}(k, N;\eta) \right|+2\Tilde{\cR}^{\bias}(k, N;\eta)  \right]\right|_{\eta=\frac{2\log T}{3\lambda_dT}} \\
+            &\leq \left.\left[O\left(\|\E\mA\|^{2K-1}K\sqrt{\eta^2KN}\right)+2\times \frac{1}{2}\|\mH\|\|\vtheta_0\|^2\|\E\mA\|^{2K}\right]\right|_{\eta=\frac{2\log T}{3\lambda_dT}} \\
+            &=\left.O\left(\|\E\mA\|^{2K}\right)\right|_{\eta=\frac{2\log T}{3\lambda_dT}} = O\left(\left(1-\frac{2\log T}{3T}\right)^{2KN}\right) \\
+            &=O(\frac{1}{T^{\frac{4}{3}}}) ~~\text{when} ~~K = o\left(\frac{N^{\frac{1}{5}}}{\left(\log N\right)^{\frac{6}{5}}}\right), \\    
+        \end{align*}
+        where the first equality uses the fact that $K=o\left(\frac{\|\E\mA\|}{\eta\sqrt{T}}\right)$ when $\eta = \frac{2\log T}{3\lambda_d T}$.
+    \end{enumerate}
+    
+    \item For the $K = 1$ case, which is equivalent to one-pass (OP) SGD, we derive a different upper bound for bias term error. In this scenario, we have the update rule as
+        \begin{align*}
+            \vtheta_{t} = (\mI-\eta\vx_{t}\vx_{t}^{\top})\vtheta_{t-1}.
+        \end{align*}
+        We can denote the covariance as $\mB_t$, which is
+        \begin{align}
+            \mB_t&:=\E\vtheta_{t}\vtheta_{t}^{\top} \notag\\
+            &=\E(\mI-\eta\vx_{t}\vx_{t}^{\top})\vtheta_{t-1}\vtheta_{t-1}^{\top}(\mI-\eta\vx_{t}\vx_{t}^{\top}) \notag \\
+            &=\mB_{t-1}-\eta\mH\mB_{t-1}-\eta\mB_{t-1}\mH+\eta^2\E\vx_{t}\vx_{t}^{\top}\vtheta_{t-1}\vtheta_{t-1}^{\top}\vx_{t}\vx_{t}^{\top} \notag \\
+            &=(\mI-\eta\mH)\mB_{t-1}(\mI-\eta\mH)+\eta^2\E(\vx_{t}\vx_{t}^{\top}-\mH)\vtheta_{t-1}\vtheta_{t-1}^{\top}(\vx_{t}\vx_{t}^{\top}-\mH). \label{equ:recursion-B-t}
+        \end{align}
+        Since the bias term in the excess risk can be represented as
+        \begin{align*}
+            \bar{\cR}^{\bias}(1,T;\eta)=\frac{1}{2}\inp{\mH}{\mB_T}.
+        \end{align*}
+        We then get the lower and upper bounds for $\mB_t$, and derive the corresponding lower and upper bounds for the bias term in the excess risk.
+        \paragraph{Lower bound.}
+        
+        By \Cref{equ:recursion-B-t}, we get a lower bound of $\mB_t$
+        \begin{align*}
+            \mB_T&\succeq(\mI-\eta\mH)\mB_{T-1}(\mI-\eta\mH) \\
+            &\succeq \cdots \succeq(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}
+        \end{align*}
+        and 
+        \begin{align*}
+            \bar{\cR}^{\bias}(1,T;\eta)&=\frac{1}{2}\inp{\mH}{\mB_T} \\
+            &\geq\frac{1}{2}\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}} \\
+            &=\frac{1}{2}\vtheta_0^{\top}\left((\mI-\eta\mH)^{T}\right)\mH\left((\mI-\eta\mH)^{T}\right)\vtheta_0.
+        \end{align*}
+        \paragraph{Upper bound.} 
+        
+        By the recursion of $\mB_t$, we have
+        \begin{align*}
+            \mB_t &\preceq (\mI-\eta\mH)\mB_{t-1}(\mI-\eta\mH)+\eta^2\E_{\vx_{T-1},\cdots\vx_0}\E_{\vx_{T}}(\vx_{t}\vx_{t}^{\top}-\mH)\vtheta_{t-1}\vtheta_{t-1}^{\top}(\vx_{t}\vx_{t}^{\top}-\mH)\\
+            &= (\mI-\eta\mH)\mB_{t-1}(\mI-\eta\mH)+\eta^2\E_{\vx_{T-1},\cdots\vx_0}\left[\E_{\vx_T}\left[\vx_T\vx_T^\top\vtheta_{T-1}\vtheta_{T-1}^\top \vx_T\vx_T^\top\right]- \mH \vtheta_{T-1}\vtheta_{T-1}^\top \mH\right]\\
+            &\preceq (\mI-\eta\mH)\mB_{t-1}(\mI-\eta\mH)+\eta^2\E_{\vx_{T-1},\cdots\vx_0}\E_{\vx_T}\left[\vx_T\vx_T^\top\vtheta_{T-1}\vtheta_{T-1}^\top \vx_T\vx_T^\top\right].
+        \end{align*}
+        Then, combining \Cref{asp:strongly-convex} and \Cref{lem:4-th-moment} gives
+        \begin{align*}
+            \mB_T&\preceq(\mI-\eta\mH)\mB_{T-1}(\mI-\eta\mH)+\eta^2\alpha\E_{\vx_{T-1},\cdots\vx_0}\text{tr} (\mH\vtheta_{T-1}\vtheta_{T-1}^{\top})\mH \\
+            &=(\mI-\eta\mH)\mB_{T-1}(\mI-\eta\mH)+\eta^2\alpha\inp{\mH}{\mB_{T-1}}\mH \\
+            &\preceq \cdots \\
+            &\preceq (\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}+\eta^2\alpha\sum_{i=0}^{T-1}\inp{\mB_i}{\mH}(\mI-\eta\mH)^{2(T-i-1)}\mH,
+        \end{align*}
+        and 
+        \[\inp{\mH}{\mB_T}\leq\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+\eta^2\alpha\sum_{i=0}^{T-1}\inp{\mH}{\mB_i}\inp{(\mI-\eta\mH)^{2(T-i-1)}\mH}{\mH}.\]
+        
+        We also have
+        \begin{align*}
+            \inp{\mH}{\mB_i}&\leq\inp{\mH}{(\mI-\eta\mH)\mB_{i-1}(\mI-\eta\mH)}+\eta^2\alpha\text{tr}(\mH^2)\inp{\mH}{\mB_{i-1}} \\
+            &\leq(1-\eta\lambda_d)^2\inp{\mH}{\mB_{i-1}}+\eta^2\alpha\text{tr}(\mH^2)\inp{\mH}{\mB_{i-1}} \\
+            &\leq \cdots \\
+            &\leq [(\lambda_d^2+\alpha\text{tr}(\mH^2))\eta^2-2\lambda_d\eta+1]^{i}\inp{\mH}{\mB_0} \\
+            &\leq e^{T\log[(\lambda_d^2+\alpha\text{tr}(\mH^2))\eta^2-2\lambda_d\eta+1]}\inp{\mH}{\mB_0} \\
+            &=e^{-2\lambda_d\eta i+O(\eta^2i)}\inp{\mH}{\mB_0}\\
+            &\leq C_1e^{-2\lambda_d\eta i}\inp{\mH}{\mB_0}
+        \end{align*}
+        and
+        \begin{align*}
+            \inp{(\mI-\eta\mH)^{2(T-i-1)}\mH}{\mH}&=\inp{(\mI-\eta\mH)^{2(T-i-1)}}{\mH^2} \\
+            &\leq \tr\left(\mH^2\right)\left(1-\eta\lambda_d\right)^{2(T-1-i)} \\
+            &\leq \tr\left(\mH^2\right)e^{2(T-1-i)\log \left(1-\eta\lambda_d\right)} \\
+            &=\tr\left(\mH^2\right)e^{-2(T-1-i)\eta\lambda_d+O\left(\eta^2(T-1-i)\right)} \\
+            &\leq C_2e^{-2(T-1-i)\eta\lambda_d}
+        \end{align*}
+        So
+        \begin{align*}
+            \inp{\mH}{\mB_i}&\leq \inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+\eta^2\alpha\sum_{i=0}^{T-1}C_1e^{-2\lambda_d\eta i}\inp{\mH}{\mB_0}C_2e^{-2\lambda_d\eta(T-1-i)}\tr\left(\mH^2\right) \\
+            &=\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+C_3\eta^2Te^{-2\lambda_d\eta T}
+        \end{align*}
+        And finally we get
+        \begin{align*}
+            &\left|\bar{\cR}^{\bias}(1,T;\eta)-\frac{1}{2}\inp{\mH}{(\mI-\eta\mH)^{\top}\mB_0(\mI-\eta\mH)}\right|= O(\eta^2 Te^{-2\lambda_d\eta T}).
+        \end{align*}
+        % When $\eta \geq \frac{\log T}{3\lambda_dT}$ and $\eta = o(\frac{1}{T^{\frac{3}{4}}})$, 
+        % \begin{align*}
+        %     \inp{\mH}{\mB_T}&\leq e^{T\log[(\lambda_d^2+\alpha\text{tr}(\mH^2))\eta^2-2\lambda_d\eta+1]}\inp{\mH}{\mB_0} \\
+        %     &=e^{-2\lambda_d\eta T+O(\eta^2T)}\inp{\mH}{\mB_0}\\
+        %     &\leq C_1e^{-2\lambda_d\eta T}\inp{\mH}{\mB_0} \leq\frac{C_1}{T^{\frac{2}{3}}}\inp{\mH}{\mB_0},
+        % \end{align*}
+        % where $C_1 >0$ is some absolute constant. Finally, we have 
+
+        
+        % \begin{align*}
+        %     \inp{\mH}{\mB_T}&\leq\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+\eta^2\alpha\left(\inp{\mH}{\mB_0}\inp{(\mI-\eta\mH)^{2(T-1)}\mH}{\mH} \\
+        %     &+\sum_{i=1}^{T-1}\frac{C_1}{i^{\frac{2}{3}}}\inp{\mH}{\mB_0}\inp{(\mI-\eta\mH)^{2(T-i-1)}\mH}{\mH}\right) \\
+        %     &\leq\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+\eta^2\alpha\left(\inp{\mH}{\mB_0}(1-\eta\lambda_d)^{2(T-1)}\text{tr}(\mH^2) \\
+        %     &+\sum_{i=1}^{T-1}\frac{C_1}{i^{\frac{2}{3}}}\inp{\mH}{\mB_0}\text{tr}(\mH^2)\right) \\
+        %     &\leq\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+\eta^2\alpha\left(\inp{\mH}{\mB_0}(1-\eta\lambda_d)^{2(T-1)}\text{tr}(\mH^2) \\
+        %     &+C_1\inp{\mH}{\mB_0}\text{tr}(\mH^2)\int_0^{T}\frac{1}{x^{\frac{2}{3}}}\, dx \right)\\
+        %     &\leq\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+\eta^2\alpha\left(\inp{\mH}{\mB_0}(1-\eta\lambda_d)^{2(T-1)}\text{tr}(\mH^2) \\
+        %     &+3C_1\inp{\mH}{\mB_0}\text{tr}(\mH^2)T^{\frac{1}{3}}\right)
+        % \end{align*}
+        % and we can obtain a concentration on $\cR_{\OP}^{\bias}(\vw_t)$:
+        % \begin{align*}
+        %     |\cR_{\OP}^{\bias}(\vw_t)-\frac{1}{2}\inp{\mH}{(\mI-\eta\mH)^{\top}\mB_0(\mI-\eta\mH)^{\top}}|&\leq \frac{\eta^2\alpha}{2}\left(\inp{\mH}{\mB_0}(1-\eta\lambda_d)^{2(t-1)}\text{tr}(\mH^2) \\
+        %     &+3C_1\inp{\mH}{\mB_0}\text{tr}(\mH^2)t^{\frac{1}{3}}\right) \\
+        %     &= O(\eta^2T^{\frac{1}{3}}).
+        % \end{align*}
+
+        
+        % \begin{align*}
+        %     \inp{\mH}{\mB_T} &\leq \inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}} + \eta^2 \alpha \left( \inp{\mH}{\mB_0} \inp{(\mI-\eta\mH)^{2(T-1)}\mH}{\mH} \right. \\
+        %     &\quad + \sum_{i=1}^{T-1}\frac{C_1}{i^{\frac{2}{3}}}\inp{\mH}{\mB_0} \inp{(\mI-\eta\mH)^{2(T-i-1)}\mH}{\mH} \Big) \\
+        %     &\leq \inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}} + \eta^2 \alpha \Big( \inp{\mH}{\mB_0}(1-\eta\lambda_d)^{2(T-1)} \text{tr}(\mH^2) \\
+        %     &\quad + \sum_{i=1}^{T-1} \frac{C_1}{i^{\frac{2}{3}}} \inp{\mH}{\mB_0} \text{tr}(\mH^2) \Big) \\
+        %     &\leq \inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}} + \eta^2 \alpha \Big( \inp{\mH}{\mB_0}(1-\eta\lambda_d)^{2(T-1)} \text{tr}(\mH^2) \\
+        %     &\quad + C_1 \inp{\mH}{\mB_0} \text{tr}(\mH^2) \int_0^{T} \frac{1}{x^{\frac{2}{3}}} dx \Big) \\
+        %     &\leq \inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}} + \eta^2 \alpha \Big( \inp{\mH}{\mB_0}(1-\eta\lambda_d)^{2(T-1)} \text{tr}(\mH^2) \\
+        %     &\quad + 3C_1 \inp{\mH}{\mB_0} \text{tr}(\mH^2) T^{\frac{1}{3}} \Big),
+        % \end{align*}
+        % and we can obtain a concentration on $\cR_{\OP}^{\bias}(\vw_t)$:
+        % \begin{align*}
+        %     &\left|\cR_{\OP}^{\bias}(\vw_t)-\frac{1}{2}\inp{\mH}{(\mI-\eta\mH)^{\top}\mB_0(\mI-\eta\mH)}\right| \\
+        %     &\leq \frac{\eta^2 \alpha}{2} \Big( \inp{\mH}{\mB_0}(1-\eta\lambda_d)^{2(t-1)} \text{tr}(\mH^2) \\
+        %     &\quad + 3C_1 \inp{\mH}{\mB_0} \text{tr}(\mH^2) t^{\frac{1}{3}} \Big) \\
+        %     &= O(\eta^2 T^{\frac{1}{3}}).
+        % \end{align*}
+
+        % When $\eta \leq \frac{\log T}{3\lambda_dT}$, 
+        % \begin{align*}
+        %     \inp{\mH}{\mB_T}&\leq e^{T\log[(\lambda_d^2+\alpha\text{tr}(\mH^2))\eta^2-2\lambda_d\eta+1]}\inp{\mH}{\mB_0} \\
+        %     &=e^{-2\lambda_d\eta T+O(\eta^2T)}\inp{\mH}{\mB_0}\\
+        %     &\leq C_2\inp{\mH}{\mB_0} 
+        % \end{align*}
+        % and
+        % \begin{align*}
+        %     \inp{\mH}{\mB_T}&\leq\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+C_2\eta^2\alpha\sum_{i=0}^{T-1}\inp{\mH}{\mB_0}\inp{(\mI-\eta\mH)^{2(T-i-1)}\mH}{\mH} \\
+        %     &=\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+C_2\eta\alpha\inp{\mH}{\mB_0}\inp{\left(2\mI-\eta\mH\right)^{-1}\left(\mI-(\mI-\eta\mH)^{2T}\right)}{\mH} \\
+        %     &=\inp{\mH}{(\mI-\eta\mH)^{T}\mB_0(\mI-\eta\mH)^{T}}+O(\eta).
+        % \end{align*}
+\end{enumerate}
+\subsection{Step III: Narrowing the Range for Optimal Learning Rate}
+We recap that our goal is to derive the scaling law formula for strongly convex linear regression with multi-epoch SGD, and the formula of the effective reuse rate.
+% \kaifengclaw{Grammar/style: 'our goal to get' -> 'our goal is to derive'; 'multi epoch' -> 'multi-epoch'.} 
+Before we start our proof, we first give a technical lemma below.
+\begin{lemma}\label{lem:power-exponential-approx}
+    Given $\eta \in \left[\omega\left(\frac{1}{T}\right), o\left(\frac{1}{\sqrt{T}}\right)\right]$, and define $n_d$ to be the number of the minimal eigenvalue $\lambda_d$ in $\mH$, then it holds that
+    % \kaifengclaw{Math-check: this condition is weaker than the range used earlier in main text ($o(T^{-3/4})$). Please confirm consistency or briefly explain why this lemma permits a broader range.}
+    \begin{align*}
+        \sum_{i=1}^d (\mP\vtheta_{0})_i^2 \lambda_i (1-\eta\lambda_i)^{2T} &= \Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d\eta T)(1+o(1)),\\
+        \sum_{i=1}^d \lambda_i (1-\eta\lambda_i)^{2T} & = n_d \lambda_d \exp(-2\lambda_d \eta T)(1 + o(1)).
+    \end{align*}
+\end{lemma}
+\begin{proof}[Proof of \Cref{lem:power-exponential-approx}]
+    For the first equation, for any $\lambda_i > \lambda_d$, we define $\rho_i = \frac{\lambda_i}{\lambda_d}>1$, then we have
+    % \kaifengclaw{Math-check: in Eq.\,(\ref{equ:power-exponential-approx}), the factor should be $\exp(O(\eta^2 T))$ after multiplying by $2T$; currently it is written as $\exp(O(\eta^2))$. Please verify this step.}
+    \begin{align}
+        (1-\eta\lambda_i)^{2T} &= \exp\left(2T \log (1-\eta\lambda_i)\right)=\exp\left(2T(-\eta\lambda_i + O(\eta^2 \lambda_i^2))\right)\notag\\
+        &=\exp(-2\lambda_i\eta T)\exp(O(\eta^2T))=\exp(-2\lambda_d \rho_i\eta T)(1 + o(1))\notag\\
+        &=\left(\exp(-2\lambda_d\eta T)\right)^{\rho_i}(1 + o(1)) = o(\exp(-2\lambda_d\eta T)). \label{equ:power-exponential-approx}
+    \end{align}
+    % Since $\|\vtheta_0\|$ is bounded and 
+    
+    Since $\lambda_i \le D^2$, we have 
+    \begin{align*}
+        \sum_{i=1}^{d-n_d} (\mP\vtheta_{0})_i^2 \lambda_i (1-\eta\lambda_i)^{2T} = o(\exp(-2\lambda_d\eta T)),
+    \end{align*}
+    From \Cref{equ:power-exponential-approx}, we can also directly get the second equation, which completes the proof of \Cref{lem:power-exponential-approx}.
+\end{proof}
+\subsubsection{A description of the Range of Optimal Learning Rate, Small-$K$ Case}
+\begin{lemma} \label{lem:convex-opt-lr-range-small-K}
+    Under the conditions in \Cref{thm:convex-opt-lr}, and when $K=o\left(\log N\right)$, we have $\eta^* \in [\frac{\log T}{3\lambda_d T}, \frac{\alpha\log T}{T}]$, where the constant $\alpha : = \frac{D^2 \tr(\mH)}{\lambda_d \tr(\mH^2)}$.
+\end{lemma}
+\begin{proof}
+    We first prove the upper bound. Given a learning rate $\eta $, \Cref{equ:var-term-decompose} gives
+    \begin{align*}
+        \bar\cR(K,N;\eta) \ge \bar\cR^{\var}&(K,N;\eta)=\\
+        &\underbrace{\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i, \pi_j}}\mT^{(i)}\sum_{\pi_i, \pi_j}\left(\sum_{l=0}^{N-1}\mS_l^{(ij)}\right)\left(\mT^{(j)}\right)^{\top}}}_{=:\psi_1} \\
+    &+\underbrace{\frac{\eta^2\sigma^2}{2}\E\inp{\mH}{\frac{1}{(N!)^K}\sum_{i=1}^K\sum_{\substack{\pi_1\cdots \pi_K \\ \text{except} ~\pi_i}}\mT^{(i)}\sum_{\pi_i}\left(\sum_{l=0}^{N-1}\mS_l^{(ii)}\right)\left(\mT^{(i)}\right)^{\top}}}_{=:\psi_2}.
+    \end{align*}
+For $\psi_1$, using the fact that $(\mI - \eta \vx\vx^\top) \succeq (\mI - \eta D^2 \mI)$, we replace all the terms $(\mI - \eta \vx\vx^\top)$ with $(\mI - \eta D^2 \mI)$ thus we have a lower bound for $\psi_1$
+\begin{align*}
+    \psi_1 &\ge \frac{\eta^2\sigma^2}{2}\inp{\mH}{\frac{N((N-1)!)^2}{(N!)^K}\sum_{\substack{i\neq j \\i,j=1}}^K\sum_{\substack{\{\pi_1\cdots \pi_K\} \\ \backslash \{\pi_i, \pi_j\}}}(1-
+    \eta D^2)^{(2K-i-j)N}\left(\sum_{m,n=0}^{N-1}(1-\eta D^2)^{2N-2-m-n}\E[\vx\vx^\top]\right)}\\
+    &= \frac{\eta^2\sigma^2}{2ND^4}\inp{\mH}{\sum_{\substack{i\neq j \\i,j=1}} (1-\eta D^2)^{(K-i)N} (1-\eta D^2)^{(K-j)N} \left(1 - (1 -\eta D^2)^N\right)^2 \mH}\\
+    &= \frac{\sigma^2}{2ND^4}\tr\left(\mH^2 \left(1 - (1 -\eta D^2)^{KN}\right)^2 \right) - \frac{\sigma^2}{2ND^4}\tr\left(\mH^2 \frac{1- \left(1 - (1 -\eta D^2)^N\right)^{2KN} }{1 - (1-\eta D^2)^{2N}}\right)\\
+    &=\frac{\sigma^2}{ND^4}\tr\left(\mH^2 \frac{1- (1-\eta D^2)^{KN}}{1+ (1-\eta D^2)^{N}} \left( (1-\eta D^2)^{N} -  (1-\eta D^2)^{KN}\right)\right).
+\end{align*}
+For $\psi$, we use a similar argument to get its lower bound
+\begin{align*}
+    \psi_2 &\ge \frac{\eta^2\sigma^2}{2}\inp{\mH}{\sum_{i=1}^K (1-\eta D^2)^{2N(K-i)} \frac{1- (1-\eta D^2)^{2N}}{1-(1-\eta D^2)^{2}}\mH}\\
+    &=\frac{\eta\sigma^2}{2D^2}\inp{\mH}{ \frac{1-  (1-\eta D^2)^{2KN}}{1- (1-\eta D^2)^{2N}}\frac{1- (1-\eta D^2)^{2N}}{1-(1-\eta D^2)^{2}}\mH}\\
+    &=\frac{\eta\sigma^2\tr(\mH^2)}{4D^2}\left(1 +o(1)\right).
+\end{align*}
+Notice that from the above lower bound, when $K = o(\log N)$, we have
+\begin{align}
+    \bar\cR(K,N;\eta) &\ge \psi_1 + \psi_2\notag\\
+    &\ge O(\frac{1}{N}) + \frac{\eta\sigma^2\tr(\mH^2)}{4D^2}\left(1 +o(1)\right)\notag\\
+    &= \frac{\eta\sigma^2\tr(\mH^2)}{4D^2}\left(1 +o(1)\right). \label{ineq:var-lower-bound}
+\end{align}
+Taking $\eta > \frac{\alpha \log T}{T}$, and $\alpha = \frac{D^2 \tr(\mH)}{\lambda_d \tr(\mH^2)}$ 
+% \haodong{specify the $\alpha$} 
+gives 
+\begin{align*}
+    \bar\cR(K,N;\eta) &\ge \frac{\sigma^2 \tr(\mH)\log T}{4\lambda_d T}\left(1 + o(1)\right).
+\end{align*}
+Now we recall that 
+\begin{align*}
+    \bar\cR^*(K,N) \le \bar\cR(K,N;\eta') &= M(K,N;\eta')\left(1 + o(1)\right)\\
+     &=\frac{\sigma^2 \tr(\mH)\log T}{8\lambda_d T}\left(1 + o(1)\right) < \frac{\sigma^2 \tr(\mH)\log T}{4\lambda_d T}\left(1 + o(1)\right)
+\end{align*}
+Thus we have that $\eta^* \le \frac{\alpha \log T}{T}$. Next, we give the lower bound of $\eta^*$.
+
+When $\eta < \frac{\log T}{3 \lambda_d T}$, we have that
+\begin{align*}
+    \exp(-2\lambda_d\eta T) = \frac{1}{T^{2/3}} = \omega(\frac{\log T}{T}) = \omega( \bar\cR(K,N;\eta')) = \omega(\bar\cR^*(K,N)).
+\end{align*}
+% \kaifengclaw{Math-check: in the display above, the exponential term should depend on the learning rate as $\exp(-2\lambda_d\eta T)$ (then evaluate at $\eta=\frac{\log T}{3\lambda_d T}$ to get $T^{-2/3}$). As written, dropping $\eta$ changes the quantity being compared.}
+The above equation shows $\eta^* > \frac{\log T}{3 \lambda_d T}$, which completes the proof.
+\end{proof}
+
+\subsubsection{A description of the Range of Optimal Learning Rate, Large-$K$ Case}
+\begin{lemma} \label{lem:convex-opt-lr-range-large-K}
+    Under the conditions in \Cref{thm:convex-opt-lr}, and when $K=\omega\left(\log N\right)$, we have $\eta^* \in [\frac{\log T}{3\lambda_d T}, o\left(\frac{1}{N}\right)]$.
+\end{lemma}
+\begin{proof}
+    The proof comprises of three parts. First, we prove that $\eta^* \geq \frac{\log T}{3\lambda_dT}$ when $T$ is large. Second, we verify that $\eta^* \leq \frac{c}{N}$ for sufficiently large $N$. Finally, we refine the proof in the second step and justify that $\eta^* = o\left(\frac{1}{N}\right)$. All proofs are carried out by contradiction. The method proceeds as follows: we take a specific $\eta=\eta'$ and compute its loss, then prove that $\Bar{\cR}^*(K, N)>\Bar{\cR}(K, N;\eta')$ when $N$ is sufficiently large if $\eta^*$ does not fall into some interval.
+
+    First, by \Cref{equ:strong-convex-loss-approx}, we have 
+    \begin{align*}
+        \Bar{\cR}(K, N;\eta') = \frac{\sigma^2d}{2N}(1+o(1)).
+    \end{align*}
+    Then we begin our main part of the proof.
+    
+    \textit{Proof Step I: $\eta^* \geq \frac{\log T}
+    {3\lambda_dT}$.}
+    
+    We assume that $\eta^* < \frac{\log T}{3\lambda_dT}$. Observe that $\Bar{\cR}^{\bias}(K, N;\eta)$ decreases with $\eta$. So 
+    \begin{align*}
+        \Bar{\cR}^*(K, N)&\geq \Bar{\cR}^{\bias}(K, N;\eta^*)\geq \Bar{\cR}^{\bias}(K, N;\eta=\frac{\log T}{3\lambda_dT}) \\
+        &=\left.\frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2T}\mH (\vw_0 - \vw^*)(1+o(1))\right|_{\eta=\frac{\log T}{3\lambda_dT}} \\
+        &= \left.\left(\frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta T)\right)(1+o(1))\right|_{\eta=\frac{\log T}{3\lambda_dT}} \\
+        &=\Theta\left(\frac{1}{T^{\frac{2}{3}}}\right)=\omega\left(\frac{1}{N}\right),
+    \end{align*}
+    where the first equality is due to \Cref{lem:bias-estimate}, the second equality is due to \Cref{lem:power-exponential-approx}, and the last equality is due to \Cref{asp:strongly-convex}.
+
+    \textit{Proof Step II: $\eta^* \leq \frac{4D^2d}{\sigma^2\tr(\mH^2)N}$.} We assume that $\eta^*>\frac{4D^2d}{\sigma^2\tr(\mH^2)N}$ By \Cref{ineq:var-lower-bound}, we have
+    \begin{align*}
+        \widehat{\cR}(K, N;\eta)\geq\frac{\eta\sigma^2\tr(\mH^2)}{4D^2}\left(1 +o(1)\right)>\frac{\sigma^2d}{N}(1+o(1))>\frac{\sigma^2d}{2N}(1+o(1)),
+    \end{align*}
+    which is a contradiction.
+    
+    A direct corollary is that 
+    \begin{align*}
+        \Bar{\cR}^*(K, N) &= \widehat{\cR}(K, N;\eta^*)(1+o(1)) \\
+        \widehat{\cR}(K, N;\eta^*)&=\frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta^*\mH)^{2T}\mH (\vw_0 - \vw^*)\\&~~~~+\frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta^*\mH)^{KN}\right)\left((\mI -\eta^*\mH)^{N} -(\mI -\eta^*\mH)^{KN}\right)}{\mI + (\mI -\eta^*\mH)^N}\right) \\
+        &~~~~+\frac{\eta^*\sigma^2}{2}\inp{\mH}{\left(\mI - (\mI - \eta^* \mH)^{2T}\right)(2\mI-\eta^*\mH)^{-1}} \\
+        &= \frac{1}{2} \sum_{i=1}^d (\mP\vtheta_{0})_l^2 \lambda_i (1-\eta^*\lambda_i)^{2T} +\sum_{i=1}^d\frac{\sigma^2}{N}\frac{(1-\eta^*\lambda_i)^N}{1+ (1-\eta^*\lambda_i)^N} \\
+        &+ \frac{\eta^*\sigma^2}{4}\tr(\mH)- \frac{\eta^*\sigma^2}{4}\sum_{i=1}^d\lambda_i(1-\eta^*\lambda_i)^{2T}+ O\left((\eta^*)^2\right)\\
+        &=\left(\frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta^* T)+ \sum_{i=1}^d\frac{\sigma^2}{N}\frac{e^{-N\eta^*\lambda_i}}{1+ e^{-N\eta^*\lambda_i}} + \frac{\eta^*\sigma^2}{4}\tr(\mH)\right)\left(1 + o(1)\right).
+    \end{align*}
+    
+    \textit{Proof Step III: $\eta^*=o\left(\frac{1}{N}\right)$.}
+    
+    We assume that there exists a constant $\epsilon>0$ and a sequence $(N_i)_{i=1}^{\infty}$ that satisfies $N_{i}\to\infty$ when $i\to\infty$ and $\eta^*(N_i)\geq\frac{\epsilon}{N_i}$ for all $i$. As we only conduct our analysis on the sequence $(N_i)_{i=1}^{\infty}$, without loss of generality, we take $(N_i)_{i=1}^{\infty} = \mathds{N}$.
+
+    We define $f(\delta)=\sum_{i=1}^d\sigma^2\frac{e^{-\delta\lambda_i}}{1+ e^{-\delta\lambda_i}} + \frac{\delta\sigma^2}{4}\tr(\mH)$. Then we have
+    \begin{align*}
+        f'(\delta)&=\frac{\sigma^2}{4}\sum_{i=1}^d \lambda_i-\sum_{i=1}^d\sigma^2\frac{\lambda_ie^{-\delta\lambda_i}}{(1+ e^{-\delta\lambda_i})^2}=\frac{\sigma^2}{4}\sum_{i=1}^d\lambda_i\frac{(1- e^{-\delta\lambda_i})^2}{(1+ e^{-\delta\lambda_i})^2} >0 ~\text{when} ~\delta>0.
+    \end{align*}
+    So 
+    \begin{align*}
+        f(\epsilon)>f(0)=\frac{\sigma^2d}{2},
+    \end{align*}
+    % \kaifengclaw{Math-check: $f(\delta)$ is defined without the $1/N$ prefactor, so $f(0)$ should be $\sigma^2 d/2$ (the $1/N$ appears only when bounding $\Bar{\cR}^*$ afterward).}
+    and
+    \begin{align*}
+        \Bar{\cR}^*(K, N)&\geq \frac{1}{N}f(\eta^*N)(1+o(1))\geq\frac{1}{N}f(\epsilon)(1+o(1))>\frac{\sigma^2d}{2N}(1+o(1))=\Bar{\cR}(K, N; \eta'),
+    \end{align*}
+    which is a contradiction.
+\end{proof}
+
+\subsubsection{An Approximation of the Excess Risk, Small-$K$ Case} \label{sec:convex-loss-estimate-small-K}
+\begin{lemma} \label{lem:convex-L-approx-small-K}
+     Let $\Tilde{\theta}_{d}^2 = \sum_{l=d-n_d+1}^d(\mP\vtheta_0)_{l}^2$, $\mH = \mP\mD\mP^{\top}$ to be the canonical form under similarity of $\mH$. Under the conditions in \Cref{thm:convex-opt-lr}, for learning rate $\eta \in \left[\frac{\log KN}{3\lambda_d KN}, \frac{\alpha\log KN}{KN}\right]$ for constant $\alpha = \frac{D^2 \tr(\mH)}{\lambda_d \tr(\mH^2)}$ and $K = o(\log N)$, then we have the approximation of $\Bar{\cR}(K, N;\eta)$ as
+    \begin{align*}
+        \Bar{\cR}(K, N;\eta) &= M(K, N;\eta)(1+ o(1)),\\
+        M(K, N;\eta) &:= \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta T)+\frac{\eta\tr(\mH)\sigma^2}{4},
+    \end{align*}
+    where steps $T=KN$.
+\end{lemma}
+% \tingkai{Change $\alpha$ to another character.}
+\begin{proof}
+
+
+From \Cref{thm:convex-L-estimate}, we have that $\Bar{\cR}(K, N;\eta) = \widehat{\cR}(K, N;\eta)(1 + o(1))$, where $\widehat{\cR}(K, N;\eta)$ can be written as
+    \begin{align}
+    \widehat{\cR}(K, N;\eta) &= \frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2T}\mH (\vw_0 - \vw^*)\notag\\
+    &~~~~+\frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right)\notag \\
+    &~~~~+\frac{\eta\sigma^2}{2}\inp{\mH}{\left(\mI - (\mI - \eta \mH)^{2T}\right)(2\mI-\eta\mH)^{-1}} \notag\\
+    &= \frac{1}{2} \sum_{i=1}^d (\mP\vtheta_{0})_l^2 \lambda_i (1-\eta\lambda_i)^{2T} +\sum_{i=1}^d\frac{\sigma^2}{N}\frac{(1-\eta\lambda_i)^N}{1+ (1-\eta\lambda_i)^N}\notag \\
+    &+ \frac{\eta\sigma^2}{4}\tr(\mH)- \frac{\eta\sigma^2}{4}\sum_{i=1}^d\lambda_i(1-\eta\lambda_i)^{2T}+ O\left(\eta^2\right)\notag\\
+    &=\underbrace{\left(\frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta T) + \frac{\eta\sigma^2}{4}\tr(\mH)\right)}_{M(K,N;\eta)}\left(1 + o(1)\right)  + O(\frac{1}{N}) \notag\\
+    &=\underbrace{\left(\frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta T) + \frac{\eta\sigma^2}{4}\tr(\mH)\right)}_{M(K,N;\eta)}\left(1 + o(1)\right)\label{equ:convex-l-estmate-small-k},
+\end{align}
+where the second to last equation uses \Cref{lem:power-exponential-approx} and the fact that $\eta (1-\eta \lambda_d)^{2T} = o\left(M(K,N,;\eta)\right)$ for $\eta  \in [\frac{\log T}{3\lambda_d T}, \frac{\alpha\log T}{T}] $, and the last equation uses the fact that when $K = o(\log N)$, $O\left(\frac{1}{N}\right) = o\left(\frac{\log (N)}{K,N}\right) = o\left(M(T;\eta)\right)$.
+\end{proof}
+
+\subsubsection{An Approximation of the Excess Risk, Large-$K$ Case} \label{sec:convex-loss-estimate-large-K}
+\begin{lemma} \label{lem:convex-L-approx-large-K}
+    Under the conditions in \Cref{thm:convex-opt-lr}, for $\eta \in [\frac{\log T}{3\lambda_d T}, o\left(\frac{1}{N}\right)]$, and $K=\omega\left(\log N\right)$, we have 
+    \begin{align*}
+        \E[\Bar{\cR}(K, N;\eta)] &= M(K, N;\eta)(1+ o(1)),\\
+        M(K, N;\eta) &= \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta T) + \frac{\eta\tr(\mH)\sigma^2}{4}+\frac{\sigma^2d}{2N},
+    \end{align*}
+    where $\Tilde{\theta}_{d}^2 := \sum_{l=d-n_d+1}^d(\mP\vtheta_0)_{l}^2$, and $\mP\mD\mP^{\top}$ is the canonical form under similarity of $\mH$.
+\end{lemma}
+\begin{proof}
+    Given $K = O(N^{0.1})$, one can verify that 
+    $$\lim_{N\to\infty}K\eta T^{\frac{3}{4}} = \lim_{N\to\infty}\frac{K^{\frac{7}{4}}N^{\frac{3}{4}}}{N}\eta N = 0.$$ 
+    So condition $K = o\left(\eta^{-1} T^{-\frac{3}{4}}\right)$ is satisfied, thus by
+    % \tingkai{Ckeck the power.}
+    invoking \Cref{thm:convex-L-estimate}, we have $\Bar{\cR}(K, N; \eta) = \widehat{\cR}(K, N; \eta)(1+o(1))$. 
+
+    Note that when $\eta = o\left(\frac{1}{N}\right)$, for any $i \in [1, d]$, we have
+    \begin{align*}
+        (1-\lambda_i\eta)^N=e^{-\lambda_i\eta N+O(\eta^2N)}=1+o(1).
+    \end{align*}
+    Combining this with \Cref{lem:power-exponential-approx}, we have
+    \begin{align}
+    \widehat{\cR}(K, N;\eta) &= \frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2T}\mH (\vw_0 - \vw^*)\notag\\
+    &~~~~+\frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right)\notag \\
+    &~~~~+\frac{\eta\sigma^2}{2}\inp{\mH}{\left(\mI - (\mI - \eta \mH)^{2T}\right)(2\mI-\eta\mH)^{-1}} \notag\\
+    &= \frac{1}{2} \sum_{i=1}^d (\mP\vtheta_{0})_l^2 \lambda_i (1-\eta\lambda_i)^{2T} +\sum_{i=1}^d\frac{\sigma^2}{N}\frac{(1-\eta\lambda_i)^N}{1+ (1-\eta\lambda_i)^N}\notag \\
+    &+ \frac{\eta\sigma^2}{4}\tr(\mH)- \frac{\eta\sigma^2}{4}\sum_{i=1}^d\lambda_i(1-\eta\lambda_i)^{2T}+ O\left(\eta^2\right)\notag\\
+    &=\underbrace{\left(\frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta T) + \frac{\eta\sigma^2}{4}\tr(\mH)\right)+\frac{\sigma^2d}{2N}}_{M(K,N;\eta)}\left(1 + o(1)\right) \label{equ:strong-convex-loss-approx},
+\end{align}
+which concludes the proof.
+\end{proof}
+
+\subsection{Step IV: Deriving the Approximately Optimal Learning Rate, Proof of \Cref{thm:convex-opt-lr}}\label{proof:convex-opt-lr}
+% The proof of \Cref{thm:convex-opt-lr} consists of two parts. In the first part, we will prove that the $\eta' =\eta'(K,N) = \frac{\log KN}{2 \lambda_d KN} + O\left(\frac{1}{KN}\right)$ actually minimizes an approximation of the excess risk. And then in the second part, we give the error bound between $\bar\cR(K,N;\eta')$ and $\cR^*(K,N)$, which finishs the proof.
+
+% The proof of \Cref{thm:convex-opt-lr} consists of two cases: $K = o(\log N)$ (small $K$) and $K = \omega(\log N)$ (large $K$). Both cases are composed of the following four steps:
+% \begin{enumerate}
+%     \item Derive a simplified excess risk estimate given a range of learning rate $\Gamma$ based on \Cref{thm:convex-L-estimate}.
+%     \item Obtain an ``approximate learning rate'' $\eta' \in \Gamma$ which minimizes the loss estimate in step $1$.
+%     \item Prove that the optimal learning rate $\eta^* \in \Gamma$. In this range, we can use the approximation results in \Cref{thm:convex-L-estimate}, which, as an optimization objective, can be used to derive the optimal learning rate in this range of learning rates. For $\eta$ outside this range, we have lower bound inequalities for the expected excess risk.
+%     \item Conduct an error bound analysis and finish the proof.
+% \end{enumerate}
+The proof of \Cref{thm:convex-opt-lr} for the small-$K$ case and large-$K$ case follows a similar pattern. First, we minimize the aproximate excess risk obtained in \Cref{sec:convex-loss-estimate-small-K} and \Cref{sec:convex-loss-estimate-large-K}. Then we conduct an error bound analysis and complete the proof.
+\subsubsection{Proof of \Cref{thm:convex-opt-lr}, small $K$}
+
+\paragraph{Part I: Minimizing the Approximation of the Excess Risk}
+\begin{lemma}\label{thm:approx-convex-opt-lr}
+    Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we consider $K$-epoch SGD with $N$ fresh data and learning rate $\eta$ satisfying $\eta \in [\frac{\log T}{3\lambda_d T}, \frac{\alpha\log T}{T}]$, where steps $T:= KN$ and $\alpha$ is some constant independent of $T$, but can depend on $D$ and $\lambda_1,\lambda_2,\dots,\lambda_d$. Then when $K=o\left(\log N\right)$, the chosen learning rate  $\eta' = \frac{\log  \rho T}{2\lambda_d T} = \arg\min_{\eta \in [\frac{\log T}{3\lambda_d T}, \frac{\alpha\log T}{T}]}M(K, N;\eta)$.
+\end{lemma}
+\begin{proof}
+    Given \Cref{lem:convex-L-approx-small-K}, we take the derivative of $M(K,N;\eta)$ with respect to $\eta$
+\begin{align*}
+    \frac{\partial M}{\partial \eta} = -\Tilde{\theta}_d^2 \lambda_d^2 T \exp(-2\lambda_d\eta T)  + \frac{\tr(\mH)\sigma^2}{4}.
+\end{align*}
+Define $\rho := \frac{4\Tilde{\theta}_d^2\lambda_d}{\tr(\mH)\sigma^2}$, and we let $\frac{\partial M}{\partial \eta} = 0$, then we get
+\begin{align*}
+    0&= -\rho T \exp(-2\lambda_d\eta T)  + 1\\    
+    \rho T &= \exp(2\lambda_d\eta T)\\
+    \eta &= \frac{\log  \rho T}{2\lambda_d T}.
+\end{align*} 
+The above equation completes the proof.
+\end{proof}
+
+\paragraph{Part II: Error Bound Analysis}
+\begin{lemma} \label{lem:error-bound-analysis}
+    Consider $K$-epoch SGD with $N$ fresh data and learning rate $\eta$. Given a set of learning rate values $\Gamma$, and an excess risk estimate that satisfies $\Bar{\cR}(K, N;\eta) = M(K, N;\eta)(1+ o(1))$ when $\eta \in \Gamma$. Assume that $\eta' = \arg\min_{\Gamma}M(K, N;\eta)$ and $\eta^* \in \Gamma$. Then we have $\Bar{\cR}(K,N;\eta'(K,N)) = \Bar{\cR}^*(K,N)\left(1 + o(1)\right)$.
+\end{lemma}
+\begin{proof}
+    According to the optimality of $\eta^*$, it holds that
+    \begin{align*}
+        \bar\cR^*(K,N) \le \bar\cR(K,N;\eta') = M(K,N;\eta)(1 +o(1)).
+    \end{align*}
+    Also, according to the optimality of $\eta'$, it holds that
+    \begin{align*}
+        M(K,N;\eta')(1 + o(1)) \le M(K,N;\eta^*)(1 +o(1)) = \bar\cR^*(K,N)
+    \end{align*}
+    Combining the above two equations gives
+    \begin{align*}
+        \bar\cR(K,N;\eta') = \bar\cR^*(K,N)(1 +o(1)).
+    \end{align*}
+\end{proof}
+Combine the above two lemmas and we finish the whole proof.
+\subsubsection{Proof of \Cref{thm:convex-opt-lr}, large $K$}
+
+
+\paragraph{Part I: Minimizing the Approximation of the Excess Risk}
+\begin{lemma}\label{lem:approx-convex-opt-lr}
+    Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we consider $K$-epoch SGD with $N$ fresh data and learning rate $\eta$ satisfying $\eta \in [\frac{\log T}{3\lambda_d T}, o\left(\frac{1}{N}\right)]$. Then when $K=\omega\left(\log N\right)$, the chosen learning rate  $\eta' = \frac{\log  \rho T}{2\lambda_d T} = \arg\min_{[\frac{\log T}{3\lambda_d T}, o\left(\frac{1}{N}\right)]}M(K, N;\eta)$.
+\end{lemma}
+\begin{proof}
+    Given \Cref{lem:convex-L-approx-large-K}, we compute the global minima of $M(K, N;\eta)$, we have $\eta' = \frac{\log T}{2\lambda_d T}+O\left(\frac{1}{T}\right)=\arg\min_{\eta \in \R}M(K, N;\eta)$, which lies in the regime $[\frac{\log T}{3\lambda_d T}, o\left(\frac{1}{N}\right)]$ when $N$ is sufficiently large.
+\end{proof}
+
+\paragraph{Part II: Error Bound Analysis}
+
+The proof of \Cref{thm:convex-opt-lr} concludes directly by applying \Cref{lem:convex-L-approx-large-K,lem:approx-convex-opt-lr,lem:convex-opt-lr-range-large-K,lem:error-bound-analysis}.
+
+Combine the above two parts and we finish the whole proof.
+% \subsubsection{Part I: Minimizing the Approximation of the Excess Risk}
+% First, we give an approximation of $\E[\cR_{\OP}(\vw_T)]$.
+% \begin{lemma}\label{lem:covex-L-exp-approx}
+%     Under the condition in \Cref{thm:convex-opt-lr}, let $n_d$ be the number of the minimal eigenvalue $\lambda_d$ in $\mH$, and $\Tilde{\theta}_{d}^2 = \sum_{l=d-n_d+1}^d(\mP\vtheta_0)_{l}^2$, $\mH = \mP\mD\mP^{\top}$ to be the canonical form under similarity of $\mH$, then we have the approximation of $\E[\cR(\vw_T)]$ as
+%     \begin{align*}
+%         \E[\cR_{\OP}(\vw_T)] &= M(T;\eta)(1+ o(1)),\\
+%         M(T;\eta) &= \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta T) + \frac{\eta\tr(\mH)\sigma^2}{4} -\frac{n_d\eta\sigma^2\lambda_d}{4}\exp(-2\lambda_d\eta T).
+%     \end{align*}
+% \end{lemma}
+%     \begin{proof}[Proof of \Cref{lem:covex-L-exp-approx}]
+%       Without loss of generality, we assume that the eigenvalues of $\mH$ is monotonously decreasing. We only consider the concentration term, which is
+% % \begin{align*}
+% %     \fakeE[\cR(\vw_T)] &= \frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2KN}\mH (\vw_0 - \vw^*)\\
+% %     &~~~~+\frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right) \\
+% %     &~~~~+\frac{\eta\sigma^2}{2}\inp{\mH}{(\mI - (\mI - \eta \mH)^{2KN}(2\mI-\eta\mH)^{-1}} \\
+% %     &= \frac{1}{2} \sum_{i=1}^d (P\theta_{0,i})^2 \lambda_i (1-\eta\lambda_i)^{2KN}\\
+% %     &~~~~+ \frac{\sigma^2}{N} \sum_{i=1}^d \frac{\left(1-(1-\eta\lambda_i)^{KN}\right)\left((1-\eta\lambda_i)^{N} - (1-\eta\lambda_i)^{KN}\right)}{1+ (1-\eta\lambda_i)^N}\\
+% %     &~~~~+ \frac{\eta\sigma^2}{4}\tr(\mH) - \frac{\eta\sigma^2}{4}\sum_{i=1}^d\lambda_i(1-\eta\lambda_i)^{2KN} + O\left(\eta^2 +\frac{(1-\eta\lambda_d)^{KN}}{N}\right).
+% % \end{align*}
+% \begin{align*}
+%     \fakeE[\cR(\vw_T)] &= \frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2T}\mH (\vw_0 - \vw^*)\\
+%     &~~~~+\frac{\eta\sigma^2}{2}\inp{\mH}{\left(\mI - (\mI - \eta \mH)^{2T}\right)(2\mI-\eta\mH)^{-1}} \\
+%     &= \frac{1}{2} \sum_{i=1}^d (\mP\vtheta_{0})_l^2 \lambda_i (1-\eta\lambda_i)^{2T} + \frac{\eta\sigma^2}{4}\tr(\mH)- \frac{\eta\sigma^2}{4}\sum_{i=1}^d\lambda_i(1-\eta\lambda_i)^{2T}+ O\left(\eta^2\right)\\
+%     &=\underbrace{\left(\frac{1}{2} \sum_{i=1}^d (\mP\vtheta_{0})_l^2 \lambda_i (1-\eta\lambda_i)^{2T} + \frac{\eta\sigma^2}{4}\tr(\mH)- \frac{\eta\sigma^2}{4}\sum_{i=1}^d\lambda_i(1-\eta\lambda_i)^{2T}\right)}_{M_1(T;\eta)}\left(1 + o(1)\right)
+% \end{align*}
+% Then we present the following lemma to get $M(T;\eta)$.
+% \begin{lemma}\label{lem:power-exponential-approx}
+%     Given $\eta \in \left[\omega\left(\frac{1}{T}\right), o\left(\frac{1}{\sqrt{T}}\right)\right]$, it holds that
+%     \begin{align*}
+%         \sum_{i=1}^d (\mP\vtheta_{0})_i^2 \lambda_i (1-\eta\lambda_i)^{2T} &= \Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d\eta T)(1+o(1)),\\
+%         \sum_{i=1}^d \lambda_i (1-\eta\lambda_i)^{2T} & = n_d \lambda_d \exp(-2\lambda_d \eta T)(1 + o(1)).
+%     \end{align*}
+% \end{lemma}
+% \begin{proof}[Proof of \Cref{lem:power-exponential-approx}]
+%     For the first equation, for any $\lambda_i > \lambda_d$, we define $\rho_i = \frac{\lambda_i}{\lambda_d}>1$, then we have
+%     \begin{align}
+%         (1-\eta\lambda_i)^{2T} &= \exp\left(2T \log (1-\eta\lambda_i)\right)=\exp\left(2T(-\eta\lambda_i + O(\eta^2 \lambda_i^2))\right)\notag\\
+%         &=\exp(-2\lambda_i\eta T)\exp(O(\eta^2))=\exp(-2\lambda_d \rho_i\eta T)(1 + o(1))\notag\\
+%         &=\left(\exp(-2\lambda_d\eta T)\right)^{\rho_i}(1 + o(1)) = o(\exp(-2\lambda_d\eta T)). \label{equ:power-exponential-approx}
+%     \end{align}
+%     % Since $\|\vtheta_0\|$ is bounded and 
+    
+%     Since $\lambda_i \le D^2$, we have 
+%     \begin{align*}
+%         \sum_{i=1}^{d-n_d} (\mP\vtheta_{0})_i^2 \lambda_i (1-\eta\lambda_i)^{2T} = o(\exp(-2\lambda_d\eta T)),
+%     \end{align*}
+%     From \Cref{equ:power-exponential-approx}, we can also directly get the second equation, which completes the proof.
+% \end{proof}
+% Given \Cref{lem:power-exponential-approx}, we have that
+% \begin{align*}
+%     \E[\cR_{\OP}(\vw_T)] &= M_1(T;\eta)(1+o(1))= M(T;\eta)(1+o(1))(1+o(1))\\
+%     &=M(T;\eta)(1+o(1)).
+% \end{align*} 
+% which completes the proof.
+% \end{proof}
+
+% Now we give a lemma as the result in the first part of the proof of \Cref{thm:convex-opt-lr}.
+% \begin{lemma}\label{thm:approx-convex-opt-lr}
+%     Under \Cref{asp:strongly-convex}, \ref{asp:4-th-moment}, and \ref{asp:large-dataset}, we consider one-pass SGD with $T$ steps and learning rate $\eta$ satisfying $\eta = o(T^{-3/4})$ and $\eta = \omega\left(\frac{1}{T}\right)$. Then the chosen learning rate  $\eta' = \frac{\log T}{2 \lambda_d T} + O\left(\frac{1}{T}\right) = \arg\min_{\eta \in [\omega\left(\frac{1}{T}\right),o(T^{-3/4})]}M(T;\eta)$.
+% \end{lemma}
+
+% Then we are ready to prove \Cref{thm:approx-convex-opt-lr}.
+% \begin{proof}[Proof of \Cref{thm:approx-convex-opt-lr}]
+% Then, We take the derivative of $M(T;\eta)$ with respect to $\eta$
+% \begin{align*}
+%     \frac{\partial M}{\partial \eta} = -\Tilde{\theta}_d^2 \lambda_d^2 T \exp(-2\lambda_d\eta T)  - \frac{\tr(\mH)\sigma^2}{4} -\frac{\lambda_d n_d \sigma^2}{4}\exp(-2\lambda_d\eta T) + \frac{n_d \lambda^2\sigma^2}{2}\eta T \exp(-2\lambda_d \eta T).
+% \end{align*}
+% Define $\rho := \frac{4\Tilde{\theta}_d^2\lambda_d}{n_d\sigma^2}$, $\psi:= \frac{\tr(\mH)}{n_d\lambda_d}$, and we let $\frac{\partial M}{\partial \eta} = 0$, then we get
+% % \begin{align}
+% %     &0= -\rho T \exp(-2\lambda_d\eta T)  + \psi - \exp(-2\lambda_d\eta T) + 2\lambda_d T \eta \exp(-2\lambda_d\eta T)\notag\\
+% %     &0= -\rho\exp(-2\lambda_d\eta T)  + \frac{1}{T}\psi - \frac{1}{T}\exp(-2\lambda_d\eta T) + 2\lambda_d  \eta \exp(-2\lambda_d\eta T)\notag\\
+% %     \longrightarrow&O(\eta\exp(-2\lambda_d\eta T) + \frac{1}{T}\exp(-2\lambda_d\eta T))= \rho \exp(-2\lambda_d\eta T) - \frac{\psi}{T}\notag\\
+% %     \longrightarrow&o(\frac{1}{T}) = \rho \exp(-2\lambda_d\eta T) - \frac{\psi}{T}, \label{equ:sol-of-opt-lr}
+% % \end{align}
+
+% \begin{align}
+%     &0= -\rho T \exp(-2\lambda_d\eta T)  + \psi - \exp(-2\lambda_d\eta T) + 2\lambda_d T \eta \exp(-2\lambda_d\eta T)\notag\\    
+%     &\rho T \exp(-2\lambda_d\eta T)\left(1+\frac{1}{\rho T}-\frac{2\lambda_d\eta}{\rho}\right)= \psi\notag\\   
+%     &\exp(2\lambda_d\eta T) = \frac{\rho T}{\psi}(1+o(1))\notag\\
+%     &\eta = \frac{\log  \frac{\rho}{\psi} T(1+o(1))}{2\lambda_d T} = \frac{\log T}{2\lambda_d T} + O\left(\frac{1}{T}\right).\notag\\    
+% \end{align}
+% The above equation completes the proof of \Cref{thm:approx-convex-opt-lr}.
+
+
+
+% \subsubsection{Part II: Error Bound Analysis}
+% According to the optimality of $\eta^*$ with respect to $\E[\cR(\vw_T)(\eta)]$, we get
+% \begin{align*}
+%     \E[\cR^*(\vw_T)]\leq\E[\cR(\vw_T)(\eta')] = M(T, \eta')(1+o(1))
+% \end{align*}
+% Next we prove that $\eta^*(T)\leq\frac{2\log T}{3\lambda_d T}$ when $T$ is sufficiently large. Otherwise, there exists a sequence $(t_i)_{i=1}^{\infty}$ such that $\eta^*(t_i)>\frac{2\log t_i}{3t_i}$. 
+
+% For the variance term of one-pass scenario, the update rule is given by
+% \begin{align*}
+%     \vtheta_t^{\var}&= \left(\mI-\eta\vx_t\vx_t^{\top}\right)\vtheta_{t-1}^{\var}+\eta\xi_{t-1}\vx_{t-1}.
+% \end{align*}
+% So
+% \begin{align*}    
+%     \mB_t^{\var}&:=\E\vtheta_{t}^{\var}\left(\vtheta_{t}^{\var}\right)^{\top} \\
+%     &=\E(\mI-\eta\vx_{t}\vx_{t}^{\top})\vtheta_{t-1}^{\var}\left(\vtheta_{t-1}^{\var}\right)^{\top}(\mI-\eta\vx_{t}\vx_{t}^{\top})+\eta^2\sigma^2\mH \\
+%     &=\mB_{t-1}^{\var}-\eta\mH\mB_{t-1}^{\var}-\eta\mB_{t-1}^{\var}\mH+\eta^2\E\vx_{t}\vx_{t}^{\top}\vtheta_{t-1}^{\var}\left(\vtheta_{t-1}^{\var}\right)^{\top}\vx_{t}\vx_{t}^{\top}+\eta^2\sigma^2\mH \\
+%     &=(\mI-\eta\mH)\mB_{t-1}^{\var}(\mI-\eta\mH)+\eta^2\E(\vx_{t}\vx_{t}^{\top}-\mH)\vtheta_{t-1}^{\var}\left(\vtheta_{t-1}^{\var}\right)^{\top}(\vx_{t}\vx_{t}^{\top}-\mH)+\eta^2\sigma^2\mH \\
+%     &\succeq (\mI-\eta\mH)\mB_{t-1}^{\var}(\mI-\eta\mH)+\eta^2\sigma^2\mH.
+% \end{align*}
+% Solving this recursion, we get
+% \begin{align*}
+%     \mB_t^{\var}&\succeq\eta^2\sigma^2\mH\left(\mI-\left(\mI-\eta\mH\right)^2\right)^{-1}\left(\mI-\left(\mI-\eta\mH\right)^{2t}\right) \\
+%     &=\eta\sigma^2\left(2-\eta\mH\right)^{-1}\left(\mI-\left(\mI-\eta\mH\right)^{2t}\right). \\
+% \end{align*}
+% Thus the variance term in the excess risk can be represented as
+% \begin{align*}
+%     \E\cR_{\OP}^{\var}(\vw_t)(\eta)&=\frac{1}{2}\inp{\mH}{\mB_t^{\var}} \\
+%     &\geq \frac{1}{2}\eta\sigma^2\inp{\mH}{\frac{1}{2}\left(\mI-\left(\mI-\eta\mH\right)^{2t}\right)} \\
+%     &\geq \frac{\sigma^2\log t}{6\lambda_dt}\left(\tr(\mH)-\lambda_1d\left(1-\eta\lambda_1\right)^{2t}\right) \\
+%     &=\frac{\sigma^2\tr(\mH)\log t}{6\lambda_dt}(1+o_t(1))
+% \end{align*}
+% and we have
+% \begin{align*}
+%     \E\cR_{\OP}(\vw_t)(\eta)\geq\E\cR_{\OP}^{\var}(\vw_t)(\eta)\geq\frac{\sigma^2\tr(\mH)\log t}{6\lambda_dt}(1+o_t(1)).
+% \end{align*}
+% when $\eta\geq\frac{2\log t}{3\lambda_dt}$.
+%     Take $\Tilde{\eta}(t) = \frac{\log t}{2\lambda_dt}$, by \Cref{thm:convex-L-estimate}, we have $\E\cR_{\OP}(\vw_t)(\Tilde{\eta}) = \frac{\sigma^2\tr(\mH)\log t}{8\lambda_dt}(1+o_t(1))$.
+% So there exists a sufficiently large threshold $t_0$ such that when $t>t_0$, $\E[\cR^*(\vw_t)]>\E[\cR(\vw_t)(\Tilde{\eta}(t))]$, which is a contradiction.
+% As a result, according to the optimality of $\eta'$ with respect to $\widehat{\cR}(\vw_T)(\eta)$, by \Cref{thm:convex-L-estimate}, we get
+% \begin{align*}
+%     M(T, \eta')\leq M(T, \eta^*)=\E[\cR(\vw_T)(\eta^*)](1+o(1)).
+% \end{align*}
+% Combine this with $\E[\cR^*(\vw_T)]\leq M(T, \eta')(1+o(1))$ and we get the result.
+% % Where the last equation uses \Cref{x-exp-upper-bound}. The solution $\eta_*$ of \Cref{equ:sol-of-opt-lr} can be written as
+% % \begin{align*}
+% %     \eta_* = \frac{\log \frac{\rho}{\psi} T}{2\lambda_d T} + \frac{\log(o(T))}{T} = \frac{\log  \frac{\rho}{\psi} T}{2\lambda_d T} + o(\frac{\log T }{T}).
+% % \end{align*}
+
+% % This means when we choose the $\fakeE[\cR(\vw_T)]$ in \Cref{def:A-opt-lr} as $M(T;\eta)$, $\frac{\log T}{2\lambda_d T} + O\left(\frac{1}{T}\right) \in \Gamma_{A-opt}$.
+% % Here we define $\Tilde{x}_{\epsilon-opt} = (1 - \Tilde{\eta}_{\epsilon-opt}\lambda_d)^N$ such that 
+% % \begin{align*}
+% %     0= \rho \Tilde{x}_{\epsilon-opt}^{2K} +  \frac{1}{T}\frac{4\Tilde{x}_{\epsilon-opt}}{(1+\Tilde{x}_{\epsilon-opt})^2} - \frac{\psi}{T},
+% % \end{align*}
+% % And then we have that for the $\eta_{\epsilon-opt}$, which minimizes the main term $\fakeE[\cR(\vw_{T})]$ of the loss satistifies that
+% % \begin{align*}
+% %     \eta_{\epsilon-opt} = \Tilde{\eta}_{\epsilon-opt} + o(\frac{\log T}{T}).
+% % \end{align*}
+% % In ME case, the equation above needs more fine-grained analysis, which we omit first. In OP case, $ \epsilon = O\left(\eta^2 +\frac{(1-\eta\lambda_d)^{KN}}{N}\right) = o(\frac{1}{T})$, and the solution of the optimal learning rate $\eta^{(\OP)}_{o(1/T)-opt}$ can be written as 
+% % \begin{align*}
+% %     \eta^{(\OP)}_{o(1/T)-opt} = \frac{\log \frac{\rho}{\psi} T}{2\lambda_d T} + \frac{\log(o(T))}{T} = \frac{\log  \frac{\rho}{\psi} T}{2\lambda_d T} + o(\frac{\log T }{T}).
+% % \end{align*}
+% % The above equation completes the proof.
+% \end{proof}
+% Combining 
+\subsection{Proof of \Cref{thm:strongly-convex-scaling-law}}\label{sec:proof-convex-Ek}
+% \haodong{add some justifications for our proof, too brief. TBD}
+% \begin{proof}
+%     From \Cref{equ:l-estimate}, we have that
+    
+    
+%     \begin{align*}
+%         \fakeE[\cR_{\ME}(\vw_T)]&= \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d (1-\eta\lambda_d)^{2KN} + \frac{n_d\sigma^2}{N}\frac{(1-\eta\lambda_d)^N}{1+ (1-\eta\lambda_d)^N} + \frac{\eta \sigma^2}{4} \tr(\mH)- \frac{n_d\eta\sigma^2}{4}\lambda_d(1-\eta\lambda_d)^{2KN}
+%     \end{align*}
+%     where we omit the error bound. Replacing $\eta$ with $\eta_{\epsilon-opt}$, we have 
+%     \begin{align*}
+%         \fakeE[\cR_{\ME}(\vw_T)]&= \frac{n_d\sigma^2}{N}\frac{(1-\eta_{\epsilon-opt}\lambda_d)^N}{1+ (1-\eta_{\epsilon-opt}\lambda_d)^N} + \frac{\eta_{\epsilon-opt} \sigma^2}{4} \tr(\mH)- \frac{n_d\eta_{\epsilon-opt}\sigma^2}{4}\lambda_d(1-\eta_{\epsilon-opt}\lambda_d)^{2KN}+ O(\frac{1}{T}),
+%     \end{align*} 
+%     and 
+%     \begin{align*}
+%         \fakeE[\cR_{\OP}(\vw_{E_KN})]&=\frac{\eta_{\epsilon-opt} \sigma^2}{4} \tr(\mH)- \frac{n_d\eta_{\epsilon-opt}\sigma^2}{4}\lambda_d(1-\eta_{\epsilon-opt}\lambda_d)^{2E_KN}+ O(\frac{1}{T})
+%     \end{align*}
+%     Now we solve $E_K$ by solving $\fakeE[\cR_{\OP}(\vw_{E_KN})] = \fakeE[\cR_{\ME}(\vw_T)]$. 
+%     \paragraph{Case when $K = o(\log N)$.} Notice that when $K = o(\log N)$, we have that $\frac{1}{N} = o(\frac{\log T}{T})$, thus we have
+%     \begin{align*}
+%         \fakeE[\cR_{\ME}(\vw_T)]&= \frac{\eta_{\epsilon-opt}^{(\ME)} \sigma^2}{4} \tr(\mH)+ o(\frac{\log T}{T}),
+%     \end{align*}
+%     where $\eta_{\epsilon-opt}^{(\ME)} = C \frac{\log T}{T}$, and
+%     \begin{align*}
+%         \fakeE[\cR_{\OP}(\vw_{E_KN})]&=\frac{\eta_{\epsilon-opt}^{(\OP)} \sigma^2}{4} \tr(\mH)+ o(\frac{\log T}{T})
+%     \end{align*}
+%     where $\eta_{\epsilon-opt}^{(\OP)} = C \frac{\log E_KN}{E_KN}$. Solving the equation $\fakeE[\cR_{\OP}(\vw_{E_KN})] = \fakeE[\cR_{\ME}(\vw_T)]$
+%     \begin{align*}
+%         E_K =K(1-o(1)).
+%     \end{align*}
+%     This completes the case with $K =o(\log N)$.
+%     \paragraph{Case when $K = \Omega(\log N)$.} When $K = \Omega(\log N)$, we have $\frac{\log T}{T} = o(\frac{1}{N})$, thus we have
+%     \begin{align*}
+%         \fakeE[\cR_{\ME}(\vw_T)]&= \frac{n_d\sigma^2}{N}\frac{(1-\eta_{\epsilon-opt}\lambda_d)^N}{1+ (1-\eta_{\epsilon-opt}\lambda_d)^N} + o(\frac{1}{N}) 
+%     \end{align*}
+%     and 
+%     \begin{align*}
+%         \fakeE[\cR_{\OP}(\vw_{E_KN})]&=\frac{\eta_{\epsilon-opt} \sigma^2}{4} \tr(\mH)+ o(\frac{\log E_KN}{E_KN})\\
+%         &=\frac{\eta_{\epsilon-opt} \sigma^2}{4} \tr(\mH)+ o(\frac{1}{N}).
+%     \end{align*}
+%     Solving the equation $\fakeE[\cR_{\OP}(\vw_{E_KN})] = \fakeE[\cR_{\ME}(\vw_T)]$ gets
+%     \begin{align*}
+%         \frac{\log E_KN}{E_KN} &= C'\frac{1}{N}\\
+%     \end{align*}
+%     where $C'$ is some positive constant. Thus we have for $E_K \ge 1$
+%     \begin{align*}
+%         0 \le \frac{\log E_K}{E_K} = C'-\frac{\log N}{E_K}
+%         \le \max_{x}\{\frac{\log x}{x}\}=\frac{1}{e}.
+%     \end{align*}
+%     So we have
+%     \begin{align*}
+%         E_K = \Theta(\log N),
+%     \end{align*}
+%     which completes the proof.
+% \end{proof}
+
+\begin{proof}
+    Notice from \Cref{thm:convex-L-estimate} and \Cref{lem:power-exponential-approx}, we have that
+    % \begin{align*}
+    %     \fakeE[\cR_{\ME}(\vw_{K, N})] = \fakeE[\cR_{\OP}(\vw_{1,T})]+\frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right),
+    % \end{align*}
+\begin{align*}
+    \Bar{\cR}(K, N;\eta)&= \underbrace{\frac{1}{2}\Tilde{\theta}_d^2 \lambda_d (1-\eta\lambda_d)^{2KN}\left(1+o(1)\right)}_{\widehat{\cR}_1(K,N, \eta)} \\    &+\underbrace{\sum_{i=1}^d\frac{\sigma^2}{N}\frac{(1-\eta\lambda_i)^N}{1+ (1-\eta\lambda_i)^N}}_{\widehat{\cR}_2(K,N, \eta)} \\
+    &+ \underbrace{\frac{\eta \sigma^2}{4} \tr(\mH)- \frac{n_d\eta\sigma^2}{4}\lambda_d(1-\eta\lambda_d)^{2KN}\left(1+o(1)\right)}_{\widehat{\cR}_3(K,N, \eta)} ~\text{when} ~\eta \in \left[\omega\left(\frac{1}{T}\right), o\left(\frac{1}{T^{\frac{3}{4}}}\right)\right].
+\end{align*}
+Next, we carefully analyze the magnitude of $\widehat{\cR}_1(K,N, \eta)$, $\widehat{\cR}_2(K,N, \eta)$, and $\widehat{\cR}_3(K,N, \eta)$, and using these results, we can simplify the excess risk expression.  
+
+Now, We take $\eta = \frac{\log  \rho T}{2\lambda_d T}=\frac{\log KN}{2\lambda_d KN}+O\left(\frac{1}{T}\right)$ in \Cref{thm:convex-opt-lr}, then
+\begin{align*}
+    \left(1-\lambda_d\eta\right)^{2KN}&=\exp\left({2KN\log\left(1-\frac{\log KN}{2KN}-O\left(\frac{1}{T}\right)\right)}\right) \\
+    &=\exp\left(-\log KN+O(1)\right) \\
+    &=O\left(\frac{1}{T}\right).
+\end{align*}
+Thus
+\begin{align*}
+    \widehat{\cR}_1(K,N, \eta)&=\frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \left(1-\lambda_d\eta\right)^{2KN} \\
+    &=O\left(\frac{1}{T}\right), \\ 
+\end{align*}
+and
+\begin{align*}
+    \widehat{\cR}_3(K,N, \eta) &= \frac{\sigma^2\tr(\mH)\log T}{8\lambda_d T}-\frac{n_d\sigma^2\log T}{8\lambda_d T}\lambda_d\left(1-\lambda_d\eta\right)^{2KN}(1+o(1)) \\   &=\frac{\sigma^2\tr(\mH)\log T}{8\lambda_d T}\left(1+O\left(\frac{1}{T}\right)\right) \\    &=\frac{\sigma^2\tr(\mH)\log T}{8\lambda_d T}(1+o(1)) \\
+    &=\omega(\widehat{\cR}_1(K,N, \eta)).
+\end{align*}
+Next, we discuss two scenarios where $K$ is relatively small and $K$ is relatively large, to be specific, $K = o(\log N)$ and $K = \omega(\log N)$.
+
+\paragraph{When $K = o(\log N)$,} We have  
+\begin{align*}
+    (1-\lambda_i\eta)^N &= \left(1-\frac{\log KN}{2KN}\rho_i+O\left(\frac{1}{KN}\right)\right)^N \\
+    &=\exp\left(N\log\left(1-\frac{\log KN}{2KN}\rho_i+O\left(\frac{1}{KN}\right)\right)\right) \\
+    &=\exp\left(-\frac{\log KN}{2K}\rho_i(1+o(1))\right) \\
+    &=o(1).
+\end{align*}
+As a consequence, 
+\begin{align*}
+    \widehat{\cR}_2(K,N, \eta)&=\sum_{i=1}^d\frac{\sigma^2}{N}\frac{o(1)}{1+o(1)} \\
+    &=o\left(\frac{1}{N}\right).
+\end{align*}
+Meanwhile,
+\begin{align*}
+    \widehat{\cR}_3(K,N, \eta)&=O\left(\frac{\log KN}{KN}\right) = O\left(\frac{1}{N}\right) = \omega\left(\widehat{\cR}_2(K,N, \eta)\right).
+\end{align*}
+So 
+\begin{align*}
+    \bar\cR^*(K, N)=\widehat{\cR}(K,N; \eta)(1+o(1))&=\frac{\sigma^2\tr(\mH)\log T}{8\lambda_d T}(1+o(1)).
+\end{align*}
+\paragraph{When $K = \omega\left(\log N\right)$,} we have
+\begin{align*}
+    (1-\lambda_i\eta)^N &= \left(1-\frac{\log KN}{2KN}\rho_i+O\left(\frac{1}{KN}\right)\right)^N \\
+    &=\exp\left(N\log\left(1-\frac{\log KN}{2KN}\rho_i+O\left(\frac{1}{KN}\right)\right)\right) \\
+    &=\exp\left(-\frac{\log KN}{2K}\rho_i+O\left(\frac{1}{K}\right)\right)=\exp\left(o(1)\right) \\
+    &=1+o(1).
+\end{align*}
+So
+\begin{align*}
+    \widehat{\cR}_2(K,N, \eta)&=\sum_{i=1}^d\frac{\sigma^2}{N}\frac{1+o(1)}{2+o(1)} = \frac{\sigma^2d}{2N}\left(1+o(1)\right) \\
+    &=O\left(\frac{1}{N}\right). \\
+    \widehat{\cR}_3(K,N, \eta)&=O\left(\frac{\log KN}{KN}\right) = o\left(\frac{1}{N}\right)=o\left(\widehat{\cR}_2(K,N, \eta)\right).
+\end{align*}
+As a result, we have
+\begin{align*}
+    \Bar{\cR}^*(K, N)=\widehat{\cR}(K,N; \eta)(1+o(1))&=\frac{\sigma^2d}{2N}(1+o_N(1)).
+\end{align*}
+
+\subsection{Proof of \Cref{thm:convex-E_K}}
+Now we establish the formulation of $E(K,N)$ by solving the equation $\Bar{\cR}^*(1,T')=\Bar{\cR}^*(K, N)$.
+
+\paragraph{When $K = o(\log N)$,}
+solving $\Bar{\cR}^*(1,T')=\Bar{\cR}^*(K, N)$, we get 
+\begin{align}
+    \frac{\sigma^2\tr(\mH)\log T'}{8\lambda_d T'}(1+o_{T'}(1))&=\frac{\sigma^2\tr(\mH)\log T}{8\lambda_d T}(1+o_T(1)) \notag\\
+    \frac{\log T'}{T'}(1+o_{T'}(1))&=\frac{\log T}{T}(1+o_T(1)). \label{equ:K-small-solve}
+\end{align}
+According to the definition of the small $o$ notation, there exists a constant $\Tilde{T_0}$ such that when $T>\Tilde{T_0}$, the right hand side is smaller than $\max_{T'\in{1, 2, 3}}\frac{\log T'}{T'}(1+o_{T'}(1))$. So W.L.O.G, we could assume that $T'\geq 3$ in the following and use the fact that the function $\frac{\log x}{x}$ is monotonously decreasing when $x > 3$.
+
+\begin{lemma}\label{lem:k-small-loss-bound-T'}
+    Given $T'$ and $N$ satisfying \Cref{equ:K-small-solve}, it holds that $T'\eqsim T$ when $T>T_0$ for some constant $T_0$.
+\end{lemma}
+\begin{proof}
+Notice that there exists $T_1$ such that $|o_T(1)|<\frac{1}{2}$ when $T>T_1$, and $o_{T'}(1)$ is bounded. Furthermore, $o_{T'}(1)>-1$, because the left hand side is strictly greater than zero due to the fact that $\eta < \frac{1}{D^2}$. So when $T>T_1$, we have
+\begin{align}
+    c_4\frac{\log T'}{T'} \leq \frac{3}{2}\frac{\log T}{T} \label{equ:T'-less-than}\\
+    c_5\frac{\log T'}{T'} \geq \frac{1}{2}\frac{\log T}{T} \label{equ:T'-bigger-than}
+\end{align}
+for two constants $c_4\leq 1\leq c_5$.
+We claim that $T'\geq \frac{c_4}{3}T =:\alpha T$ when $T\geq \frac{1}{\alpha^2}$; otherwise,
+\begin{align*}
+    c_4\frac{\log T'}{T'}&\geq c_4\frac{\log \alpha T}{\alpha T} \\
+    &=\frac{3\log \alpha T}{T} \\
+    &\geq\frac{3\log T}{2T} ~~~\text{when} ~~~T\geq \frac{1}{\alpha^2},
+\end{align*}
+which contradicts \Cref{equ:T'-less-than}. We also have $T'\leq 3c_5T =:\beta T$ when $T\geq \beta^2$ by a similar argument; otherwise, 
+\begin{align*}
+    c_5\frac{\log T'}{T'}&\leq c_5\frac{\log \beta T}{\beta T} \\
+    &=\frac{\log \beta T}{3T} \\
+    &\leq\frac{\log T}{2T} ~~~\text{when} ~~~T\geq \beta^2,
+\end{align*}
+which contradicts \Cref{equ:T'-bigger-than}. So $T' \eqsim T$ when $T\geq\min(T_1, \frac{1}{\alpha^2}, \beta^2, \Tilde{T_0})=T_0$.
+
+Next, we prove the first part in \Cref{thm:convex-E_K}, which is $\E(K,N) = K(1 + o(1))$ when $K = o(\log N)$. We define $F(T) = \frac{\log T}{T}$, $\delta(T)=|o_T(1)|$, and $\epsilon(T')=|o_{T'}(1)|$, so
+\begin{align*}
+    F(T')(1-\epsilon(T'))&\leq F(T)(1+\delta(T)) \\
+    F(T')(1+\epsilon(T'))&\geq F(T)(1-\delta(T)) \\
+\end{align*}
+Consequently, we have 
+\begin{align}
+    -F(T)\delta(T)-F(T')\epsilon(T')\leq F(T')-F(T)&\leq F(T)\delta(T)+F(T')\epsilon(T'). \label{equ:T-T'-inequ}
+\end{align}
+So due to the convexity of $F(T)$,
+% \kaifengclaw{Readability breakpoint: this step jumps from the two-sided perturbation bound in \Cref{equ:T-T'-inequ} to a first-order control on $T'-T$. It would help to explicitly state the mean-value/monotonicity argument (which point the derivative is evaluated at, and why the denominator is of order $(\log T)/T^2$).}
+\begin{align*}
+    -\frac{\log T-1}{T^2}(T'-T)\leq F'(T)(T'-T)\leq F( T')-F(T)\leq F(T)\delta(T)+F(T')\epsilon(T')=\frac{\log T}{T}|o(1)|.
+\end{align*}
+Thus we have
+\begin{align*}
+    T' \geq T(1-o(1)).
+\end{align*}
+The above equation completes the proof.
+\end{proof}
+
+Combining \Cref{equ:K-small-solve} and \Cref{lem:k-small-loss-bound-T'} gets
+\begin{align}
+    -\frac{\log T-1}{T^2}(T-T')\eqsim-\frac{\log T'-1}{T'^2}(T-T'). \label{equ:T-approx-T'-coro}
+\end{align}
+Further using \Cref{equ:T-T'-inequ}, 
+\begin{align}   F'(T')(T-T')\leq F(T)-F(T')\leq F(T)\delta(T)+F(T')\epsilon(T') \label{equ:T-bigger-T'}
+\end{align}
+Combining \Cref{equ:T-approx-T'-coro} and \Cref{equ:T-bigger-T'} gives 
+\begin{align*}
+    T'&\leq T(1+o(1)).
+\end{align*}
+Substituding the definition of $E(K, N)$ and we get the first part in \Cref{thm:convex-E_K}.
+
+\paragraph{When $K = \omega(\log N)$,}solving $\Bar{\cR}^*(1,T')=\Bar{\cR}^*(K, N)$, we get 
+\begin{align}
+    &\frac{\sigma^2\tr(\mH)\log T'}{8\lambda_dT'}(1+o_{T'}(1))=\frac{\sigma^2d}{2N}(1+o_N(1)). \label{equ:K-large-solve}
+\end{align}
+There exists a constant $\Tilde{N_0}$ such that when $N>\Tilde{N_0}$, the right hand side is smaller than the minimal value of $\Bar{\cR}^*(1,T')$ when $T'$ is finite, that is, $\min_{T'\in{1, 2, 3}}\frac{\sigma^2\tr(\mH)\log T'}{8\lambda_dT'}(1+o_{T'}(1))$. So W.L.O.G, we could assume that $T'\geq 3$ in the following and use the fact that the function $\frac{\log x}{x}$ is monotonously decreasing when $x > 3$.
+
+Now we provide a lemma to give a loose bound of $T'$ fisrt, and then we apply the lemma to get the formula of $E(K,N)$.
+\begin{lemma}\label{lem:k-large-loss-bound-T'}
+    Given $T'$ and $N$ satisfying \Cref{equ:K-large-solve}. It holds that $N\leq T'\leq N^{\frac{3}{2}}$ when $N\geq N_0$ for some constant $N_0$.
+\end{lemma}
+\begin{proof}
+Notice that there exists $N_1$ such that $|o_N(1)|<\frac{1}{2}$ when $N>N_1$, and $o_{T'}(1)$ is bounded. Furthermore, $o_{T'}(1)>-1$, because the left hand side is strictly greater than zero due to the fact that $\eta < \frac{1}{D^2}$. So when $N>N_1$, for the left side in \Cref{equ:K-large-solve}, we have
+\begin{align*}
+     c_{6}\frac{\log T'}{T'}&\leq \frac{\sigma^2\tr(\mH)\log T'}{8\lambda_dT'}(1+o_{T'}(1))\leq c_{7}\frac{\log T'}{T'}, \\
+\end{align*}
+where $c_{6} < c_{7}$ are two positive constants. And for the right side,  
+\begin{align*}
+     \frac{c_{8}}{N}\leq\frac{\sigma^2d}{2N}(1+o_N(1))&\leq \frac{c_{9}}{N},
+\end{align*}
+where $c_{8} < c_{9}$ are two positive constants. Then we prove that $T'\geq N$ when $N \geq \max\left(e^{\frac{c_{9}}{c_{6}}}, 3\right)$. Otherwise, we have 
+\begin{align*}
+    \frac{\sigma^2\tr(\mH)\log T'}{8\lambda_dT'}(1+o_{T'}(1))&\geq c_{6}\frac{\log T'}{T'} \geq c_{6}\frac{\log N}{N}\geq\frac{c_{9}}{N}\geq \frac{\sigma^2d}{2N}(1+o_N(1)),
+\end{align*}
+which is a contradiction.
+Then we prove that $T'\leq N^{\frac{3}{2}}$ when $N\geq\left(\frac{c_{10}}{c_{8}}\right)^4$ for some constant $c_{10}$. Otherwise, we have 
+\begin{align*}
+    \frac{\sigma^2\tr(\mH)\log T'}{8\lambda_dT'}(1+o_{T'}(1))&\leq c_{7}\frac{\log T'}{T'} \leq c_{7}\frac{\log N^{\frac{3}{2}}}{N^{\frac{3}{2}}}=\frac{3c_{7}}{2}\frac{\log N}{N^{\frac{3}{2}}} \leq \frac{c_{10}}{N^{\frac{5}{4}}}\leq \frac{c_{8}}{N}\leq
+    \frac{\sigma^2d}{2N}(1+o_N(1)),
+\end{align*}
+which is another contradiction. The third inequality uses the fact that $\frac{\log N}{N^{\frac{1}{4}}}$ is bounded. We take $N_0 = \max\left(N_1,e^{\frac{c_{9}}{c_{6}}},\left(\frac{c_{10}}{c_{8}}\right)^4, \Tilde{N_0}\right)$ and we prove the claim.
+\end{proof}
+Combining \Cref{equ:K-large-solve} and \Cref{lem:k-large-loss-bound-T'} gives $T'=\Theta\left(N\log T'\right)=\Theta(N\log N)$, and 
+\begin{align}
+    \log T' = \log N + \log\log N +\Theta(1). \label{equ:strongly-convex-T'-N}
+\end{align}
+Again, combining \Cref{equ:strongly-convex-T'-N} and \Cref{equ:K-large-solve}, and we get
+% \kaifengclaw{Readability breakpoint: this line condenses an implicit fixed-point substitution from $T'=\Theta(N\log T')$ to $T'=\frac{\tr(\mH)}{4\lambda_d d}N\log N(1+o(1))$. Adding one explicit step that justifies replacing $\log T'$ by $\log N$ would make the asymptotics much easier to verify.}
+\begin{align*}
+    % &\frac{\sigma^2\tr(\mH)\log T'}{8\lambda_dT'}(1+o_N(1))=\frac{\sigma^2d}{2N}(1+o_N(1)). \\
+    &T' = \frac{\tr(\mH)N\log T'}{4\lambda_d d}(1+o_N(1)) =\frac{\tr(\mH)N\log N}{4\lambda_d d}(1+o_N(1)),
+\end{align*}
+and 
+\begin{align*}
+    E(K, N)&=\frac{T'}{N} = \frac{\tr(\mH)\log N}{4\lambda_d d}(1+o_N(1))
+\end{align*}
+as a direct corollary.
+
+The above equation immediately finish the proof.
+\end{proof}
+

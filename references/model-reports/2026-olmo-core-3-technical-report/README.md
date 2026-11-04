@@ -1,0 +1,10 @@
+# Olmo-core 3 technical report
+
+Source: https://allenai.org/papers/olmocore3
+
+- [PDF](paper.pdf)
+- [Metadata and download status](metadata.json)
+
+Linked code archives are stored under `code/`. Repository links may refer to dependencies or baselines; their presence does not establish that the experiment is reproducible. Download errors and source availability are recorded in metadata.
+
+Code archives snapshot the repository default branch at retrieval time, unless a commit is explicitly recorded. They are not established as the paper experiment revision. Repository roots inside ZIP archives are recorded in metadata where available.

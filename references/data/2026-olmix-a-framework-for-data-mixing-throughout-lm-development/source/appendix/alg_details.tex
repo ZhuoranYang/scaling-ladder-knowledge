@@ -1,0 +1,32 @@
+\section{Additional Mixture Reuse Details}
+
+\subsection{Examples}\label{supp:examples}
+
+Suppose our initial $\mathcal{D}$ contains $m=3$ domains with mixture $\tilde{p} = [0.25,\,0.25,\,0.5]$. We provide examples of mixture reuse for each domain update operator.
+
+\textbf{Remove.} We remove the first domain of $\tilde{p}$. Instead of recomputing a mix over the two remaining domains, we reuse their relative ratios $[0.25,\,0.5]$, automatically producing the mix $q=[0.33,\,0.67]$ without any additional recomputation.  
+
+\textbf{Partition.} We partition the first domain into 2 additional domains, making the total number of domains $m'=4$. Instead of recomputing over all $4$ domains, we learn a mix over a virtual domain consisting of the $2$ unaffected domains, for which $\tilde{p}_{\Dfix} = [0.33, 0.67]$, and the $2$ new domains formed from the partition. This means we only recompute over $3$ domains. If this recomputed mix is $r = [0.6, 0.1, 0.3]$, then the expanded mix is $q = 0.6 \cdot [0.33, 0.67] \cup [0.1, 0.3] = [0.198, 0.402, 0.1, 0.3]$.
+
+
+\textbf{Revise.} Suppose the first domain is modified. Instead of recomputing over all $3$ domains, we learn a mix over a virtual domain consisting of the $2$ unaffected domains, for which $\tilde{p}_{\Dfix} = [0.33, 0.67]$ and the revised domain. This means we only recompute over $2$ domains. If the recomputed mix is $r=[0.4, 0.6]$, then the expanded mix is $q = 0.4 \cdot [0.33, 0.67] \cup [0.6] = [0.132, 0.268, 0.6]$.
+
+
+\subsection{Solving the Mixture Reuse Problem}\label{supp:collapsed_space}
+
+We explain how to write~\eqref{eq:conditional_mixing_problem} as a standard mixing problem (without the explicit $q_{\Dfix} = \tilde{p}_{\Dfix}$ constraint) over a \textit{collapsed} space. 
+
+For any feasible $q = [\rho \tilde{p}_{\Dfix}, (1 - \rho) q_{\Dcomp}]$, recall that the corresponding mix in collapsed space is $r = [\rho, (1 - \rho) q_{\Dcomp}] \in \triangle^{|\Dcomp|}$. $r$ is indexed over $\{v\} \cup \Dcomp$, and $\Psi_{\tilde{p}_{\Dfix}}(r)$ is an expansion function that maps from $r$ back to $q$ on $\D'$.
+
+\begin{lemma}[Reparametrized mixture reuse problem]\label{lem:collapsed_space}
+The mixture reuse problem~\eqref{eq:conditional_mixing_problem} is equivalent to the following optimization problem over the collapsed space:
+\begin{align}
+    &\text{minimize}_{r \in \triangle^{|\Dcomp|}}  \frac{1}{n} \sum_{i = 1}^n g_i(r) \\
+    &\text{s.t.} \quad r_v \le \min_{j \in \Dfix}\bigg\{\frac{k N_j'}{R \tilde{p}_{j}} \bigg\}, \quad r_j \le \frac{k N_j'}{R} \quad \forall j \in \Dcomp \nonumber
+\end{align}
+where $g_i(r) := f_i(\LM(S, R, \Phi_{\tilde{p}_{\Dfix}}(r)))$.
+\end{lemma}
+\begin{proof}
+The constraint $q_{\Dfix} = \tilde{p}_{\Dfix}$ is absorbed by the change of variables, so any feasible $q$ corresponds to a unique $r$. The repetition constraints in expanded space, $\rho \tilde{p}_{j} \le \frac{k N_j'}{R}$ for $j \in \Dfix$ and $(1 - \rho) q_j \le \frac{k N_j'}{R}$ for $j \in \Dcomp$ become $\rho \le \frac{k N_j'}{R \tilde{p}_j}$ for all $j \in \Dfix$ and $r_j \le \frac{kN_j'}{R}$ for all $j \in \Dcomp$ in collapsed space.
+\end{proof}
+

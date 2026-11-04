@@ -1,0 +1,52 @@
+\section{Interpretable Models of the Hyperparameter Loss Surface}
+\label{app:interpretable-models-of-the-hyperparameter-loss-surface}
+
+In \Cref{sec:understanding-the-hyperparameter-loss-surface-across-scales:implications-for-small-scale-experiments}, we discussed developing an interpretable model of the hyperparameter loss surface across scales by combining the noisy quadratic limit with scaling laws. We reported that such models capture the broad shape of the surface, but not precisely how it evolves. Here we provide those explorations in more depth. In particular, we will compare several approaches a researcher might be tempted to try and show that while they have some success in modeling the loss surface, they are far from the clear wins available via scaling laws or the noisy quadratic limit on their own.
+
+Scaling laws model the optimal loss across scales; the noisy quadratic limit models how hyperparameters influence the loss at one scale. To combine them, we must set the quadratic's minimum according to the scaling law. One could accomplish this in several ways;\footnote{
+    Beyond the approach discussed here, we also tried using the scaling law for the quadratic's constant term which is perhaps the most obvious approach even if it does not have an a priori justification.
+} a simple approach with a strong intuition starts from the observation that, given any reasonable hyperparameters, the loss should approach the irreducible error ($\epsilon$) as parameters and data go to infinity. We capture this by modeling the percent increase in \textit{reducible} loss at each scale as a quadratic in the hyperparameters:
+%
+\begin{equation}\label{eq:static-empirical-model_hessian}
+    \mathcal{L}(p, d) \approx \epsilon + \left(\frac{\eta}{d^\kappa} + \frac{\zeta}{p^\iota}\right)\left(1 + L \bX + \left(\bX - \bx_*\right)^T H_{\bx_*} \left(\bX - \bx_*\right)\right)
+\end{equation}
+%
+Here, $L$ represents residual linear terms necessary to make any quadratic expressible.\footnote{
+    One might expect $L = \pmb{0}$ at the optimum. While we do not enforce this assumption in our experiments, we explored it and the conclusions are similar.
+} With this model, the scaling law supplies the optimal loss across scales while the quadratic inflates the reducible part according to how far the hyperparameters sit from the optimum.
+
+Since the Hessian is real and symmetric, we can diagonalize it: $H_{\bx_*} = U D U^T$. Let $\Lambda$ be the diagonal matrix of non-zero eigenvalues and take $M_{\bx_*}$ to be the submatrix of $U^T$ that projects onto their corresponding eigenvectors. Letting $\bz_* = M_{\bx_*} \bx_*$ represent the linear subspace of optimal hyperparameters, we can write this model as a quadratic in the (lower-dimensional) projected space:
+%
+\begin{equation}\label{eq:static-empirical-model_projection}
+    \mathcal{L}(p, d) \approx \epsilon + \left(\frac{\eta}{d^\kappa} + \frac{\zeta}{p^\iota}\right)\left(1 + L \bX + \left(M_{\bx_*} \bX - \bz_*\right)^T \Lambda \left(M_{\bx_*} \bX - \bz_*\right)\right)
+\end{equation}
+%
+This form enables us to fit the model with a low rank constraint.
+
+We explored several variants of this model, in all cases restricting the Hessian's rank to at most $\gamma = 3$. The \texttt{static} model fixes both the optimum and the curvature across scales as in \Cref{eq:static-empirical-model_projection}. The \texttt{dynamic optima} model keeps the curvature fixed but makes the (latent) optimal hyperparameters a linear function of the log scale: $\bz_* = \bz_0 + \log(p) \bz_{p} + \log(d) \bz_d$. The \texttt{dynamic sensitivity} model instead fixes the optimum and lets the curvature vary, making the eigenvalues of the Hessian power laws of the scale: $\lambda_i p^{\nu_i} d^{\xi_i}$. The \texttt{dynamic} model varies both. For comparison, we include a \texttt{polynomial} model which predicts the percent increase in excess loss using a quadratic polynomial (with no constraint on the rank). We also compare against a \texttt{multilayer perceptron} model that abandons interpretability altogether and predicts percent increase in excess loss as a nonlinear function (neural network) of the hyperparameters and scale.
+
+\begin{table}
+    \centering
+    \begin{tabular}{lccc}
+        \toprule
+                                   &  \multicolumn{2}{c}{Validation (MSE)} & \multicolumn{1}{c}{Test (MSE)} \\
+                                   &               67M &              134M &                          268M  \\
+        \midrule
+        Scaling Law                &         0.000011  &         0.000025  &                      0.000020  \\
+        \midrule
+        Parameters and Tokens Only &         0.011471  &         0.014014  &                      0.019795  \\
+        Polynomial                 &         0.004452  &         0.005217  &                      0.008790  \\
+        Static                     &         0.004820  &         0.005900  &                      0.010027  \\
+        Dynamic Optima             &   \emph{0.002824} &   \emph{0.004401} &                \emph{0.006630} \\
+        Dynamic Sensitivity        &         0.005413  &         0.007185  &                      0.010813  \\
+        Dynamic                    &         0.003672  &         0.006806  &                      0.010102  \\
+        Multilayer Perceptron      &         0.008866  &         0.012003  &                      0.015464  \\
+        \bottomrule
+    \end{tabular}
+    \caption{
+        \emph{The mean-squared error (MSE) of different models for the hyperparameter loss surface extrapolating from small to large scales using our model ladder and decaying the learning rate.} The scaling law predicts loss at the optimal hyperparameters; the rest predict all configurations in the asymptotic regime. Each column's best loss is italicized (excluding the scaling law). The static quadratic that ignores scale is already a strong baseline; varying the optimum appears to help while varying the curvature seems to hurt. The \texttt{dynamic optima} model performs best here; however, the models' ranking is sensitive to optimization details like the initialization. Every variant improves over predicting from parameters and tokens alone (ignoring the hyperparameters), but none reaches the error attained by the scaling law when predicting the loss at the optimal hyperparameters; in other words, no model fully captures the surface.
+    }
+    \label{tab:aggregated-mse_ladder-decay}
+\end{table}
+
+\Cref{tab:aggregated-mse_ladder-decay} compares these variants, fit on the small scales and evaluated on the larger held-out ones via mean-squared error (MSE). Ignoring the scale's effect on the hyperparameters (\texttt{static}) already performs surprisingly well. The dynamic variants extrapolate with mixed success: varying the optimum appears to help, while varying the curvature seems to hurt. The nonlinear model is the most flexible; here it performs the worst of all models that incorporate the hyperparameters, though it can also perform the best in similar setups depending on optimization details like the initialization. While every variant beats the baseline of ignoring the hyperparameters and predicting from the parameters and tokens alone, none fully captures the loss surface. If one did, it would approach the much smaller error achieved by the scaling law when predicting the optimal hyperparameters.

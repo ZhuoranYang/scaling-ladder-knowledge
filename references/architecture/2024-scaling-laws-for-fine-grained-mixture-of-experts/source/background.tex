@@ -1,0 +1,87 @@
+\section{Background}
+\label{background}
+
+
+
+\subsection{Model Architecture}
+% \paragraph{Transformer.} A typical decoder-only Transformer \cite{radford2018improving, noauthororeditor, kaplan2020scaling, brown2020language} consists of an embedding layer, a stack of alternating attention and \ff{} layers, and an unembedding layer. Let $T$ be the transformer model. In the model $T$ each input token is converted by the embedding layer into a vector of size $\dmodel$, the dimension maintained across all the layers of the Transformer.
+
+\paragraph{Transformer.} A standard decoder-only Transformer \citep{radford2018improving, noauthororeditor, kaplan2020scaling, brown2020language} consists of an embedding layer, a stack of alternating attention and \ff{} layers, and an unembedding layer. In the model, each input token is converted by the embedding layer into a vector of size $\dmodel$, the dimension maintained across all the layers in the residual stream.
+
+The \ff{} component consists of two linear transformations and a nonlinearity $\phi$ in between. It can be described as
+    $\text{FFN}(x) = \phi(xW_1+b_1)W_2+b_2$,
+with $W_1$ mapping from $\dmodel$ to $\dff$, and $W_2$ back to the original $\dmodel$. It is standard \citep{radford2018improving, rae2022scaling, touvron2023llama, jiang2023mistral} to set the hidden dimension as $\dff = 4 \cdot \dmodel$. %Denote this standard dimension as $\dffbase$.
+
+Feed-forward layers contain the majority of Transformer parameters and require the biggest computational budget counted in terms of FLOPs. Subsequently, they are the main focus of the Mixture of Experts models considered in this work.
+% The \ff{} component is composed of two matrices ($W_1 \in \mathbf{R}^{\dmodel \times \dff}, W_2 \in \mathbf{R}^{\dff \times \dmodel}$) and a non-linear function such as ReLU, where $\dff$ is the size of the inner layer of a Transformer \ff{} layer. Consider $\dffbase$ to be the size of the inner layer of the feed-forward layer in the standard setting, that is $\dff=\dffbase$. Then, typically $\dffbase=4\dmodel$ \ka{cite}.  This setting results in the number of parameters in the layer, $\pff = 8\dmodel^2$. 
+
+% The \ff{} component is composed of two matrices ($W_1 \in \mathbf{R}^{\dmodel \times \dff}, W_2 \in \mathbf{R}^{\dff \times \dmodel}$) and a non-linear function such as ReLU, where $\dff$ is the size of the inner layer of a Transformer \ff{} layer. Consider $\dffbase$ to be the size of the inner layer of the feed-forward layer in the standard setting, that is $\dff=\dffbase$. Then, typically $\dffbase=4\dmodel$ \ka{cite}.  
+% This setting results in the number of parameters in the layer, $\pff = 8\dmodel^2$. 
+\paragraph{Mixture of Experts.} 
+% The main idea behind MoE in Transformer is to replace each \ff{} layer with $\nexpert$ \ff{} layers (\textit{experts}) and route each token to only a subset of the experts. In MoE, the inner dimension of each expert network is $\dff$, the size of the base model $T$. In this design, the parameter count of a MoE layer scales linearly with the number of experts, $\pmoe = \nexpert \cdot \pff.$.
+The core idea behind MoE in Transformers is to replace the feed-forward layer with a set of $\nexpert$ \textit{experts}. The size of each expert is typically \citep{fedus2022switch, zhou2022mixtureofexperts, zhou2023brainformers, jiang2024mixtral} set to mirror the original dimensions of the layer, with the hidden expert dimension $\dexp{}$ equal to $\dff.$ Therefore, the total number of parameters in MoE scales linearly with the number of experts. 
+%However, the number of \textit{active} parameters (i. e. parameters used to produce output for a single token) remains constant.
+However, the computational cost remains approximately constant as each input is routed and then processed by a subset of experts.
+% resolved: \kk{Wspomniec ze uzywamy expert-choice i ze mamy softmax po batchu i sugestia od Sebastiana zeby w appendixie zrobic shading na oryginalnych autorow ze jedynie wspominaja o softmaxie po batchu w odpowiedzi na review}
+% Originally Mixture of Experts (MoE) posits that each token \textit{selects} the most appropriate expert for its processing \ka{cite}. However, this method, termed \textit{token-choice}, exhibits certain limitations, such as load imbalance and a fixed computational cost for each token. To overcome these drawbacks, our research adopts the \textit{expert-choice} routing strategy \cite{zhou2022mixtureofexperts}, with minor adjustments to ensure compatibility with autoregressive decoding.  In our architecture, each expert chooses $k$ tokens from all tokens in the input batch, sharing the position in the input sequence (tokens are chosen across the batch dimension).
+
+\newpage
+\subsection{Scaling Laws}
+\label{sec:back_scaling}
+
+\textbf{Dense Transformers.} Large Transformer-based models are known to approximately obey the power-law relationship between final loss $\mathcal{L}$, model size $N,$ and number of training tokens $D.$ This relationship is often called {\it Chinchilla scaling laws} described by \cite{hoffmann2022training} as
+\begin{align}\label{eq:chinchilla}
+    \mathcal{L}(N, D) = c + \frac{a}{N^\alpha} + \frac{b}{D^\beta}. 
+    % L(N,D) - e - \frac{b}{D^\beta} = \frac{a}{N^\alpha} \\
+    % log(L(N,D) - e - \frac{b}{D^\beta}) = log(\frac{a}{N^\alpha})
+\end{align}
+
+
+The power-law formula is composed of three distinct terms that characterize the intrinsic entropy of data, constraints of the model, and limitations in the training data. The term $c$ represents the minimum possible error intrinsic to the data. The remaining two terms are suboptimality terms, which address the limitations in function representation owing to the size of the model and in data signified by the number of tokens. In the limit, with infinite data and model size, the loss is reduced to $c$.
+
+%The first term in this equation represents the entropy inherent to the modeled distribution, while the second and third term capture the difference between a perfect model with with a finite one trained on a given number of tokens. \\
+
+
+\textbf{Mixture of Experts.}  For MoE Transformer-based models, \cite{clark2022unified} formulated the final loss for a constant dataset size \( D \) of 130B tokens, allowing for variations in the expansion rate \( E \), as: 
+\begin{align}\label{eq:scaling_law}
+    \mathcal{L}(N, E) = \left( \frac{10^{d/a}}{N}\right)^a \left( \frac{1}{E}\right)^{b+c\log{N}}.
+\end{align}
+
+However, this result has a notable limitation as it can be applied only to the original dataset size. The scalability and effectiveness are constrained in this scenario because it is crucial to align the number of training samples with the available computational resources for optimal use. As per \cite{kaplan2020scaling} and \cite{hoffmann2022training}, maintaining a constant dataset size while scaling up the neural network size leads to undertraining, resulting in a model that does not perform to its full potential.
+
+
+% leads to a number of problems, such as load imbalance
+
+% having a set $\nexpert$ \ff{} layers (\textit{experts}) and t
+% In the standard setting \kk{cite?}, each MoE \ff{} layer in a Transformer consists of  $\nexpert$ \ff{} layers (\textit{experts}), each the same size as a regular \ff{} layer ($\dff=4\dmodel$) along with a \textit{router}, a component performing the assignment of tokens to experts.
+
+% is constructed by creating a set of \textit{experts}, each having the size of a regular \ff{} layer. The number of parameters $\pmoe$ in the layer scales proportionally with the number of experts $e$,
+% \begin{align*}
+    % \pmoe = e \cdot \pff,
+% \end{align*}
+% where $\pff$ is the number of parameters in the base feed-forward layer \mk{wydaje mi się że nie wiadomo czym jest base feed-forward layer?}.
+% The computational load is maintained at a roughly consistent level through the activation of a selected subset of parameters for each distinct input. This architecture allows for scaling predominantly by incorporating additional experts of equivalent dimensions. The amount of computation can be adjusted by changing the \textit{capacity factor} that controls the amount of input data received by each expert. 
+
+% The expected number of tokens routed to each expert, denoted by $k$, is calculated according to the equation 
+% \begin{align*}
+    % k = \frac{c}{e} \cdot b,
+% \end{align*}
+% where $c$ is the capacity factor, $b$ is the total number of tokens in the input batch, and $e$ is the number of experts.
+
+% In our research, we suggest an alternative approach where the hidden dimension of the expert is not set to mirror that of the base feed-forward layer, but is instead fine-tuned to a value that might be more effective. This approach allows the configuration of the Mixture of Experts (MoE) to be articulated in terms of two key parameters: \textit{granularity} (\(G\)) and \textit{expansion rate} (\(E\)).
+
+% Let's \mk{let us denote?} denote $\dff$ as the hidden dimension of the base feed-forward layer and $\dexpert$ as the hidden dimension of a single expert. Granularity is defined as 
+% \begin{align*}
+    % G = \frac{\dff}{\dexpert}, 
+% \end{align*}
+% while expansion rate is the proportion 
+% \begin{align*}
+    % E = \frac{\pmoe}{\pff}.
+% \end{align*}
+
+
+% show that in order to optimally train models with ever increasing computational budget, both the amount of data and the size of the model should be scaled up. However, usually, the number of the Floating Point Operations (FLOPs) needed to run inference
+
+
+
+% \textbf{Mixture of Experts}  Mixture of Experts \mk{powtórzenie?} (MoE) describes a number of related machine learning architectures that rely on conditional computation. In the original formulation \cite{moe1991} it denoted an ensemble-like architecture in which a single \textit{expert} model out of many is run for a specific input, with a separate, computationally inexpensive \textit{router model} selecting the most suitable expert.

@@ -1,0 +1,124 @@
+While our findings corroborate prior work and provide strong evidence
+for the proposed scaling laws in $\tepoch$, $\bopt$, and $\bcrit$,
+there are several limitations that merit further study.
+
+\paragraph{EMA perspective}
+
+As the EMA perspective regards parameters $y_t$ as a function of
+updates $x_t$, it fails to account for $x_t$ actually depending on
+earlier values of $y_t$ (e.g., $y_{t-1}$). Yet although this
+perspective has formal limitations, we nevertheless find it a
+useful \emph{conceptual} model of training, as it predicts behavior
+that is supported by experiments.
+
+\paragraph{Optimization and training setup}
+
+Our work focuses on AdamW (the standard optimizer for LLM training).
+While the EMA perspective applies directly to other optimizers that
+use decoupled weight decay, such as Sophia~\citep{liu2023sophia} and
+MuonClip~\citep{kimi2025k2}, it may not apply to approximate second
+order methods, e.g., Shampoo~\citep{gupta2018shampoo}.  However, it
+can be used when applying AdamW (and related optimizers) in Shampoo's
+eigenbasis, which was shown to be effective in
+SOAP~\citep{vyas2024soap}.
+
+We present results with a single (standard) learning rate schedule.
+Our method for obtaining $\cbs$ estimates would be quite efficient
+with a warmup-stable-decay (WSD)
+schedule~\citep{hu2024minicpm,wen2024understanding}, as we could
+perform a single training run with each batch size, but decay at
+various milestones in order to get points along the scaling law,
+essentially following the approach in~\citet{hagele2024scaling}, but
+with separate laws for each batch size.
+
+We used the maximal update parameterization in all experiments, which
+generates a learning rate $\eta$ adjustment for each model width.  Our
+results suggest this approach enables good models at arbitrary $N$,
+$D$, and $B$ when combined with adjustments to $\lambda$.  This
+strategy is informed by our experiments comparing re-adjusting $\eta$
+vs.\ $\lambda$ in \cref{sec:tema_results}. However, it is not
+feasible, at this scale, to verify whether substantially better models
+could be obtained by sweeping the full cross-product of $\eta$ and
+$\lambda$ values.
+
+Our study specifically focuses on the practically important setting of
+single-epoch LLM pre-training.  \citet{wang2024how} indeed noted
+differences in optimal $\tema$ when using multi-epoch training,
+possibly due to data repetition. Reconciling these differences by
+isolating the effects of repetition versus scale is an interesting
+follow-up direction.
+
+Here we only experimented with a single dataset, vocabulary, and
+context length.  We obtained a similar $\cbs$ scaling law
+to \citet{zhang2024how}, but it would be interesting to see if
+differences in the coefficient of our power laws could be attributed
+to specific differences in approach (e.g., differences in dataset,
+context length, learning rate schedule, use of weight decay,
+etc.).  \cref{sec:appendix_zhang} has further discussion of
+differences with \citet{zhang2024how}.
+
+We have also not explored how changes in numerical precision could
+affect scaling laws.  Recent work~\citep{kumar2024scaling} showed
+that, in terms of scaling laws, lower precision reduces the model's
+\emph{effective} parameter count.  This suggests precision would
+have no impact on scaling of $\bopt$ or $\bcrit$, which do not scale
+in $N$.  Lower precision, however, could increase the \emph{effective}
+TPP (via smaller effective $N$), thereby altering $\temaopt$.
+
+\paragraph{Small batches, large batches, and dynamic batch sizing}
+
+We consistently find that smaller and smaller batches do not grow
+asymptotically closer to $\dmin$, as predicted by theory, but
+eventually degrade in loss.  One possibility is that $\lambda$ tuning
+is not sufficient with very small $B$, and further tuning of other
+hyperparameters may be needed, such as the Adam $\beta$ parameters (as
+suggested in recent
+work~\citep{porian2024resolving,zhang2024how,marek2025small}).
+%
+Some preliminary tests using the $\beta_2$ scaling rule
+from \citet{marek2025small} showed loss improvements at small $B$.
+%
+Since we are unlikely to train with small batches at scale, and using
+them even with smaller LLMs significantly impairs our ability to train
+both efficiently and quickly, it is unfortunately difficult to justify
+further exploration in this direction.
+
+Regarding large batches, our methods do not account for the many
+practical systems-related issues, including bandwidth and
+communication overheads, memory limits of hardware, synchronization
+delays, etc.  
+%
+Moreover, as batch sizes increase, techniques such as optimizer
+sharding may be needed, which further complicate performance
+model~\citep{almazrouei2023falcon}.
+%
+Our scaling laws do, however, explicitly define a practically relevant
+regime of training batch sizes: $\bopt \le
+B \le \bcrit$. Practitioners can leverage this identified regime
+alongside system-specific profiling (e.g., evaluating utilization at
+various batch sizes) to select optimal settings balancing algorithmic
+and systems constraints.
+
+Exploring optimal dynamic batch sizing is a natural future direction
+for our work.  While the potential gains were found to be small in
+theory by \citet{mccandlish2018empirical}, more recent work has found
+significant wall clock speedups~\citep{meterez2025seesaw}.
+%
+%We also plan to explore dynamic measurement of the gradient noise
+%scale~\citep{mccandlish2018empirical}, which has been shown to be
+%correlated with the empirical $\cbs$, and may thus help guide a
+%dynamic batch size schedule.
+
+%- We also only consider training TIME and training COMPUTE, rather
+%than inference TIME and inference COMPUTE.
+%
+%- overtrained models do take more training compute but reduce
+%inference time and compute~\citep{touvron2023llama}, but we note we
+%provide nuance to this idea by noting smaller can also reduce training
+%TIME both because they use less time per optimization steps, and
+%because they allow greater parallelism through a larger batch size.
+%
+%- Ideally, if we had an idea of our total expected training compute +
+%inference compute needs, we could add inference compute to the y-axis
+%on our Pareto plots and compare against training time, perhaps also
+%incorporating any constraints we have on inference time.

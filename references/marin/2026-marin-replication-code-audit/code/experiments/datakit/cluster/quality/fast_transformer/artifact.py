@@ -1,0 +1,52 @@
+# Copyright The Marin Authors
+# SPDX-License-Identifier: Apache-2.0
+
+"""The quality step's output contract.
+
+Deliberately import-light (pydantic only): the store step consumes
+:class:`QualityScores` for its attribute join and must not drag the jax/equinox/
+transformers stack of the scorer into its workers.
+"""
+
+from marin.datakit.source_key import DatakitArtifactPath
+from pydantic import BaseModel
+
+# Fixed score cutpoints. Calibration (calibrate.py) warps the raw score so these
+# 0.2-wide buckets are quality-coherent across content types; `score.py` buckets
+# with np.digitize against these edges, giving quality_bucket 0..len(BUCKET_EDGES).
+BUCKET_EDGES = (0.2, 0.4, 0.6, 0.8)
+MODEL_CALIB = "calib_bme.json"  # calibration json name in the model dir
+
+
+class QualityScores(BaseModel):
+    """Calibrated quality scores for one source.
+
+    Written by :func:`score.score_normalized` or :func:`bucket.bucket_quality_scores`.
+
+    Persisted as the step's ``.artifact``. Load via
+    ``read_artifact(step.output_path, QualityScores)``.
+
+    Attributes:
+        main_output_dir: Directory of lean scored parquet, one file per input
+            shard, co-partitioned with the source ``NormalizedData`` and its
+            tokenize shards by basename and row order. Every producer writes
+            ``id``, the calibrated ``score`` and ``quality_bucket``;
+            :func:`score.score_normalized` adds ``source``, and
+            :func:`bucket.bucket_quality_scores` adds ``source``, ``raw_score``
+            and ``content_type``.
+        model_dir: Scorer artifacts + calibration json used. The bucket step's
+            hash covers the calibration's digest through its ``QualityPin``;
+            ``score_normalized``'s covers only a version tag, so a retrained
+            model for it must land in a new dir under a new tag.
+        calib_file: Calibration json name inside ``model_dir``.
+        bucket_edges: Score cutpoints behind ``quality_bucket``; the store joins
+            on the bucket column and records these in its own artifact.
+        counters: Aggregated zephyr counters from the scoring pipeline.
+    """
+
+    version: str = "v1"
+    main_output_dir: DatakitArtifactPath
+    model_dir: DatakitArtifactPath
+    calib_file: str
+    bucket_edges: list[float]
+    counters: dict[str, int | float]

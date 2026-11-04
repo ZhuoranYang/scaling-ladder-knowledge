@@ -1,0 +1,1561 @@
+\section{Omitted Proofs}
+
+
+\subsection{Notation.}
+
+To denote $a^Tb$ for two vectors, we will $\langle a, b \rangle$.
+We will use the following function to denote the directional derivative of a mapping $F: \R^d \to \R^m$:
+\begin{align*}
+    \nabla F(x)[v] = \lim_{\alpha \to 0} \frac{F(x + \alpha v) - F(x)} {\alpha}.
+\end{align*}
+
+
+
+
+
+\subsection{A warmup on the quadratic function}
+\label{app:quadratic}
+
+We will first motivate the decaying function we choose~\Cref{eq:decay} using a simple example on quadratic function.
+
+\begin{lemma}
+\label{lem:fast}
+Assuming that we are considering the following gradient descent
+\begin{align*}
+    y_{k + 1} =  y_k - \eta_k \nabla (\gamma y_k^2/2) - \eta \noise_k, \noise_k \in \Normal(0, \sigma^2 \identity).
+\end{align*}
+Suppose $\eta_0 = \maxeta$ and $y_0$ follows a normal distribution $\Normal(0, \maxeta \frac{\sigma^2}{2 \gamma - \maxeta \gamma^2})$. Then the following two statements hold, 
+\begin{enumerate}
+    \item If $\forall t, \eta_k = \eta_0$, $y_k$ will follow the same distribution as $y_0$.
+    \item Consider all the learning rate schedule $\eta_k$, the following is the optimal
+    \begin{align*}
+       \forall t \ge 1, \eta_k^* = \frac{1}{\gamma (k - 1) + \frac{2}{\maxeta}}
+    \end{align*}
+    in the sense that it yields the fastest expected loss decrease. Suppose $\eta_k^*$ corresponds to iterates variables $y_k^*$, for any $\eta_k$ and its corresponding iterates variables $y_k$,
+    \begin{align*}
+        \E[\gamma y_k^2 / 2] \ge \E[\gamma (y_k^*)^2 / 2] = \frac{\sigma^2}{\gamma} \eta_k^*.
+    \end{align*}
+\end{enumerate}
+
+\end{lemma}
+\begin{proof}
+We will denote $\sigma_k = \E[y_k^2]$ and assume WLOG we start decayping at step $0$. Then we will have
+\begin{align*}
+    \sigma_k = (1 - \eta_k \gamma)^2 \sigma_{k - 1} + \eta_k^2 \sigma^2.
+\end{align*}
+
+If we choose all $\eta_k = \maxeta$, we can directly verify that $\sigma_k = \sigma$.
+
+
+If we choose $\eta_k = \frac{\sigma_{k - 1 }\gamma}{\sigma_{k - 1}\gamma^2 + \sigma^2}$ to minimize the right hand side, we will have that
+\begin{align*}
+&\sigma_k = \frac{\sigma_{k - 1} \sigma^2}{\sigma_{k- 1}\gamma^2 + \sigma^2}. \\
+\iff     &\frac{1}{\sigma_k} = \frac{1}{\sigma_{k - 1}} + \frac{\gamma^2}{\sigma^2} = \frac{1}{\sigma_0} + \frac{\gamma^2 k}{\sigma^2}.
+\end{align*}
+
+This implies $\sigma_k = \frac{1}{\frac{1}{\sigma_0} + \frac{\gamma^2 k}{\sigma^2}}$ and plugging into $\eta_k = \frac{\sigma_{k - 1 }\gamma}{\sigma_{k - 1}\gamma^2 + \sigma^2}$ we have that
+\begin{align*}
+    \eta_k^* = \frac{\gamma}{\gamma^2 + \frac{\sigma^2}{\sigma_{k - 1}}}=  \frac{\gamma}{\gamma^2 k + \frac{\sigma^2}{\sigma_0}} = \frac{\gamma}{\sigma^2} \sigma_k.
+\end{align*}
+
+
+The optimality of $\eta_k^*$ can be easily inferred from the proof.
+\end{proof}
+
+
+
+
+
+\subsection{Landscape Analysis}
+We will parameterize $\flatproj(x)$ as $v_d(x) v_d(x)^T$ and $\sharpproj(x)$ to denote $\identity - \flatproj(x)$. Throughout this section, we will assume $v_d(x)$ is continuous and pointing towards the direction of the gradient for all the $x$ on the river.
+The following technical lemmas will be used repetitively in the proof.
+
+
+
+\begin{lemma}
+\label{lem:blockdiag}
+Under~\Cref{assum:technical,assum:river}, the directional derivative of $\sharpproj(x)$ and $\flatproj(x)$ exist and satisfied that 
+\begin{align*}
+    \nabla \flatproj(x)[v] = -\nabla \sharpproj(x)[v] = \nabla v_d(x)[v] v_d(x)^T  + v_d(x) \nabla v_d(x)[v]^T.
+\end{align*}
+Further 
+\begin{align*}
+    \nabla \sharpproj(x)[v] \sharpproj a &= \langle \nabla v_d(x)[v], \sharpproj a \rangle  v_d(x), \\
+    \nabla \sharpproj(x)[v] \flatproj a &= \langle v_d, \flatproj a \rangle  \nabla v_d(x)[v]. \\
+    \| \nabla \sharpproj(x)[v] \|_2 &\le \frac{\gamma \epsilon}{\normbound} \|v\|_2.
+\end{align*}
+\end{lemma}
+\begin{proof}
+
+    As $\flatgamma$ is an unique eigenvalue of $\nabla^2 L(x + vt)$ and $\nabla^2 L(x + vt)$ is analytical with respect to $t$, by Theorem 6.1 of~\cite{kato1995perturbation}, we know that $v_d(x + vt)$ is analytical with respect to $t$. Hence, the directional derivative exists.
+
+
+    The proof is by applying the chain rule and noticing that $\langle v_d(x), \nabla v_d(x)[v] \rangle = 0$ because $v_d(x)$ is always a unit vector.
+\end{proof}
+
+We will now define the projection of iterate to the river as the progress measure of the optimization dynamics.
+\begin{definition}
+\label{def:project}
+For $U$ in~\Cref{assum:technical} and any $w \in U$, we define the following ODE as the projection flow:
+\begin{align}
+\label{eq:projection}
+    \phi(w, 0) = w, d \phi(w, t) = -\sharpproj(w) \nabla L\left( \phi(w, t)\right) dt.
+\end{align}
+When $\lim_{t \to \infty} \phi(w, t)$ is well defined, we will define $\Phi(w) = \lim_{t \to \infty} \phi(w, t)$ as the projection of $w$ to the river.
+\end{definition}
+
+The following lemma ensures that the projection function is well-defined and is close to $w$:
+
+\begin{lemma}
+\label{lem:phiexists}
+Under~\Cref{assum:river,assum:technical}, for any $w$ satisfying that $\mathcal{B}(w, \frac{2 \normbound}{\gamma}) \subset U$, $\Phi(w) \in \river$ exists and $\|w  - \Phi(w) \|_2 \le \frac{2 \| \sharpproj(w) \nabla L(w) \|_2}{\gamma + 2\flatgamma}$.
+Moreover, movement along the projection flow decays exponentially,  $\|\sharpphi \gradphi \|_2 \le \exp(-\gamma t/2) \| \sharpproj(w) \nabla L(w) \|_2$.
+\end{lemma}
+
+\begin{proof}
+We will track $\| \sharpphi \gradphi\|_2^2$ along the projection flow before $\phi(w, t)$ leaves $U$,
+\begin{align*}
+    &\frac{d \|\sharpphi \gradphi \|_2^2}{dt} \\=& 2 \langle \sharpphi \gradphi, \frac{d  \sharpphi}{dt} \gradphi + \sharpphi \frac{d  \gradphi}{dt}\rangle.
+\end{align*}
+
+
+By~\Cref{lem:blockdiag,assum:technical}, the first term can be bounded as
+\begin{align*}
+    & \langle \sharpphi \gradphi, \frac{d  \sharpphi}{dt} \gradphi \rangle  \\
+    =&-\langle \sharpphi \gradphi,\nabla  \sharpphi[\sharpphi\gradphi ]\gradphi \rangle \\
+    =&- \langle \sharpphi \gradphi, \nabla v_d (x)[\sharpphi\gradphi ] \rangle  \langle v_d, \flatproj(\phi(x,t)) \nabla L(\phi(x,t)) \rangle  \\
+    \le& \| \gradphi \| \| \sharpphi \gradphi\|^2 \frac{\err \gamma}{\normbound} \le \err \gamma  \| \sharpphi \gradphi\|^2.
+\end{align*}
+
+The second term is always negative
+\begin{align*}
+    &\langle \sharpphi \gradphi,   \sharpphi \frac{d  \gradphi}{dt}\rangle \\
+    =& -\langle\sharpphi \gradphi, \sharpphi \nabla^2 L(\phi(x,t))  \sharpphi \gradphi \rangle \\
+    \le& - (\gamma + 4\flatgamma) \| \sharpphi \gradphi \|^2.
+\end{align*}
+
+Summing up the two terms,
+\begin{align*}
+    \frac{d \|\sharpphi \gradphi \|_2^2}{dt}  \le -(\gamma + 2 \flatgamma) \| \sharpphi \gradphi \|^2.
+\end{align*}
+
+By~\Cref{lem:expdecay}, we have $\|\sharpphi \gradphi \|_2^2 \le \exp(-(\gamma + 2 \flatgamma)t) \| \sharpproj(w) \nabla L(w) \|_2^2$.
+Hence $\forall t > 0$,
+\begin{align*}
+\| \phi(w, t) - w \|_2 &\le \int_{0}^{\infty} \| \sharpproj(\phi(w,\tau)) \nabla L(\phi(w, \tau)) \|_2 d \tau \\
+&\le \| \sharpproj(w) \nabla L(w) \|_2 \int_{0}^{\infty} \exp(-(\gamma + 2 \flatgamma)t/2)  \\
+&\le \frac{2 \| \sharpproj(w) \nabla L(w) \|_2}{(\gamma + 2 \flatgamma)}.
+\end{align*}
+As $\mathcal{B}(w, \frac{\normbound}{2 \gamma}) \subset U$, the analysis hold along the trajectory and this shows that $\Phi(w) = \lim\limits_{t \to \infty} \phi(w, t)$ exists and that $\| \Phi(w) - w \|_2 \le  \frac{2 \| \sharpproj(w) \nabla L(w) \|_2}{(\gamma + 2 \flatgamma)}$.
+
+Further $\Phi(w)$ satisfies that $\sharpproj(\Phi(w)) \nabla L(\Phi(w)) = 0$, and by~\Cref{assum:technical}, $\Phi(w) \in \river$.  
+\end{proof}
+
+
+The following lemmas focus on the properties of $\partial \Phi$.
+
+\begin{lemma}
+\label{lem:partialphiexists}
+Under~\Cref{assum:river,assum:technical}, for any $w$ satisfying that $\mathcal{B}(w, \frac{2 \normbound}{\gamma}) \subset U$, $\partial \Phi(w)$ is well-defined. 
+\end{lemma}
+
+\begin{proof}
+Recall that $\Phi(w) = \lim\limits_{n \to \infty} \underbrace{(\phi \circ \phi \circ \ldots \phi)}_{n \text{ times}}(w)$, as $\phi$ is differentiable (\Cref{lem:blockdiag}) and $\river$ is the fixed point of $\Phi$, by Theorem 5.1 of~\cite{Falconer1983}, we have that $\partial \Phi(w)$ is well-defined.
+\end{proof}
+
+\begin{lemma}
+\label{lem:partialphi}
+Under~\Cref{assum:river,assum:technical}, for any $w$ satisfying that $\mathcal{B}(w, \frac{2 \normbound}{\gamma}) \subset U$,  it holds that $\partial \Phi(w) \sharpproj(w) \nabla L(w) = 0$. Further for any $w = x(t) \in \river$, it holds that $\partial \Phi(w) \sharpproj(w) = 0, \partial \Phi(w) \frac{d x(t)}{dt} = \frac{d x(t)}{dt}$ and that for any $v$, $\partial \Phi(w) v$ aligns with $\frac{d x(t)}{dt}$.
+\end{lemma}
+
+\begin{proof}
+According to~\Cref{lem:phiexists,lem:partialphi}, $\Phi, \partial \Phi$ is well-defined when $\mathcal{B}(w, \frac{2 \normbound}{\gamma}) \subset U$. Based on~\Cref{def:project}, we have that
+\begin{align*}
+    \forall t, \Phi( \phi(w, t)) = \Phi(w). 
+\end{align*}
+Hence,
+\begin{align*}
+     \frac{ d\Phi( \phi(w, t)) }{dt}\mid_{t = 0} = 0,
+\end{align*}
+Therefore,
+\begin{align*}
+    0 = \partial \Phi(w) \frac{d \phi(w,t)}{dt} \mid_{t = 0} = -\partial \Phi(w) \sharpproj(w) \nabla L(w).
+\end{align*}
+
+For any $w \in \river$ and any $v \in \R^d$, it holds that
+\begin{align}
+    0&= \frac{d \partial \Phi(w + \alpha v) \sharpproj(w + \alpha v) \nabla L(w + \alpha v)}{d \alpha}  \mid_{\alpha = 0} \notag \\
+    &= \partial^2 \Phi(w)[v] \sharpproj(w) \nabla L(w) + \partial \Phi(w) \Big[ \partial \sharpproj(w)[v]\nabla L(w) + \sharpproj(w) \nabla^2 L(w) v\Big] \notag \\
+    &=  \partial \Phi(w) \Big[ \partial \sharpproj(w)[v]\nabla L(w) + \sharpproj(w) \nabla^2 L(w) v\Big].\label{eq:onriverphi}
+\end{align}
+
+Define $J_w(v)$ as the projection from $v$ to $ \partial \sharpproj(w)[v]\nabla L(w) + \sharpproj(w) \nabla^2 L(w) v$. 
+
+\begin{lemma}
+\label{lem:range}
+    $J_w(v)$ is a linear projection and the range of $J_w$ is the range of $\sharpproj$. 
+\end{lemma}
+\begin{proof}
+Based on~\Cref{lem:blockdiag}, $\sharpproj \partial \sharpproj(w)[v]\nabla L(w) = \partial \sharpproj(w)[v]\nabla L(w)$. Hence the range of $J_w$ is a subspace of the range of $\sharpproj$. 
+    When $v = \sharpproj(w) u \neq 0$, based on~\Cref{assum:technical},
+\begin{align*}
+    \| J_w(v) \|_2 \ge \| \sharpproj \nabla^2 L(w) \sharpproj(w) u \|_2 - \| \partial \sharpproj(w)[\sharpproj(w) u]\nabla L(w) \|_2 \ge \gamma \|u\|_2 - \gamma \err \| u \|_2  > 0.
+\end{align*}
+Hence the range of $J_w$ has a dimension no smaller than the dimension of the range of $\sharpproj(w)$. This concludes that the range of $J_w$ is the range of $\sharpproj(w)$.
+\end{proof}
+
+Hence by~\Cref{eq:onriverphi,lem:range}, it holds that for $w \in \river$, $ \partial \Phi(w) \sharpproj(w) = 0$. This shows that the range of $\partial \Phi(w)$ has dimension $1$.
+
+Finally for any $w \in \river$, $\Phi(w) = w$. Hence,
+\begin{align*}
+    \frac{d \Phi(x (t)) - d x(t)}{dt} = 0. \\
+    \partial \Phi(x(t)) \frac{d x(t)}{dt} = \frac{dx(t)}{dt}.
+\end{align*}
+Hence the range of $\partial \Phi(w)$ contains $ \frac{dx(t)}{dt}$, this concludes the proof.
+\end{proof}
+
+
+\begin{lemma}
+\label{lem:boundpartialphi}
+Under~\Cref{assum:river,assum:technical}, for any $w$ satisfying that $\mathcal{B}(w, \frac{2 \normbound}{\gamma}) \subset U$,  it holds that 
+\begin{align*}
+     \frac{\| \flatproj[\Phi(w)] \partial \Phi(w) \nabla L(w) -  \flatproj(w) \nabla L(w) \|_2}{ \| \flatproj(w) \nabla L(w)  \|_2} &\le 5\err,\\
+     \frac{\| \sharpproj[\Phi(w)] \partial \Phi(w) \nabla L(w) \|_2}{ \| \flatproj(w) \nabla L(w)  \|_2} &\le 5\err.
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+
+First, by~\Cref{lem:partialphi}, it holds that $\partial \Phi(w) \nabla L(w) = \partial \Phi(w)  \flatproj(w) \nabla L(w)$. Define
+\begin{align*} 
+    v &= \flatproj(w) \nabla L(w) / \|\flatproj(w) \nabla L(w)\|_2, \\
+    s(t) &= \sharpproj(\phi(w,t)) \partial \phi(w,t)[v], \\
+    f(t) &= \flatproj(\phi(w,t)) \partial \phi(w,t)[v],
+\end{align*}
+it holds that $s(0) = 0$ and $f(0) = v$ as $\phi(w,0) = w$.
+
+We will bound the changes of $s(t)$ and $f(t)$. We will begin with calculating the time derivative of $\partial \phi(w,t)[v]$.
+\begin{align}
+    \frac{d \partial \phi(w,t)[v]}{dt} =& \partial\left( \frac{d\phi(w,t)}{dt} \right)[v]\notag \\
+    =& -\partial\left(\sharpproj(\phi(w,t)) \nabla L(\phi(w,t)) \right)[v] \notag \\
+    =& - \partial \sharpproj(\phi(w,t))[\partial \phi(w,t)[v]] \nabla L(\phi(w,t)) \notag\\
+    &- \sharpproj(\phi(w,t)) \nabla^2 L(\phi(w,t)) \partial \phi(w,t)[v] \notag \\
+    =& - \partial \sharpproj(\phi(w,t))[\partial \phi(w,t)[v]] \nabla L(\phi(w,t)) \notag\\
+    &- \sharpproj(\phi(w,t)) \nabla^2 L(\phi(w,t)) s(t). \label{eq:doublepartialphi} 
+\end{align}
+
+
+We will now bound $\frac{d \| s(t) \|_2}{dt}$,
+\begin{align*}
+    \frac{d \| s(t) \|_2^2}{dt} =& 2\langle s(t), \frac{d s(t)}{dt} \rangle \\
+    =& 2\langle s(t), \nabla \sharpproj(\phi(w,t)) [\frac{d \phi(w,t)}{dt}] \partial \phi(w,t)[v] 
+    +  \sharpproj(\phi(w,t))  \frac{d \partial \phi(w,t)[v]}{dt}  \rangle \\
+    =& -2 \langle s(t), \nabla \sharpproj(\phi(w,t)) [\sharpproj(\phi(w,t)) \nabla L(\phi(w,t))] \partial \phi(w,t)[v] \rangle \\
+    & -2\langle s(t),  \sharpproj(\phi(w,t))  \frac{d \partial \phi(w,t)[v]}{dt}  \rangle.
+\end{align*}
+
+By~\Cref{lem:phiexists,assum:technical,lem:blockdiag}, the first term satisfies that,
+\begin{align*}
+    \langle s(t), \nabla \sharpproj(\phi(w,t)) [\sharpproj(\phi(w,t)) \nabla L(\phi(w,t))] \partial \phi(w,t)[v] \rangle  &\le \gamma \err \| s(t) \|_2 \| s(t) + f(t) \|_2.
+\end{align*}
+
+By~\Cref{eq:doublepartialphi,assum:technical}, the second term satisfies that,
+\begin{align*}
+    &\langle s(t),  \sharpproj(\phi(w,t))  \frac{d \partial \phi(w,t)[v]}{dt}  \rangle \\
+    =& -\langle s(t),  \partial \sharpproj(\phi(w,t))[\partial \phi(w,t)[v]] \nabla L(\phi(w,t))  \rangle \\
+    &-\langle s(t), \sharpproj(\phi(w,t)) \nabla^2 L(\phi(w,t)) s(t) \rangle \\
+    \le& \gamma \err \| s(t) \|_2 \| s(t) + f(t) \|_2 - \gamma \| s(t) \|_2^2.
+\end{align*}
+
+Hence $2 \|s(t)\|_2 \frac{d \| s(t) \|_2}{dt} =\frac{d \| s(t) \|_2^2}{dt} \le - 2 \gamma \| s(t) \|_2^2  + 4\gamma \err \| s(t) \|_2 \| s(t) + f(t) \|_2$ and we can conclude that
+\begin{align}
+\label{eq:st}
+    \frac{d\| s(t) \|_2}{dt} \le -\gamma \|s(t)\|_2 / 2 + 2 \gamma \err \|f(t)\|_2.
+\end{align}
+
+Similarly, we can provide a bound for  $\| \frac{d f(t)}{dt} \|_2$,
+\begin{align*}
+     \| \frac{d f(t) }{dt} \| 
+    =& 2 \| \nabla \flatproj(\phi(w,t)) [\frac{d \phi(w,t)}{dt}] \partial \phi(w,t)[v] 
+    +  \flatproj(\phi(w,t))  \frac{d \partial \phi(w,t)[v]}{dt} \|_2\\
+    =& -2 \|\nabla \flatproj(\phi(w,t)) [\sharpproj(\phi(w,t)) \nabla L(\phi(w,t))] \partial \phi(w,t)[v]  \\
+    & +  \flatproj(\phi(w,t))  \frac{d \partial \phi(w,t)[v]}{dt}  \|_2.
+\end{align*}
+By~\Cref{lem:phiexists,assum:technical,lem:blockdiag}, the first term satisfies that,
+\begin{align*}
+    &\| \nabla \flatproj(\phi(w,t)) [\sharpproj(\phi(w,t)) \nabla L(\phi(w,t))] \partial \phi(w,t)[v]  \| \\  =& \|  \nabla \sharpproj(\phi(w,t)) [\sharpproj(\phi(w,t)) \nabla L(\phi(w,t))] \partial \phi(w,t)[v] \| \\\le& \gamma \err \exp(-\gamma t /2) \| f(t) \|_2 \| s(t) + f(t) \|_2 .
+\end{align*}
+By~\Cref{lem:phiexists,assum:technical,lem:blockdiag}, the second term satisfies that,
+\begin{align*}
+    & \|   \flatproj(\phi(w,t))  \frac{d \partial \phi(w,t)[v]}{dt} \| \\
+    =& \| \flatproj(\phi(w,t)) \partial \flatproj(\phi(w,t))[\partial \phi(w,t)[v]] \nabla L(\phi(w,t))  \rangle  \| \\
+    =& \|\flatproj(\phi(w,t))  \partial \flatproj(\phi(w,t))[\partial \phi(w,t)[v]] \sharpproj(\phi(w,t)) \nabla L(\phi(w,t))  \rangle \| \\
+    \le& \gamma \err  \exp(-\gamma t /2) \| f(t) \|_2 \| s(t) + f(t) \|_2.
+\end{align*}
+Hence we can conclude that
+\begin{align}
+\label{eq:ft}
+    \| \frac{d f(t)}{dt}  \|_2  \le  2 \gamma \err  \exp(-\gamma t /2)  (\|f(t)\|_2 + \| s(t)\|_2).
+\end{align}
+
+By~\Cref{eq:st}, it holds that
+\begin{align*}
+    \frac{d (\exp(\gamma t /2)\| s(t)\|_2)}{dt} = \gamma \exp(\gamma t / 2) \| s(t)\|_2 / 2 + \exp(\gamma t / 2) \frac{d \| s(t)\|_2}{dt} \le 2\gamma \err  \exp(\gamma t / 2) \| f(t) \|_2.
+\end{align*}
+
+Integrating the above equation from $0$ to $t$, and we have 
+\begin{align}
+\label{eq:connectsf}
+    \| s(t) \|_2 \le 2\gamma \err \int_{0}^{t}  \exp(\gamma (\tau - t) / 2) \| f(\tau) \|_2 d \tau.
+\end{align}
+
+By~\Cref{eq:ft,eq:connectsf}, we have that
+\begin{align*}
+     \Big | \frac{d\| f(t) \|_2}{dt} \Big |   \le 2 \gamma \err  \exp(-\gamma t /2)  \|f(t)\|_2 +  4\gamma^2 \err^2 \int_{0}^{t}  \exp(\gamma (\tau - 2t)/ 2) f(\tau) d \tau.
+\end{align*}
+
+This suggests that
+\begin{align*}
+    \|f(T)\|_2 \le 1 + 2 \gamma \err \int_{0}^T  \exp(-\gamma t /2)  \|f(t)\|_2 dt  +  4\gamma^2 \err^2 \int_{0}^T \int_{0}^{t}  \exp(\gamma (\tau - 2t) / 2) f(\tau) d \tau dt.
+\end{align*}
+
+Define $M(t) = \sup_{0 \le \tau \le t} f(t)$, then it holds that
+\begin{align*}
+    \| M(T) \|_2 &\le 1 + \| M(T) \|_2 \left(2 \gamma \err \int_{0}^T  \exp(-\gamma t /2) dt +  4\gamma^2 \err^2 \int_{0}^T \exp(-\gamma t/2)  \int_{0}^{t}  \exp(\gamma  (\tau - t)/ 2)  d \tau dt \right). \\
+    &\le 1 +  \| M(T) \|_2 \left( 4 \err + 16 \err^2 \right).
+\end{align*}
+
+This implies that $\forall t, \|f(t)\|_2 \le \| M(t) \|_2 \le \frac{1}{ 1- 4 \err - 16 \err^2} \le 1 + 5 \err$. By~\Cref{eq:connectsf}, this suggests that $\| s(t)\|_2 \le 4 \err ( 1 + 5 \err) \le 5 \err$. Finally, returning to~\Cref{eq:ft}, we have that
+\begin{align*}
+     \| \frac{f(t)}{dt} \|_2 &\le  2 \gamma \err  \exp(-\gamma t /2)  (\|f(t)\|_2 + \| s(t)\|_2) \\
+     &\le  2 \gamma \err  \exp(-\gamma t /2)  (1 + 10 \err).
+\end{align*}
+
+Hence $\| f(t) - f(0)\|_2 \le 2 \int_{0}^{\infty} 2 \gamma \err  \exp(-\gamma t /2)  (1 + 10 \err)\le 2 \err (1 + 10 \err) \le 5 \err$.
+
+We have that
+\begin{align*}
+     \frac{\| \flatproj[\Phi(w)] \partial \Phi(w) \nabla L(w) -  \flatproj(w) \nabla L(w) \|_2}{ \| \flatproj(w) \nabla L(w)  \|_2} = \lim_{t \to \infty} \| f(t) - f(0) \|_2 \in [0, 5\err],
+\end{align*}
+and 
+\begin{align*}
+     \frac{\| \sharpproj[\Phi(w)] \partial \Phi(w) \nabla L(w) \|_2}{ \| \flatproj(w) \nabla L(w)  \|_2} = \lim_{t \to \infty} \| s(t) \|_2 \in [0, 5\err],
+\end{align*}
+The proof is then complete.
+\end{proof}
+
+The following lemma generalizes~\Cref{lem:boundpartialphi} to general direction instead of $\nabla L(w)$.
+
+\begin{lemma}
+\label{lem:boundpartialphigen}
+Under~\Cref{assum:river,assum:technical}, for any $w$ satisfying that $\mathcal{B}(w, \frac{2 \normbound}{\gamma}) \subset U$,  it holds that 
+\begin{align*}
+     \frac{\| \flatproj[\Phi(w)] \partial \Phi(w) u -  \flatproj(w) u \|_2}{ \| \flatproj(w) \nabla L(w)  \|_2} &\le 5\err,\\
+     \frac{\| \sharpproj[\Phi(w)] \partial \Phi(w) u  \|_2}{ \| \flatproj(w) u \|_2} &\le 5\err.
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+    We only need to notice that $\flatproj(w) u $ aligns with $v_d(\nabla^2 L(w))$. Hence, it always holds that
+    \begin{align*}
+         \flatproj(w) u &= \flatproj(w) \nabla L(w) \frac{\langle \flatproj(w) \nabla L(w), \flatproj(w) u\rangle}{\| \flatproj(w) \nabla L(w) \|_2^2}, \\
+         \partial \Phi(w) u &=  \partial \Phi(w) \flatproj(w) u = \partial \Phi(w) \nabla L(w)  \frac{\langle \flatproj(w) \nabla L(w), \flatproj(w) u\rangle}{\| \flatproj(w) \nabla L(w) \|_2^2}.
+    \end{align*}
+The proof is then complete.
+\end{proof}
+
+
+The following lemma states that the angle between the gradient and the tangent direction is small for any point on the river.
+
+\begin{lemma}
+\label{lem:alignspace}
+For any $w \in \river$, it holds that 
+\begin{align*}
+    \| \riverproj(w) \nabla L(w)  - \nabla L(w) \|_2 \le 4\err  \| \riverproj(w) \nabla L(w)   \|_2.
+\end{align*}
+\end{lemma}
+\begin{proof}
+
+Assume $w = x(T)$, we will denote $\riverproj(w) \nabla L(w) $ by $v$.
+
+
+It holds that
+    \begin{align*}
+        \nabla \big( \sharpproj(w) \nabla L(w) \big)[v] = 0,
+    \end{align*}
+    which can be simplified to
+    \begin{align*}
+        \sharpproj(w) \nabla^2 L(w) v + \nabla \sharpproj(w)[v] \nabla L(w) = 0.
+    \end{align*}
+    The first term satisfies that $\|\sharpproj(w) \nabla^2 L(w) v \|_2 \ge \gamma \| \sharpproj(w) v\|$ and the second term satisfies that $\|  \nabla \sharpproj(w)[v] \nabla L(w)\|_2 \le \gamma \err \| v\|$. This then suggests $\| \sharpproj(w) v \|_2 \le \err \| v \|_2$. 
+    
+    Therefore $\| \flatproj(w) v\|_2  \ge (1 - \err) \| v \|_2$. As 
+    \begin{align*}
+        v = \frac{d x(t)}{dt} \mid_{t = T} = -\riverproj \left(w\right) \nabla L(w) 
+    \end{align*}
+
+
+   We know that $\Big | v_d^\top \riverproj(w) v_d \Big | \ge (1 - \err) \|  \riverproj \left(w\right) v_d\|_2$, which suggests that $\Big | v_d^\top \frac{ \riverproj(w) v_d} {\|  \riverproj(w) v_d \|_2} \Big | \ge ( 1- \err)$. Hence we can conclude that $\| \riverproj(w) v_d \|_2 \ge (1 - \err)$. Hence, we know that
+   \begin{align*}
+       \| v + \nabla L(w) \|_2 \le \sqrt{1 - (1- \err)^2} \| \nabla L(w) \|_2\le 2 \err \| \nabla L(w) \|_2 \le \frac{2 \err}{1 - \err} \| v \|_2 \le 4 \err \| v\|_2.
+   \end{align*}
+   This concludes the proof.
+\end{proof}
+
+
+
+
+The next lemma states that $\flatproj(w) \nabla L(w)$ and $\nabla L(\Phi(w))$ is always close.
+
+\begin{lemma}
+\label{lem:simgrad}
+Under~\Cref{assum:river,assum:technical}, for any $w$ satisfying that $\mathcal{B}(w, \frac{2 \normbound}{\gamma}) \subset U$,  it holds that 
+\begin{align*}
+    \| \flatproj(w) \nabla L(w) - \nabla L(\Phi(w)) \|_2 \le (\gamma \err  + \flatgamma) \| w - \Phi(w)\|_2.
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+
+By~\Cref{lem:phiexists}, the line segment from $\Phi(w)$ to $w$ lies in $U$. By~\Cref{assum:technical,lem:phiexists},
+\begin{align*}
+    &\| \flatproj(w) \nabla L(w) - \flatproj(\Phi(w)) \nabla L(\Phi(w)) \|_2 \\
+    =& \| \int_{0}^1 \nabla \flatproj\left( \Phi\left(w\right) + t\left(w - \Phi\left(w\right)\right)\right)\left[w - \Phi(w)\right]\nabla L( \Phi\left(w\right) + t\left(w - \Phi\left(w\right)\right)) dt \\
+    &+ \int_{0}^1  \flatproj\left( \Phi\left(w\right) + t\left(w - \Phi\left(w\right)\right)\right) \nabla^2 L( \Phi\left(w\right) + t\left(w - \Phi\left(w\right)\right)) (w - \Phi(w)) dt \|_2 \\
+    \le& (\gamma \err  + \flatgamma) \| w - \Phi(w)\|_2.
+\end{align*}
+This concludes the proof.
+\end{proof}
+
+
+The final theorem states that when $w$ is near the river, the movement of its projection has a similar value as the inherent speed at the river.
+
+\begin{lemma}
+\label{lem:similarmove}
+    Under~\Cref{assum:river,assum:technical}, when $\| w- \Phi(w) \|_2 \le \frac{10 \err \| \flatgrad\|_2}{\gamma + \flatgamma}$,
+    \begin{align*}
+    \|  \flatproj(w) \nabla L(w) +  \frac{d x(\tau)}{d\tau} \mid_{\tau = T} \|_2 &\le 16\err \|\frac{d x(\tau)}{d\tau} \mid_{\tau = T}\|_2.\\ 
+        \| \partial \Phi(w) \nabla L(w) +  \frac{d x(\tau)}{d\tau} \mid_{\tau = T} \|_2 &\le 30\err \|\frac{d x(\tau)}{d\tau} \mid_{\tau = T}\|_2.
+    \end{align*}
+\end{lemma}
+
+\begin{proof}
+
+By~\Cref{lem:boundpartialphi}
+\begin{align*}
+    \| \partial \Phi(w) \nabla L(w) - \flatproj(w) \nabla L(w) \|_2 \le 10\err \| \flatproj(w) \nabla L(w) \|_2.
+\end{align*}
+
+    Combining~\Cref{lem:simgrad} and $\| w- \Phi(w) \|_2 \le \frac{10 \err \| \flatgrad\|_2}{\gamma + \flatgamma}$, we have that
+    \begin{align*}
+        \|  \flatproj(w) \nabla L(w) - \nabla L(\Phi(w)) \|_2 \le (\gamma \err + \flatgamma) \| w- \Phi(w) \| \le  10\err \| \flatproj(w) \nabla L(w) \|_2. 
+    \end{align*}
+
+By~\Cref{lem:alignspace}, let $v =  \frac{d x(\tau)}{d\tau} \mid_{\tau = T}$,
+\begin{align*}
+    \| v  +  \nabla L(\Phi(w)) \|_2 \le 4\err  \|v   \|_2.
+\end{align*}
+
+Combining the three inequalities, we have that
+\begin{align*}
+    \| \flatproj(w) \nabla L(w) -\nabla L(\Phi(w))  \|_2 &\le \frac{10 \err}{1 - 10 \err}  \| \nabla L(\Phi(w)) \|_2 \le \frac{ 1 + 4\err }{1 - 10\err} 10 \err \| v\|_2 \le 12 \err \| v \|_2. 
+\end{align*}
+
+This suggests that
+\begin{align*}
+    \| \flatproj(w) \nabla L(w) - v\|_2 \le | \flatproj(w) \nabla L(w) -\nabla L(\Phi(w))  \|_2 + \| v  +  \nabla L(\Phi(w)) \|_2 \le 16 \err \| v\|_2.
+\end{align*}
+
+Hence 
+\begin{align*}
+    &\|  v +  \partial \Phi(w) \nabla L(w)  \|_2 \\ \le &
+     \| \flatproj(w) \nabla L(w) - v\|_2 + \|  \flatproj(w) \nabla L(w) - \nabla L(\Phi(w)) \|_2 \\
+     \le& 16 \err \| v\|_2 + 10 \err \|\flatproj(w) \nabla L(w) \|_2 \\
+     \le& 30 \err \| v\|_2.
+\end{align*}
+This concludes the proof.
+\end{proof}
+
+
+
+\subsection{Proof of \Cref{thm:gftracksriver}}
+\label{app:gf}
+We will consider the following gradient flow:
+\begin{align}
+\label{eq:gf}
+    d w(t) = - \nabla L(w(t)) dt, w(0)  \in V.
+\end{align}
+
+We will first prove that along the gradient flow trajectory, it holds that $\| \sharpproj(w) \nabla L(w)\|_2$ is bounded. 
+
+\begin{lemma}
+\label{lem:gfsg}
+    Under~\Cref{assum:river,assum:technical}, along the gradient flow~\Cref{eq:gf}, it holds that for $t \ge {2\log(2 \normbound / (\err\normbound_{\min})) }/{\gamma}$, $\| \sharpgrad\|_2 \le 2 \err \| \flatgrad\|_2$.
+\end{lemma}
+\begin{proof}
+    We will first compute how fast $\| \sharpgrad \|_2$ can change
+    \begin{align*}
+        \frac{d \|\sharpgrad\|_2^2}{dt} =& -2 \langle \sharpgrad, \partial \sharpproj(w(t))[\nabla L(w(t))] \nabla L(w(t)) \rangle \\ &-2 \langle \sharpgrad, \sharpproj(w(t)) \nabla^2 L(w(t)) \nabla L(w(t))\rangle \\
+    \end{align*}
+    By~\Cref{lem:blockdiag,assum:technical}, the first term satisfies,
+    \begin{align*}
+        &-2\langle \sharpgrad, \partial \sharpproj(w(t))[\nabla L(w(t))] \nabla L(w(t)) \rangle \\
+        =& -2\langle \sharpgrad, \partial \sharpproj(w(t))[\nabla L(w(t))] \flatproj L(w(t)) \nabla L(w(t)) \rangle \\
+        \le& 2 \err \gamma \|\sharpgrad\|_2 \|\flatgrad\|_2
+    \end{align*}
+    By~\Cref{assum:technical}, the second term satisfies,
+    \begin{align*}
+        &-2 \langle \sharpgrad, \sharpproj(w(t)) \nabla^2 L(w(t)) \nabla L(w(t))\rangle \\
+        &\le -2(\gamma + \flatgamma) \| \sharpgrad\|_2^2.
+    \end{align*}
+    Hence,
+    \begin{align}
+    \label{eq:sgf}
+        \frac{d \|\sharpgrad\|_2}{dt} \le \err \gamma \|\flatgrad\|_2 - (\gamma + \flatgamma) \|\sharpgrad\|_2.
+    \end{align}
+
+    We then consider the corresponding $\flatgrad$.
+
+    \begin{align*}
+ \frac{d \|\flatgrad\|_2^2}{dt} =& -2 \langle \flatgrad, \partial \flatproj(w(t))[\nabla L(w(t))] \nabla L(w(t)) \rangle \\ &-2 \langle \flatgrad, \flatproj(w(t)) \nabla^2 L(w(t)) \nabla L(w(t))\rangle \\
+    \end{align*}
+
+    By~\Cref{lem:blockdiag,assum:technical}, the first term satisfies,
+    \begin{align*}
+        &-2\langle \flatgrad, \partial \flatproj(w(t))[\nabla L(w(t))] \nabla L(w(t)) \rangle \\
+        =& -2\langle \flatgrad, \partial \flatproj(w(t))[\nabla L(w(t))] \sharpproj L(w(t)) \nabla L(w(t)) \rangle \\
+        \le& 2 \err \gamma \|\sharpgrad\|_2 \|\sharpgrad\|_2
+    \end{align*}
+    By~\Cref{assum:technical}, the second term satisfies,
+    \begin{align*}
+        &-2 \langle \flatgrad, \flatproj(w(t)) \nabla^2 L(w(t)) \nabla L(w(t))\rangle \\
+        &\le 2\flatgamma \| \flatgrad\|_2^2.
+    \end{align*}
+
+    Hence, we have that
+    \begin{align}
+    \label{eq:fgf}
+         \Big| \frac{d \|\flatgrad\|_2}{dt} \Big| \le \err \gamma \|\sharpgrad\|_2 + \flatgamma \| \flatgrad\|_2.
+    \end{align}
+
+    Choose $\alpha_\err = \frac{1 - \sqrt{1 - 4 \err^2}}{2 \err} < 1.5 \err$ as the solution to the quadratic equation $\err \alpha^2 -  \alpha + \err = 0$.
+
+    Then combining~\Cref{eq:sgf,eq:fgf}, it holds that
+    \begin{align*}
+        &\frac{d \left( \| \sharpgrad\|_2 - \alpha_{\err} \|\flatgrad\|_2\right)} {dt} \\ \le&  \gamma ( -1 + \err \alpha_{\err}) \|\sharpgrad \|_2 + \err \gamma \| \flatproj \|_2\\
+        &-\flatgamma \left(| \sharpgrad\|_2 - \alpha_{\err} \|\flatgrad\|_2 \right).
+    \end{align*}
+
+    Notice that
+    \begin{align*}
+         \frac{( -1 + \err \alpha_{\err})}{\err} = \frac{-1}{\alpha_{\err}}
+    \end{align*}
+
+    Hence,
+    \begin{align*}
+         &\frac{d \left( \| \sharpgrad\|_2 - \alpha_{\err} \|\flatgrad\|_2\right)} {dt}\\ \le& -( \gamma(1 - \err \alpha_{\err}) + \flatgamma ) \left( \| \sharpgrad\|_2 - \alpha_{\err} \|\flatgrad\|_2\right).
+    \end{align*}
+
+    By~\Cref{lem:expdecay}, this suggests that
+    \begin{align*}
+         &\| \sharpgrad\|_2 - \alpha_{\err} \|\flatgrad\|_2 \\ \le& \exp(-( \gamma(1 - \err \alpha_{\err}) + \flatgamma )t) \left( \| \sharpproj(w(0)) \nabla L(w(0))\|_2 \right) \\
+         \le& \exp(-\gamma t/2)  \| \sharpproj(w(0)) \nabla L(w(0))\|_2.
+    \end{align*}
+
+    Hence, 
+    \begin{align*}
+        \| \sharpgrad\|_2 \le 1.5\err \|\flatgrad\|_2 + \exp(-\gamma t/2) \left( \| \sharpproj(w(0)) \nabla L(w(0))\|_2 \right).
+    \end{align*}
+
+    
+\end{proof}
+
+\begin{lemma}
+\label{lem:gfclose}
+    Under~\Cref{assum:river,assum:technical}, along the gradient flow~\Cref{eq:gf}, it holds that $w(t) \in U$ and $\| w(t)- \Phi(w(t)) \|_2 \le \frac{4 \err \| \flatgrad\|_2 + 2 \exp(-\gamma t/2) \Delta }{\gamma + \flatgamma}$.
+\end{lemma}
+\begin{proof}
+    This is a direct combination of~\Cref{lem:gfsg,lem:phiexists}.
+\end{proof}
+
+
+
+
+\begin{lemma}
+\label{lem:gfspeedcalc}
+ Under~\Cref{assum:river,assum:technical}, along the gradient flow~\Cref{eq:gf}, if $T(t)$ satisfies $x(T(t)) = \Phi(w(t))$, then 
+ \begin{align*}
+     \frac{d T(t)}{d t} \in [1 - 30 \err, 1 + 30 \err].
+ \end{align*}
+\end{lemma}
+
+\begin{proof}
+As $T(t)$ satisfies $x(T(t)) = \Phi(w(t))$, taking derivative on both sides yield,
+\begin{align*}
+    \frac{d T(t)}{d t} \frac{d x(\tau)}{d \tau} \mid_{\tau = T(t)} = -\partial \Phi(w(t)) \nabla L(w(t)).
+\end{align*}
+
+By~\Cref{lem:gfclose,lem:simgrad}, it holds that 
+\begin{align*}
+    \| \partial \Phi(w(t)) \nabla L(w(t)) - \frac{d x(\tau)}{d \tau} \mid_{\tau = T(t)}\|_2 \le 30 \err   \frac{d x(\tau)}{d \tau} \mid_{\tau = T(t)}.
+\end{align*}
+
+We then have that
+\begin{align*}
+    | \frac{d T(t)}{d t} - 1 | \le 30 \err,
+\end{align*}
+which concludes the proof.
+\end{proof}
+
+\begin{proof}[Proof of~\Cref{thm:gftracksriver}]
+The proof is a direct combination of~\Cref{lem:gfclose,lem:gfspeedcalc}.
+\end{proof}
+
+
+\subsection{Proof of \Cref{thm:gdtracksriver}}
+\label{app:gd}
+We will consider the following gradient descent:
+\begin{align}
+\label{eq:gd}  
+    w_{k + 1} - w_k = - \eta \nabla L(w_k) , w_0 \in \river.
+\end{align}
+
+
+
+We will track the changes of $\flatproj(w_k) \nabla L(w_k)$ and $\sharpproj(w_k) \nabla L(w_k)$, for simplicity, we will denote them us $fg(k)$ and $sg(k)$. Further, we will use the following denotation 
+\begin{align*}
+    w_{k, \tau} = (1 - \tau) w_k + \tau w_{k + 1}
+\end{align*}
+    We will first prove some lemmas bounding the difference between gradient and projections at different points.
+
+
+    \begin{lemma}
+    \label{lem:stayinU}
+    Under~\Cref{assum:river,assum:technical}, when $w_k \in V$, $\forall \tau \in (0,1)$, $w_{k, \tau} \in U$.
+    \end{lemma}
+
+    \begin{proof}
+        It holds that,
+        \begin{align*}
+            \| w_k - w_{k, \tau} \|_2 \le \eta \normbound \le \frac{\normbound}{2\gamma}.
+        \end{align*}
+    \end{proof}
+
+
+    \begin{lemma}
+    \label{lem:moveps}
+         Under~\Cref{assum:river,assum:technical}, when $w_k \in V$, $\forall \tau, \tau' \in [0, 1]$, it holds that 
+        \begin{align*}
+            \|  \sharpproj(w_{k, \tau})  - \sharpproj(w_{k, \tau'}) \|_2 \le \eta \gamma \err.
+        \end{align*} 
+    \end{lemma}
+
+
+    \begin{proof}
+        According to~\Cref{lem:stayinU}, it holds that $w_{k, \tau}, w_{k, \tau'} \in U$.
+        Assume without loss of generality $\tau > \tau'$,
+        \begin{align*}
+            \| \sharpproj(w_{k, \tau})  - \sharpproj(w_{k, \tau'}) \| =&
+            \| \int_{\tau}^{\tau'} \nabla \sharpproj(w_{k, \tau''})[\eta \nabla L(w)] d\tau''  \|_2 \\
+            \le& \int_{\tau'}^\tau \|   \nabla \sharpproj(w_{k, \tau''})[\eta \nabla L(w)]  \|_2 d\tau''  \\
+            \le & \eta \gamma \err.
+        \end{align*}
+    \end{proof}
+    
+
+    
+    \begin{lemma}
+    \label{lem:moveg}
+        Under~\Cref{assum:river,assum:technical}, when $w_k \in V$, $\forall \tau \in (0, 1)$, it holds that 
+        \begin{align*}
+            \|  \sharpproj(w_{k, \tau}) \nabla L(w_{k, \tau}) - \sharpproj(w_{k, \tau}) \nabla L(w_k) \|_2 \le \eta \maxgamma \|  sg(k) \|_2 + 2\eta^2 \maxgamma \gamma \err \| \nabla L(w_k)\|_2.
+        \end{align*}
+    \end{lemma}
+
+    \begin{proof}
+        According to~\Cref{lem:stayinU}, it holds that $w_{k, \tau}, w_{k, \tau'} \in U$.
+        Define $g(\tau') = \| \sharpproj(w_{k, \tau}) \nabla L(w_{k, \tau'}) - \sharpproj(w_{k, \tau}) \nabla L(w_k) \|_2  $, then by  Lagrange's Mean Value Theorem, there exists $\tau'$, such that
+        \begin{align*}
+            &\|  \sharpproj(w_{k, \tau}) \nabla L(w_{k, \tau}) - \sharpproj(w_{k, \tau}) \nabla L(w_k) \|_2 = g(\tau) - g(0) \\
+            =& \tau g'(\tau') = \tau \frac{ d \|  \sharpproj(w_{k, \tau}) \nabla L(w_{k, \tau'}) - \sharpproj(w_{k, \tau}) \nabla L(w_k) \|_2}{d\tau'} \\
+            \le& \| \frac{ d   \sharpproj(w_{k, \tau}) \nabla L(w_{k, \tau'}) - \sharpproj(w_{k, \tau}) \nabla L(w_k) }{d\tau'} \|_2 \\
+            =& \eta \| \sharpproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau'}) \nabla L(w_k) \|_2 \\
+             \\
+            \le & \eta  \| \sharpproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau'}) \sharpproj (w_{k, \tau'}) \nabla L(w_k) \|_2  + \eta \| \sharpproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau'}) \flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2 \\
+            \le & \eta \maxgamma \|  \sharpproj (w_{k, \tau'}) \nabla L(w_k) \|_2 + \eta \| (\sharpproj(w_{k, \tau}) - \sharpproj(w_{k, \tau'})) \nabla^2 L(w_{k, \tau'}) \flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2.
+        \end{align*}
+        By~\Cref{lem:moveps}, it holds that
+        \begin{align*}
+            \maxgamma \|  \sharpproj (w_{k, \tau'}) \nabla L(w_k) \|_2 \le \maxgamma \|  sg(k) \|_2 + \eta \maxgamma \gamma \err \| \nabla L(w_k)\|_2. \\
+            \| (\sharpproj(w_{k, \tau}) - \sharpproj(w_{k, \tau'}) \nabla^2 L(w_{k, \tau'}) \flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2 \le
+            \eta \gamma  \flatgamma \err \| \nabla L(w_k)\|_2.
+        \end{align*}
+        Summing up and the proof is complete.
+    \end{proof}
+
+    \begin{lemma}
+    \label{lem:movegps}
+        $\forall \tau \in (0, 1)$, it holds that 
+        \begin{align*}
+            \|  \sharpproj(w_{k, \tau}) \nabla L(w_{k, \tau}) -sg(k) \|_2 \le  \|  sg(k) \|_2 + 3\eta  \gamma \err \| \nabla L(w_k)\|_2.
+        \end{align*}
+    \end{lemma}
+
+    \begin{proof}
+        This is a direct combination of~\Cref{lem:moveg,lem:moveps}, with
+        \begin{align*}
+            &\|  \sharpproj(w_{k, \tau}) \nabla L(w_{k, \tau}) - \sharpproj(w_k) \nabla L(w_k) \|_2 \\
+            \le& \|  \sharpproj(w_{k, \tau}) \nabla L(w_{k, \tau}) - \sharpproj(w_{k, \tau}) \nabla L(w_k) \|_2  + \| (\sharpproj(w_{k, \tau}) - \sharpproj(w_k)) \nabla L(w_k) \|_2.
+        \end{align*}
+        The proof is then complete.
+    \end{proof}
+
+    
+    \begin{lemma}
+    \label{lem:movepfg}
+        $\forall \tau \in (0, 1)$, it holds that 
+        \begin{align*}
+            \|  \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) - \flatproj(w_{k, \tau}) \nabla L(w_k) \|_2 \le \eta \flatgamma \|  fg(k) \|_2 + 2\eta^2 \maxgamma \gamma \err \| \nabla L(w_k)\|_2.
+        \end{align*}
+    \end{lemma}
+
+    \begin{proof}
+        Define $g(\tau') = \| \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau'}) - \flatproj(w_{k, \tau}) \nabla L(w_k) \|_2  $, then by  Lagrange's Mean Value Theorem, there exists $\tau'$, such that
+        \begin{align*}
+            &\|  \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) - \flatproj(w_{k, \tau}) \nabla L(w_k) \|_2 = g(\tau) - g(0) \\
+            =& \tau g'(\tau') = \tau \frac{ d \|  \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau'}) - \flatproj(w_{k, \tau}) \nabla L(w_k) \|_2}{d\tau'} \\
+            \le& \| \frac{ d   \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau'}) - \flatproj(w_{k, \tau}) \nabla L(w_k) }{d\tau'} \|_2 \\
+            =& \eta \| \flatproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau'}) \nabla L(w_k) \|_2 \\
+             \\
+            \le & \eta  \| \flatproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau'}) \flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2  + \eta \| \flatproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau'}) \sharpproj (w_{k, \tau'}) \nabla L(w_k) \|_2 \\
+            \le & \eta \flatgamma \|  \flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2 + \eta \| (\flatproj(w_{k, \tau}) - \flatproj(w_{k, \tau'})) \nabla^2 L(w_{k, \tau'}) \sharpproj (w_{k, \tau'}) \nabla L(w_k) \|_2.
+        \end{align*}
+        By~\Cref{lem:moveps}, it holds that
+        \begin{align*}
+            \flatgamma \|  \flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2 \le \flatgamma \| fg(k) \|_2 + \eta \flatgamma \gamma \err \| \nabla L(w_k)\|_2. \\
+            \| (\flatproj(w_{k, \tau}) - \flatproj(w_{k, \tau'}) \nabla^2 L(w_{k, \tau'}) \flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2 \le
+            \eta \gamma  \maxgamma \err \| \nabla L(w_k)\|_2.
+        \end{align*}
+        Summing up and the proof is complete.
+    \end{proof}
+
+    
+    \begin{lemma}
+    \label{lem:movegfs}
+        $\forall \tau \in (0, 1)$, it holds that 
+        \begin{align*}
+            \|  \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) -fg(k) \|_2 \le  \|  fg(k) \|_2 + 3\eta  \gamma \err \| \nabla L(w_k)\|_2.
+        \end{align*}
+    \end{lemma}
+
+    \begin{proof}
+        This is a direct combination of~\Cref{lem:movepfg,lem:moveps}, with
+        \begin{align*}
+            &\|  \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) - \flatproj(w_k) \nabla L(w_k) \|_2 \\
+            \le& \|  \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) - \flatproj(w_{k, \tau}) \nabla L(w_k) \|_2  + \| (\flatproj(w_{k, \tau}) - \flatproj(w_k)) \nabla L(w_k) \|_2.
+        \end{align*}
+        The proof is then complete.
+    \end{proof}
+
+
+We will prove a discrete version of~\Cref{lem:gfsg}.
+
+
+\begin{lemma}
+\label{lem:gdsg}
+    Under~\Cref{assum:river,assum:technical}, when $\eta < 1 / \maxgamma$, along the gradient flow~\Cref{eq:gd}, it holds that $\| \sharpproj(w_k) \nabla L(w_k)\|_2 \le 10 \err \| \flatproj(w_k) \nabla L(w_k)\|_2$ as long as $w(\tau) \in U, \forall \tau \le k$.
+\end{lemma}
+
+
+
+
+\begin{proof}
+
+    We will first consider $sg(k)$, By Lagrange's Mean Value Theorem, there exists $\tau$, such that,
+    \begin{align*}
+        &\| sg(k + 1) \|_2^2 - \| sg(k)\|_2^2 \\ =& 
+        \| \sharpproj(w_{k,1}) \nabla L(w_{k,1})\|_2^2 - \| \sharpproj(w_{k,0}) \nabla L(w_{k,0})\|_2^2 = \frac{d \| \sharpgradtau \|_2^2}{d \tau} \\
+        =& -\eta \langle \sharpgradtau, \partial \sharpproj(w_{k, \tau})[\nabla L(w_k)] \nabla L(w_{k, \tau}) + \sharpproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau}) \nabla L(w)\rangle
+    \end{align*}
+
+    
+
+
+    The first term satisfies that
+    \begin{align*}
+        &-\eta \langle \sharpgradtau, \partial \sharpproj(w_{k, \tau})[\nabla L(w_k)] \nabla L(w_{k, \tau})\rangle \\ \le& \eta \gamma \err \| \nabla L(w_k)\|_2 \| \sharpgradtau \|_2  \\
+        \le& \eta\gamma \err \| \nabla L(w_k)\|_2 ( 2\|  sg(k) \|_2 + 3\eta  \gamma \err \| \nabla L(w_k)\|_2).
+    \end{align*}
+
+
+    The second term satisfies that
+    \begin{align*}
+        &-\eta \langle \sharpgradtau, \sharpproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau}) \nabla L(w_k)\rangle \\
+        &= -\eta\langle \sharpproj(w_{k, \tau}) \nabla L(w_k), \sharpproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau}) \nabla L(w_k)\rangle  + \langle \sharpproj(w_{k,\tau}) (\nabla L(w_k) - \nabla L(w_{k,\tau})), \nabla^2 L(w_{k, \tau}) \nabla L(w_k)\rangle \\
+        &\le -\eta (\gamma  + 4 \flatgamma)\| \sharpproj(w_{k, \tau}) \nabla L(w_k)\|_2^2  + \eta \maxgamma \| \sharpproj(w_{k, \tau}) \nabla L(w_k) \|_2 \|\sharpproj(w_{k, \tau}) (\nabla L(w_k) - \nabla L(w_{k,\tau})) \|_2  
+    \end{align*}
+
+    As we have that $\| a - b \|^2 \ge \frac{\| a\|^2}{2} - 4\| b\|^2$, by~\Cref{lem:moveps}, it holds that
+    \begin{align*}
+     &- \| \sharpproj(w_{k, \tau}) \nabla L(w_k)\|_2^2 \\
+        =&-\| \sharpproj(w_k) \nabla L(w_k) + \left(  \sharpproj(w_{k, \tau}) - \sharpproj(w_k)\right) \nabla L(w_k)\|_2^2 \\ \le& - \frac{\| \sharpproj(w_k) \nabla L(w_k)\|_2^2}{2} + 4\| \left(  \sharpproj(w_{k, \tau}) - \sharpproj(w_k)\right) \nabla L(w_k) \|_2^2 \\
+        \le&  -\frac{\| \sharpproj(w_k) \nabla L(w_k)\|_2^2}{2} + 4  (\eta \gamma \err \| \nabla  L(w_k) \|)^2. \\
+        =& - \frac{\| \sharpproj(w_k) \nabla L(w_k)\|_2^2}{2} + 4 (\eta\gamma)^2  (\err \| \nabla  L(w_k) \|)^2. \\
+        \le& -\| sg(k)\|_2^2  + 2\eta\gamma \err^2 \| \nabla  L(w_k) \|^2
+    \end{align*}
+
+    Hence 
+    \begin{align*}
+         &-\eta (\gamma  + 4 \flatgamma)\| \sharpproj(w_{k, \tau}) \nabla L(w_k)\|_2^2 \\
+         \le&   -\eta (\gamma  + 4 \flatgamma) \| sg(k)\|_2^2  + 2\eta^2 (\gamma  + 4 \flatgamma)\gamma \err^2 \| \nabla  L(w_k) \|^2 \\
+         \le&   -\eta (\gamma  + 4 \flatgamma) \| sg(k)\|_2^2  + 2\eta \gamma \err^2 \| \nabla  L(w_k) \|^2
+    \end{align*}
+
+    By~\Cref{lem:moveg,lem:moveps} and $\eta \maxgamma^2 \le \gamma / 2$, it holds that
+    \begin{align*}
+         &\eta \maxgamma \| \sharpproj(w_{k, \tau}) \nabla L(w_k) \|_2 \|\sharpproj(w_{k, \tau}) (\nabla L(w_k) - \nabla L(w_{k,\tau})) \|_2 \\
+         \le& \eta^2 \maxgamma^2  (\| sg(k) \|_2 + \eta  \gamma \kappa \|\nabla L(w_k)\|_2) (\| sg(k) \|_2 + 2\eta  \gamma \kappa \|\nabla L(w_k)\|_2)\\
+         \le& \eta \gamma  (\| sg(k) \|_2 +  \kappa \|\nabla L(w_k)\|_2/2) (\| sg(k) \|_2 +  \kappa \|\nabla L(w_k)\|_2)/2.
+    \end{align*}
+
+
+
+
+
+
+ 
+
+    Hence, we can conclude that 
+    \begin{align}
+        &\|sg(k + 1)\|_2^2 - \|sg(k)\|_2^2 \notag\\
+        &-\eta((\gamma  + 4 \flatgamma) \| sg(k)\|_2^2  + 4 \eta  \gamma \err^2 \| \nabla  L(w_k) \|^2 \notag \\
+        &+ \eta \gamma   (\| sg(k)\|_2 
+ +   \err \| \nabla L(w_k) \|_2 / 2)(\| sg(k)\|_2 
+ +   \err \| \nabla L(w_k) \|_2)/ 2 \notag 
+    \end{align}
+    Let $b = \kappa  \| \nabla L(w_k)\|_2$ and $a = sg(k)$, as $b(2a + 3b/2) -a^2 + 4 b^2 + \frac{1}{2} (a + \frac{b}{2})(a + b) \le -\frac{a^2}{4} + 10b^2$, it holds that
+    \begin{align}
+    \label{eq:sg}
+    \|sg(k + 1)\|_2^2 - \|sg(k)\|_2^2 \le& 
+    -\eta \gamma \frac{\| sg(k)\|_2^2 }{4} + 10 \eta \gamma \kappa^2  \| \nabla  L(w_k) \|^2  - 4 \eta \flatgamma \| sg(k)\|_2^2 
+    \end{align}
+
+    Similarly, we can control the $fg(k) $ changes. By Lagrange's Mean Value Theorem, there exists $\tau'$, such that,
+    \begin{align*}
+        &\| fg(k + 1) \|_2^2 - \| fg(k)\|_2^2 \\ =& 
+        \| \flatproj(w_{k,1}) \nabla L(w_{k,1})\|_2^2 - \| \flatproj(w_{k,0}) \nabla L(w_{k,0})\|_2^2 = \frac{d \| \flatgradtau \|_2^2}{d \tau} \\
+        =& -\eta \langle \flatgradtau, \partial \flatproj (w_{k, \tau})[\nabla L(w_k)] \nabla L(w_{k, \tau}) + \flatproj (w_{k, \tau}) \nabla^2 L(w_{k, \tau}) \nabla L(w)\rangle 
+    \end{align*}
+
+    The first term satisfies that 
+    \begin{align*}
+        &\eta \langle \flatgradtau, \partial \flatproj (w_{k, \tau})[\nabla L(w_k)] \nabla L(w_{k, \tau}) \rangle \\
+        \le& \gamma \eta \kappa \| \nabla L(w_k)\|_2 \| \flatgradtau \|_2. \\
+        \le&  \gamma \eta \kappa \| \nabla L(w_k)\|_2 ( \| fg(k) \|_2 + \eta \flatgamma \|  fg(k) \|_2 + 2\eta^2 \maxgamma \gamma \err \| \nabla L(w_k)\|_2). \\\le& 4  \gamma \eta \kappa  \| \nabla L(w_k)\|_2^2.
+    \end{align*}
+
+    Similarly, the second term satisfies that 
+    \begin{align*}
+         &\eta \langle \flatgradtau, \flatproj (w_{k, \tau}) \nabla^2 L(w_{k, \tau}) \nabla L(w)\rangle \\
+         \le&  \eta \flatgamma \| \flatproj (w_{k, \tau}) \nabla L(w_k) \|_2  \| \flatgradtau \|_2 \\
+         \le&  \eta \flatgamma  (\| fg(k) \|_2 + \eta \gamma \kappa \| \nabla L(w_k) \|_2) (\| fg(k) \|_2 + \eta \flatgamma \|  fg(k) \|_2 + 2\eta^2 \maxgamma \gamma \err \| \nabla L(w_k)\|_2) \\
+         \le&  2\eta \flatgamma  (\| fg(k) \|_2 + \eta \gamma \kappa \| \nabla L(w_k) \|_2)^2 \\
+         \le& 4 \eta \flatgamma \| fg(k) \|_2^2 + 4\eta^2 \gamma^2 \kappa^2  \| \nabla L(w_k) \|_2^2
+    \end{align*}
+
+    Summarizing and we have
+    \begin{align}
+        \label{eq:fg}  
+        \|fg(k + 1)\|_2^2 - \|fg(k)\|_2^2 \ge& - 5 \gamma \eta \kappa  \| \nabla L(w_k)\|_2^2 - 4 \eta \flatgamma \| fg(k) \|_2^2
+    \end{align}
+
+    Let $a_\kappa$ be the smaller positive solution of
+    \begin{align*}
+        5\kappa a^2 + (10\kappa^2 + 5\kappa - \frac{1}{4})a + 10 \kappa^2 = 0.
+    \end{align*}
+    Then $a_\kappa = \frac{(-10\kappa^2 - 5\kappa + \frac{1}{4}) - \sqrt{(-10\kappa^2 - 5\kappa + \frac{1}{4})^2 - 200 \kappa^3}}{10 \kappa}< 100 \kappa^2$.
+
+
+    Then combining~\Cref{eq:fg,eq:sg}
+    \begin{align*}
+        &\|sg(k+1)\|_2^2  - a_{\kappa} \|fg(k + 1)\|_2^2 \\
+        \le& (1 - 4 \eta\flatgamma) (\|sg(k)\|_2^2  - a_{\kappa} \|fg(k + 1)\|_2^2) - \eta\gamma (\frac{1}{4} + 10\kappa^2 - 5 \kappa a_{\kappa}) \|sg(k)_2\|^2 + \eta \gamma (10 \kappa^2 + 5\kappa a_{\kappa}) \|fg(k)_2\|^2 \\
+        =& (1 - 4 \eta\flatgamma - \eta\gamma(\frac{1}{4} + 10\kappa^2 - 5 \kappa a_{\kappa})) ( \|sg(k)\|_2^2  - a_{\kappa} \|fg(k)\|_2^2).
+    \end{align*}
+
+    As $\| sg(0) \|_2 ^2 - a_{\kappa} \|fg(0)\|_2^2 < 0$, we have that $\|sg(k)\|_2^2  < a_{\kappa} \|fg(k + 1)\|_2^2  < 100 \kappa^2 \| fg(k)\|_2^2$ for all the $t$.
+\end{proof}
+
+
+Then we can show that gradient descent will also track the river closely.
+
+\begin{lemma}
+\label{lem:gdclose}
+    Under~\Cref{assum:river,assum:technical}, along the gradient descent~\Cref{eq:gd}, it holds that $w_k \in U$ and $\| w_k- \Phi(w_k) \|_2 \le \frac{10 \err \| \flatproj(w_{k}) \nabla L(w_{k})\|_2}{\gamma + \flatgamma}$.
+\end{lemma}
+\begin{proof}
+    This is a direct combination of~\Cref{lem:gdsg,lem:phiexists}.
+\end{proof}
+
+
+Finally, we will show that the movement of the projection of the gradient flow moves approximately at the same rate as the river, a discrete version of~\Cref{lem:gfclose}.
+
+\begin{lemma}
+\label{lem:gdspeedcalc}
+    Under~\Cref{assum:river,assum:technical}, along the gradient flow~\Cref{eq:gf}, along the gradient descent~\Cref{eq:gd}, if $T(t)$ satisfies $x(T(t)) = \Phi(w_{[t], t - [t]})$ where $[t]$ is the integer part of $t$, then for any $t$ that is not integer
+\begin{align*}
+    \frac{d T(t)}{d t} \in [\eta - (30 \kappa + 4\eta\flatgamma)\eta, \eta + (30 \kappa + 4\eta\flatgamma)\eta].
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+Let $[t] = k, t- [t] = \tau$, as $T(t)$ satisfies $x(T(t)) = \Phi(w(k, t - [t]))$, let $v = \frac{d x(\tau)}{d \tau} \mid_{\tau = T(t)}$, taking derivative on both sides yield,
+\begin{align*}
+    \frac{d T(t)}{d t} v = -\eta \partial \Phi(w_{k, \tau}) \nabla L(w_k).
+\end{align*}
+
+
+As the proof of~\Cref{lem:movepfg}, there exists $\tau'$
+\begin{align*}
+    &\| \flatproj(w_{k, \tau}) \nabla L(w_k)  - \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) \|_2 \\
+    \le& \eta  \| \flatproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau'}) \flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2  + \eta \| \flatproj(w_{k, \tau}) \nabla^2 L(w_{k, \tau'}) \sharpproj (w_{k, \tau'}) \nabla L(w_k) \|_2 \\
+    \le& \eta \flatgamma \|\flatproj (w_{k, \tau'}) \nabla L(w_k) \|_2 + \eta^2 \gamma \kappa \maxgamma \| \nabla L(w_k)\|_2
+\end{align*}
+
+By~\Cref{lem:moveps}, it holds that
+\begin{align}
+&\| \flatproj(w_{k, \tau}) \nabla L(w_k)  - \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) \|_2 \notag \\
+\le& \eta \flatgamma \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 + 2\eta^2 \gamma \maxgamma \kappa \| \nabla L(w_k)\|_2 \notag \\
+\le& \eta \flatgamma \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 + \kappa \| \nabla L(w_k)\|_2\label{eq:fpg1fpg} 
+\end{align}
+
+By~\Cref{lem:gdsg}, 
+\begin{align*}
+    \| \nabla L(w_k)\|_2 &\le \frac{1}{1 - 10 \kappa} \| \flatproj(w_k) \nabla L(w_k)\|_2 \\
+    &\le \frac{1}{1 - 10 \kappa} \left(   \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 + \eta \gamma \kappa \| \nabla L(w_k) \|_2 \right)
+\end{align*}
+
+This shows that 
+\begin{align*}
+    \| \nabla L(w_k)\|_2 &\le  \frac{1}{1 - 10 \kappa - \eta \gamma \kappa}  \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 \le (1 + 12 \kappa) \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 
+\end{align*}
+
+Combining with~\Cref{eq:fpg1fpg}, we have that
+\begin{align}
+    &\| \flatproj(w_{k, \tau}) \nabla L(w_k)  - \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) \|_2  \notag\\
+    \le& \eta \flatgamma \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 + \kappa(1 + 12 \kappa) \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2  \notag\\
+    \le& (\eta \flatgamma + 2\kappa) \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 \notag
+\end{align}
+
+This shows that
+\begin{align}
+    \| \flatproj(w_{k, \tau}) \nabla L(w_k)  - \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) \|_2 \le& \frac{(\eta \flatgamma + 2\kappa) }{1 - (\eta \flatgamma + 2\kappa)}  \|\flatproj (w_{k, \tau}) \nabla L(w_{k, \tau}) \|_2 \notag\\ \le&(2\eta \flatgamma + 3\kappa) \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 \label{eq:fpg2fpg}
+\end{align}
+
+
+By~\Cref{lem:similarmove}
+\begin{align}
+\label{eq:fpg1river}
+   \|  \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau}) + v \|_2 \le 16 \kappa \| v \|_2 
+\end{align}
+
+Combining~\Cref{eq:fpg1river,eq:fpg2fpg},
+\begin{align}
+    &\| \flatproj(w_{k, \tau}) \nabla L(w_k) + v \|_2 \notag \\
+    \le&  \| \flatproj(w_{k, \tau}) \nabla L(w_k) -  - \flatproj(w_{k, \tau}) \nabla L(w_{k, \tau})\|_2 +  \| \flatproj(w_{k, \tau}) \nabla L(w_{k,\tau}) + v \|_2 \notag \\
+    \le& (2\eta \flatgamma + 3\kappa) \|\flatproj (w_{k, \tau}) \nabla L(w_k) \|_2 + 16\kappa \|v\|_2 \notag \\
+    \le& ((2\eta \flatgamma + 3\kappa)( 1 + 16 \kappa) + 16\kappa)\|v\|_2 \notag  \\
+    \le& ( 19\kappa + 3\eta\flatgamma) \| v\|_2. \label{eq:fpg2river}
+\end{align}
+
+
+By~\Cref{lem:boundpartialphigen}
+\begin{align}
+\label{eq:phg1fpg}
+     \| \partial \Phi(w_{k, \tau})  \nabla L(w_k) - \flatproj(w_{k, \tau}) \nabla L(w_k) \|_2 \le 10 \kappa \|\flatproj(w_{k, \tau}) \nabla L(w_k) \|_2.
+\end{align}
+
+Combining~\Cref{eq:fpg2river,eq:phg1fpg}, it holds that
+\begin{align*}
+&\| \partial \Phi(w_{k, \tau})  \nabla L(w_k)  + v\|_2 \\
+\le& \| \partial \Phi(w_{k, \tau})  \nabla L(w_k) - \flatproj(w_{k, \tau}) \nabla L(w_k) \|_2 + \| \flatproj(w_{k, \tau}) \nabla L(w_k) + v \|_2 \\
+\le& 10 \kappa \|\flatproj(w_{k, \tau}) \nabla L(w_k) \|_2 + ( 19 \kappa + 3\eta\flatgamma) \| v\|_2 \\
+\le& (30 \kappa + 4\eta\flatgamma) \|v\|_2.
+\end{align*}
+
+Hence 
+\begin{align*}
+    \frac{d T(t)}{d t} \in [\eta - (30 \kappa + 4\eta\flatgamma)\eta, \eta + (30 \kappa + 4\eta\flatgamma)\eta].
+\end{align*}
+This concludes the proof.
+\end{proof}
+
+
+\begin{proof}[Proof of~\Cref{thm:gdtracksriver}]
+The proof is a direct combination of~\Cref{lem:gdclose,lem:gdspeedcalc}.
+\end{proof}
+
+
+
+
+\subsection{Proof of~\Cref{thm:sgd-main}}
+\label{app:sgd}
+
+We will first show that under~\Cref{assum:straight}, the loss is separable within $U$.
+
+\begin{lemma}
+\label{lem:straightriver}
+Under~\Cref{assum:river,assum:straight,assum:technical}, the river is a straight line parallel to $v_d$.
+\end{lemma}
+
+\begin{proof}
+    In this case, the $\kappa$ in~\Cref{assum:technical} is $0$ and this is a direct corollary of of~\Cref{lem:similarmove}.
+\end{proof}
+
+
+\begin{lemma}
+\label{lem:separable}
+Under~\Cref{assum:river,assum:straight,assum:technical}, there exists functions $g$ and $h$, such that for any $w \in U$ satisfying that $\mathcal{B}(w, \frac{2 \normbound}{\gamma}) \subset U$, it holds that
+\begin{align*}
+    L(w) = g(\Phi(w)) + h(w - \Phi(w)).
+\end{align*}
+Furthermore, $h$ is a $\gamma$-strongly convex function when constrained on the range of $\sharpproj$. 
+\end{lemma}
+
+\begin{proof}
+    We will choose $g$ as the constraint of $L$ on $\river$.  Now $w - \Phi(w)$ will always fall in the range of $\sharpproj$. Consider any $y$ in the range of $\sharpproj$ and as $\nabla v_d(w)[v] = 0$, we have that
+    \begin{align*}
+        y^T \nabla^2 L(w) v_d = 0.
+    \end{align*}
+    This then suggest that
+    \begin{align*}
+        \nabla[ \langle \nabla L(w), y\rangle][v_d] = 0.
+    \end{align*}
+    We then have for any $a \in \river$, by~\Cref{lem:straightriver},
+    \begin{align*}
+        L(w) - L(\Phi(w))  &= \int_{0}^{1} \langle (w - \Phi(w)), \nabla L(\Phi(w) + \tau(w - \Phi(w))) \rangle d \tau \\
+         &= \int_{0}^{1} \langle (w - \Phi(w)), \nabla L(a + \tau(w - \Phi(w))) \rangle d \tau.
+    \end{align*}
+
+    We will then define $h(w - \Phi(w)) =  \int_{0}^{1} \langle (w - \Phi(w)), \nabla L(a + \tau(w - \Phi(w))) \rangle d \tau$. and this concludes the proof.
+
+    Now, as $h(w - \Phi(w)) = L(w) - L(\Phi(w))$, $\nabla^2 h(y)$ when constrained on the range of $\sharpproj$ has an eigenvalue greater than $\gamma$.
+\end{proof}
+
+
+
+We will first consider the mixing dynamics of the current SGD iterates on a strongly convex loss $h$ with a minimizer at $0$.
+\begin{align}
+\label{eq:sgd-h}
+    y(k + 1) = y_k - \eta \nabla h(y_k) - \eta \noise_k, y(0) = 0,{\noise_k} \sim \Normal(0, \sigma^2 \identity)
+\end{align}
+
+
+We will define a coupling process $\tilde y_k$ as 
+\begin{align}
+    \label{eq:sgd-h-gauss}
+    \tilde y(k + 1) = \tilde y_k - \eta H \tilde y_k - \eta \noise_k, w(0) = 0, \noise_k \sim \Normal(0, \sigma^2 \identity), \tilde y(0) = 0.
+\end{align}
+Here $H = \nabla^2 h(0)$ is positive definite.
+
+\begin{assumption}[Regularity of $h$]
+\label{assum:regular}
+We will assume the following for the function $h$, constant $\delta \in (0,1]$, learning rate $\eta$.
+    \begin{enumerate}
+        \item The smallest eigenvalue of $\nabla^2 h(y)$ within $\mathcal{B}(0,r)$ is at least $\gamma > 0$ and the largest eigenvalue for $H$ is at most $\maxgamma$.
+        \item $\forall y, h(y) \in [0, M]$.
+        \item  $\forall y \in \mathcal{B}(0,r), \| \nabla h(y) \|_2 \le \normbound, \| \nabla^3 h(y) \|_2 \le \rho$.
+        \item $T > 1 / \gamma$.
+        \item $\eta < 1/(2\maxgamma)$.
+        \item $\eta \rho^2 \sigma^2 \le {\gamma^3}/{(1600  d \log(8\gamma T/\delta))}$.
+        \item $10\frac{\sqrt{\eta} \sigma}{\sqrt{\gamma}} \sqrt{d \log(8 \gamma T / \delta)} + 400 \eta \rho \sigma^2 d \log(8 \gamma T / \delta) / \gamma^2 \le r$.
+    \end{enumerate}
+\end{assumption}
+
+
+
+We will first show that $\tilde y_k$ will be bounded with a high probability for $T/\eta$ steps.
+
+\begin{lemma}
+\label{lem:normboundsgd}
+    For any $\delta \in (0,1]$, with probability $1 - \delta$, for $\tilde y_k$ defined in~\Cref{eq:sgd-h-gauss}, under~\Cref{assum:regular}, it holds that for any $k \le T/\eta$, 
+    \begin{align*}
+   \| \tilde y_k \|_2 \le \frac{10 \sqrt{\eta} \sigma}{\sqrt{\gamma}} \sqrt{d \log(8\gamma T/\delta)}.
+    \end{align*}
+\end{lemma}
+
+\begin{proof}
+
+For integer $I = \lceil \gamma T \rceil$. We first have that for $i \le I$
+\begin{align*}
+    \tilde y_{i \lceil\frac{1}{\eta \gamma} \rceil} = (1 - \eta \gamma)^{\lceil\frac{1}{\eta \gamma} \rceil} \tilde y_{(i-1)\lceil\frac{1}{\eta \gamma} \rceil }  + \eta \sum_{\tau = 0}^{\lceil\frac{1}{\eta \gamma} \rceil}  (1 - \eta \gamma)^{\lceil\frac{1}{\eta \gamma} \rceil - t}  \noise_{(i-1)\lceil\frac{1}{\eta \gamma} \rceil + \tau}.
+\end{align*}
+
+Denote $\bar \noise_{k} = \eta \sum_{\tau = 0}^{\lceil\frac{1}{\eta \gamma} \rceil}  (1 - \eta \gamma)^{\lceil\frac{1}{\eta \gamma} \rceil - t}  \noise_{(i-1)\lceil\frac{1}{\eta \gamma} \rceil + \tau}$, then $\noise_k$ is a normal vector with variance
+\begin{align*}
+     \eta^2 \sum_{\tau = 0}^{\lceil\frac{1}{\eta \gamma} \rceil} (1 - \eta \gamma)^{2(\lceil\frac{1}{\eta \gamma} \rceil - t)} \sigma^2 \identity \le \frac{\eta \sigma^2}{2\gamma - \eta \gamma^2} \le  \frac{\eta \sigma^2}{\gamma}.
+\end{align*}
+
+Further, denote $Y_i = y_{i \lceil\frac{1}{\eta \gamma} \rceil}$ and $e_{\gamma} = (1 - \eta \gamma)^{\lceil\frac{1}{\eta \gamma} \rceil} < \frac{1}{e}$, then
+\begin{align*}
+    Y_i = e_{\gamma} Y_{i - 1} + \bar \noise_{i - 1} = \sum_{j \le i - 1} e_{\gamma}^{j - 1} \noise_{i - j}
+\end{align*}
+
+
+Then each variable $Y_i$ is also a Gaussian variable with variance smaller than 
+\begin{align*}
+     \sum_{j \le i - 1} e_{\gamma}^{2(j - 1)} \E[  \bar \noise_{i - j}^T \bar \noise_{i - j}] \le \frac{1}{1-1/e^2}\frac{\eta \sigma^2} {\gamma} \identity \le \frac{2\eta \sigma^2}{\gamma} \identity .
+\end{align*}
+
+Hence, by~\Cref{lem:normbound}, for each $i$, it holds that
+\begin{align*}
+    \prob(\Big | Y_i \Big| > \frac{2 \sqrt{\eta} \sigma}{\sqrt{\gamma}} \sqrt{d \log(4I/\delta)})) < \delta/2I.
+\end{align*}
+
+Using union bound,
+\begin{align*}
+    \prob(\exists i \le I, \Big | Y_i \Big| > \frac{2 \sqrt{\eta} \sigma}{\sqrt{\gamma}} \sqrt{d \log(4I/\delta)}) < \delta/2.
+\end{align*}
+
+We now proceed to bound the distance of $y_k$ compared with close $Y_i$, without loss of generality, considering $i = 0$, we will define a new process called $m_k$ satisfying that
+\begin{align*}
+    m_k = \sum_{j \le k} (1 - \eta \gamma)^{\lceil\frac{1}{\eta \gamma} \rceil - j} \noise_j. 
+\end{align*}
+Then $m_k$ is a martingale and each $m_k$ is a Gaussian vector. In particular, $m_{\lceil\frac{1}{\eta \gamma}\rceil} = \bar \noise_1$. This further suggests that $\| m_k \|^2$ is a super martingale
+\begin{align*}
+    \E[\| m_k \|_2^2 \mid m_{k - 1}] \ge \| m_{k - 1} \|_2^2.
+\end{align*}
+
+
+
+
+By Doob's lemma (\Cref{lem:doob})
+\begin{align*}
+    \prob(\sup_{k \le \lceil\frac{1}{\eta \gamma} \rceil} \| m_k \|_2^2 > C^2) &\le
+    \prob(\sup_{k \le \lceil\frac{1}{\eta \gamma} \rceil} \exp(\lambda  \| m_k \|_2^2 ) > \exp(\lambda C^2))\\
+    &\le \E[{\exp(\lambda \| m_{\lceil\frac{1}{\eta \gamma} \rceil } \|_2^2 - \lambda C^2)}]\\
+    &= \E[{\exp(\lambda \| \bar g_1 \|_2^2 - \lambda C^2)}].
+\end{align*}
+
+Following the same line of proof as~\Cref{lem:normbound}, we have that 
+\begin{align*}
+ \prob(\sup_{k \le \lceil\frac{1}{\eta \gamma} \rceil} \| m_k \|_2 > \frac{2 \sqrt{\eta} \sigma}{\sqrt{\gamma}} \sqrt{d \log(4K/\delta)}) \le \delta / 2K
+\end{align*}
+
+
+
+We further note that $\Big | y_k - Y_0 \Big | \le (1 - \eta \gamma)^{-\lceil\frac{1}{\eta \gamma} \rceil} m_k \le 4 m_k$. We have that for any $k < K$
+\begin{align*}
+ \prob(\sup_{k \le \lceil\frac{1}{\eta \gamma} \rceil} \| y_k - Y_0 \|_2 > \frac{8 \sqrt{\eta} \sigma}{\sqrt{\gamma}} \sqrt{d \log(4K/\delta)}) \le \delta / 2K
+\end{align*}
+
+Combining with the bound on $Y_k$, we have that
+\begin{align*}
+    \prob(\sup_{0 \le k \le T} |y_k| > \frac{10 \sqrt{\eta} \sigma}{\sqrt{\gamma}} \sqrt{d \log(8\gamma T/\delta)}))  \le \delta.
+\end{align*}
+The proof is then complete.
+\end{proof}
+
+
+
+
+
+The following lemma states that $y_k$ and $\tilde y_k$ are close with high probability.
+\begin{lemma}
+\label{lem:track}
+    Assume function $h(y)$ is $\gamma$-strong convex in $\mathcal{B}(0,r)$ and has a minimizer at $0$,then for $\delta \in (0,1)$, under~\Cref{assum:regular}, it holds that with probability $1 - \delta$,
+    \begin{align*}
+        \forall k < T /\eta, \| \tilde y_k - y_k \|_2  \le   400{\eta \rho \sigma^2 d\log(8\gamma T/\delta)}/{\gamma^2}, 
+        &y_k \in \mathcal{B}(0, r), \tilde y_k \in \mathcal{B}(0,r)
+    \end{align*}
+\end{lemma}
+
+
+
+\begin{proof}
+By~\Cref{lem:normboundsgd}, with probability $1 - \delta$, 
+\begin{align*}
+   \forall k < T /\eta,  \| \tilde y_k \|_2^2 \le \frac{100 {\eta} \sigma^2}{{\gamma}} {d \log(8\gamma T/\delta)} 
+\end{align*}
+
+We will use $C$ as a shorthand for $100 {d \log(8\gamma T/\delta)}$. Under such scenario, define $\nu_k =  \tilde y_k - y_k $, we will prove by induction for $k \le T/\eta$ that 
+\begin{align}
+\label{eq:ind}
+    \| \nu_k \|_2 \le 4{\eta \rho \sigma^2 C}/{\gamma^2} , y_k \in \mathcal{B}(0,r).
+\end{align}
+
+Clearly $\nu_0 = 0$, satisfies the induction hypothesis.
+Assuming~\Cref{eq:ind} hold for $t$, then 
+\begin{align*}
+    y(k + 1) &=  y_k - \eta \nabla L(y_k) - \eta \noise_k \\
+    &= y_k - \eta \nabla^2 L(0) y_k + e_k - \eta \noise_k \\
+    &= \tilde y_k( 1 - \eta\nabla^2 L(0)) - \eta \noise_k + \nu_k( 1 - \eta\nabla^2 L(0)) + e_k.
+\end{align*}
+
+Here $\| e_k \| = \| -\eta ( \nabla L(y_k) -  \eta \nabla^2 L(0) y_k) \|_2 \le \eta \rho \|y_k\|_2^2 \le 2 \eta \rho (\|\tilde y_k \|_2^2 + \| \nu_k\|_2^2)$. Hence we have that
+\begin{align*}
+    \| \nu_{k + 1} \|_2 \le (1 - \eta \gamma) \| \nu_k \|_2 + 2 \eta \rho (\|\tilde y_k \|_2^2 + \| \nu_k\|_2^2). 
+\end{align*}
+
+
+As $\| \nu_k \| \le 4\frac{\eta \rho \sigma^2 C}{\gamma^2} \le \frac{\gamma}{4 \rho}$, we have that $2 \rho \| \nu_k \|_2^2 \le \eta \gamma \| \nu_k\|_2^2 / 2$. 
+
+Hence 
+\begin{align*}
+    \| \nu_{k + 1} \|_2 &\le (1 - \eta \gamma/2)  \| \nu_k \|_2 + 2 \eta \rho \frac{\eta \sigma^2 C}{\gamma}  \\
+    &= (1 - \eta \gamma/2)  \| \nu_k \|_2  + 2  \frac{\eta^2 \rho \sigma^2 C}{\gamma}
+\end{align*}
+
+By induction $\| \nu_k \|_2 \le 4{\eta \rho \sigma^2 C}/{\gamma^2}$. It is then easy to check $\| \nu_{k + 1} \|_2 \le  4{\eta \rho \sigma^2 C}/{\gamma^2}$.
+\end{proof}
+
+The following lemma tracks the changes of $\E[h(y_k)]$.
+\begin{lemma}
+\label{lem:tracksgd}
+    Assume function $h(y)$ is $\gamma$-strong convex in $\mathcal{B}(0,r)$ and has a minimizer at $0$,then for $\delta \in (0,1)$, denote $100 \log(8\gamma T / \delta) $ as $C$, under~\Cref{assum:regular}, it holds that $\forall t \in [1/\eta \gamma, T /\eta]$,
+    \begin{align*}
+    \Big | \E[h(\tilde y_k)] -  \eta \sigma^2d / 2\Big|\le \eta^2 \sigma^2 \mathrm{Tr}(H) + \frac{ \normbound \rho C}{\gamma^2} d \eta  \sigma^2 + \rho \left( \frac{ d \eta \sigma^2  C}{{\gamma}} \right)^{3/2} + 2\delta M + \delta \eta \sigma^2 d / 2
+    \end{align*}
+\end{lemma}
+
+\begin{proof}
+    By~\Cref{lem:track}, with probability $1 - \delta$, 
+    \begin{align*}
+        \| \tilde y_k - y_k \|_2  \le   4{\eta \rho d\sigma^2 C }/{\gamma^2}, y_k\in \mathcal{B}(0,r) , \tilde y_k \in \mathcal{B}(0,r).
+    \end{align*}
+    Define this event as $\mathcal{E}_1$.
+
+
+
+    Hence 
+    \begin{align*}
+        &\Big| \E[h(y_k)] - \E[ h(\tilde y_k)] \Big|\\
+        \le& \Big| \E[h(\tilde y_k) - h(y_k) \mid \mathcal{E}_1 ]\prob(\mathcal{E}_1  ) + \E[h(\tilde y_k) - h(y_k) \mid \mathcal{E}_1^c ]\prob(\mathcal{E}_1^c) \Big | \\
+        \le& 4\frac{ \normbound \rho C}{\gamma^2} \eta  d \sigma^2 + \delta M.
+    \end{align*}
+
+    
+    For $\| y \|_2 < r$, it holds that
+    \begin{align*}
+        \| h(y) - y^T \nabla^2 h(0) y \|_2 \le \rho \| y \|_2^3.
+    \end{align*}
+
+    By~\Cref{lem:normboundsgd}, with probability $1 - \delta$, for $\eta < 1/\maxgamma$, it holds that for any $k \le T/\eta$, 
+    \begin{align*}
+   \| \tilde y_k \|_2^2 \le \frac{ d\eta \sigma^2  C}{{\gamma}} < r^2.
+    \end{align*}
+Define this event as $\mathcal{E}_2$.
+
+    Denote $H = \nabla^2 h(0)$, we have that,
+    \begin{align*}
+        &\Big| \E[h(\tilde y_k)] - \E[(\tilde y_k)^T H \tilde y_k] \Big|\\
+    =&  \Big| \E[h(\tilde y_k) \mid \mathcal{E}_2] \prob(\mathcal{E}_2) - \E[(\tilde y_k)^T H \tilde y_k] +   \E[h(\tilde y_k) \mid \mathcal{E}_2^c]\prob(\mathcal{E}_2^c)\Big | \\
+    \le&  \delta M + \Big|\E[h(\tilde y_k) \mid \mathcal{E}_2] \prob(\mathcal{E}_2) -   \E[(\tilde y_k)^T H \tilde y_k] \Big| \\
+    \le&  \delta M + \rho  \left( \frac{ \eta d \sigma^2  C}{{\gamma}} \right)^{3/2}+ \E[(\tilde y_k)^T H \tilde y_k \mid \mathcal{E}_2^c]
+    \end{align*}
+
+    Combining the both and we have that
+    \begin{align*}
+          \Big| \E[h(y_k)] - \E[(\tilde y_k)^T H \tilde y_k]  \Big| \le 4\frac{ \normbound \rho C}{\gamma^2} \eta  d \sigma^2 + \rho \left( \frac{ \eta d \sigma^2  C}{{\gamma}} \right)^{3/2} + 2\delta M + \E[(\tilde y_k)^T H \tilde y_k \mid \mathcal{E}_2^c].
+    \end{align*}
+
+    Here the covariance of $\tilde y_k$, denoted as $\Sigma_k$ satisfies that
+    \begin{align*}
+        \Sigma_{k + 1} = (\identity - \eta H)^2 \Sigma_{k} + \sigma^2 \eta^2 \identity.
+    \end{align*}
+
+    Therefore 
+    \begin{align*}
+        &\Sigma_k - \eta \sigma^2 (2 \eta H - \eta^2 H^2)^{-1}  = (\identity - \eta H)^2 (\Sigma_{k - 1} - \eta \sigma^2 (2 \eta H - \eta^2 H^2)^{-1}). \\
+        &\Sigma_k = \sigma^2 (2H - \eta H^2)^{-1} (\identity - (\identity - \eta H)^{2k}).
+    \end{align*}
+
+    Hence assuming the eigenvalues of $H$ is $\gamma_1, \dots, \gamma_d$
+    \begin{align*}
+        \E[(\tilde y_k)^T H \tilde y_k] = \mathrm{Tr}(\Sigma_k H) = \eta \sigma^2 \sum_{i = 1}^d \frac{1}{2 - \eta \gamma_i } (1 - (1 - \eta \gamma_i)^{2k}).
+    \end{align*}
+
+    When $t \ge \frac{1}{\eta\gamma_i}, \eta \gamma_i < 1/2$, it holds that
+    \begin{align*}
+        &\Big|  \eta \sigma^2 \frac{1}{2 - \eta \gamma_i} (1 - (1 - \eta \gamma_i)^{2k}) - \eta \sigma^2 /2 \Big | \\
+        =& \eta \sigma^2 \frac{(1 - (1 - \eta \gamma_i)^{2k})}{2 - \eta \gamma_i} - \eta \sigma^2 /2 \\
+        \le& \eta \sigma^2 \left( \frac{1}{2 - \eta \gamma_i} - \frac{1}{2} \right) \\
+        \le& \eta^2 \sigma^2 \gamma_i / 2.
+    \end{align*}
+
+    Hence 
+    \begin{align*}
+        \Big | \E[(\tilde y_k)^T H \tilde y_k] - d \eta \sigma^2 / 2 \Big | \le \mathrm{Tr}(H)\eta^2 \sigma^2 / 2.
+    \end{align*}
+    Further, let $u_k = \Sigma_k^{-1/2} \tilde y_k$, under $\mathcal{E}_2^c$, we have that
+    \begin{align*}
+        \| u_k \|_2^2 \ge \lambda_{min}(\Sigma_k^{-1}) \| \tilde y_k \|_2^2 = \lambda_{min}\left( (2H - \eta H^2) (\identity - (\identity - \eta H)^{2k})^{-1}  \right) \| \tilde y_k \|_2^2 / \sigma^2 \ge d \sigma^2 C.
+    \end{align*}
+
+    As $u_k$ is isometric Gaussian,
+    \begin{align*}
+        \E[(\tilde y_k)^T H \tilde y_k \mid \mathcal{E}_2^c] &\le \E[u_k^T (\Sigma_k^{1/2})^T H \Sigma_k^{1/2} u_k \mid \| u_k \|_2^2 \ge d \sigma^2 C] \\
+        &= \E[u_k^T (\Sigma_k^{1/2})^T H \Sigma_k^{1/2} u_k] \frac{\E[\|u_k\|_2^2 \mid \| u_k \|_2^2 \ge d \sigma^2 C]}{\E[\|u_k\|^2]} \\
+        &\le d \eta \sigma^2 \frac{\E[\|u_k\|_2^2 \mid \| u_k \|_2^2 \ge d \sigma^2 C]}{\E[\|u_k\|^2]}  \end{align*}
+
+    Plugging in the density function of $\|u_k\|_2$, we have that
+    \begin{align*}
+    \frac{\E[\|u_k\|_2^2 \mid \| u_k \|_2^2 \ge d \sigma^2 C]}{\E[\|u_k\|_2^2]} &= \frac{\int_{\sqrt{dC} \sigma }^{\infty} r^{d + 1 } e^{-r^2/(2\sigma^2)} dr}{\int_{0}^{\infty} r^{d + 1 } e^{-r^2/(2\sigma^2)} dr} 
+    \end{align*}
+
+    Let $r' = \sqrt{\frac{d}{d + 1}} r$, then 
+    \begin{align*}
+        \int_{\sqrt{dC} \sigma}^{\infty} r^{d + 1 } e^{-r^2/\sigma^2} dr &= (\frac{d + 1}{d })^{\frac{d + 2}{2}} \int_{d \sigma^2 C}^{\infty} r'^{d + 1} e^{-(r')^2 (d + 1)/ (2 d \sigma^2)} dr' \\
+        &\le 4 \int_{\sqrt{dC} \sigma}^{\infty} r'^{d + 1} e^{-(r')^2 / (2\sigma^2)}  e^{-(r')^2/(2d \sigma^2)}  dr' \\
+        &\le 4 e^{-C / 2} \int_{0}^{\infty} r^{d + 1 } e^{-r^2/(2\sigma^2)} dr.
+    \end{align*}
+    Hence, we have that 
+    \begin{align*}
+        \E[(\tilde y_k)^T H \tilde y_k \mid \mathcal{E}_2^c] \le 4 e^{-C / 2} d \eta \sigma^2 \le \delta d \eta \sigma^2 / 2.
+    \end{align*}
+
+    Putting together, we have that,
+    \begin{align*}
+        \Big | \E[h(\tilde y_k)] -  \eta \sigma^2d / 2\Big|\le \eta^2 \sigma^2 \mathrm{Tr}(H) + \frac{ \normbound \rho C}{\gamma^2} d \eta  \sigma^2 + \rho \left( \frac{ d \eta \sigma^2  C}{{\gamma}} \right)^{3/2} + 2\delta M + \delta \eta \sigma^2 d / 2.
+    \end{align*}
+    The proof is then complete.
+\end{proof}
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+We will now state the complete version of~\Cref{thm:sgd-main}.
+
+\begin{assumption}[Sufficient Small Learning Rate]
+\label{assum:regular-L}
+We will assume the following for constant $\delta \in (0,1]$ and learning rate $\eta$:
+    \begin{enumerate}
+        \item $\eta < 1/(2\maxgamma)$.
+        \item $\eta \le {\gamma^3}/{(1600 \rho^2 \sigma^2 d \log(8\gamma T/\delta))}$.
+        \item $10\frac{\sqrt{\eta} \sigma}{\sqrt{\gamma}} \sqrt{d \log(8 \gamma T / \delta)} + 400 \eta \rho \sigma^2 d \log(8 \gamma T / \delta) / \gamma^2 \le r$.
+    \end{enumerate}
+\end{assumption}
+
+
+
+
+
+\begin{theorem}[Complete version of~\Cref{thm:sgd-main}]
+\label{thm:sgd}
+If a loss $L$ is a river valley (\Cref{def:river-valley}) and satisfies~\Cref{assum:straight,assum:noise}, for any constants $\delta \in (0,1)$ and $T > 1/\gamma$, for sufficiently small learning rate $\eta$ satisfying~\Cref{assum:regular-L}, there exists a time shift $T_0$ depending on $w$ and $\eta$, the SGD iterates (defined in~\Cref{eq:sgd}) with $\eta_k = \eta$ satisfies that for any integer $k \in [1 /{\eta\gamma}, \maxT / \eta]$, there exists a $\tilde t \in [(1 - \epsilon_{t}) \eta k, (1 + \epsilon_t) \eta k]$ satisfying that,
+\begin{align*}
+\E[L\left( \tilde w (k)\right)] - L( x( T_0  + \tilde t))& =  {(d - 1) \eta \sigma^2}/{2} + \epsilon_{L} \end{align*}
+where $\epsilon_{t} = 4 \eta \flatgamma$ and $|\epsilon_{L}| \le \tau \eta^2  \sigma^2+ \rho (C {d\eta \sigma^2}/{\gamma})^{3/2} + C \kappa' d \eta \sigma^2 +  \delta (2 M + \eta \sigma^2 d) \ll (d - 1) \eta \sigma^2$ with $C = 200 \log(64 \gamma T/\delta)$. 
+\end{theorem}
+
+\begin{proof}
+    By~\Cref{lem:separable}, we can write 
+    \begin{align*}
+        L(w) = h(w - \Phi(w)) + L(\Phi(w)).
+    \end{align*}
+
+    Hence we can separate the dynamics of~\Cref{eq:sgd} into two parts, namely $w = \Phi(w) + (w - \Phi(w))$. It is easy to check that when constrained on range of $\sharpproj$, $h(y)$ satisfies~\Cref{assum:regular}. Hence, we can use~\Cref{lem:tracksgd} to control $h(w_k - \Phi(w_k))$.
+    For $\Phi(w_k)$, the iterates is running a gradient descent with learning rate $\eta$ on $\river$ and we can use proof analogous to the proof  of~\Cref{thm:gdtracksriver} to show that if $\Phi(w_k) = x(\tilde T(k, \eta))$, then there exists $T_0$, such that 
+    \begin{align*}
+        \tilde T(k, \eta) \in [T_0 + (1 - 4 \eta \flatgamma)\eta k, T_0 +  (1 + 4 \eta\flatgamma)\eta k].
+    \end{align*}
+    This completes the proof.
+\end{proof}
+
+
+
+
+
+\subsection{Proof of~\Cref{thm:decay-main}}
+\label{app:decay}
+
+We will first state the complete version of~\Cref{thm:decay-main}.
+
+\begin{theorem}
+\label{thm:decay}
+Under the setting of~\Cref{thm:sgd}, the SGD iterates (defined in~\Cref{eq:sgd}) with the learning rate schedule defined in~\Cref{eq:decaylr} satisfies that for any integer $k \in [k_s, 1.1 k_s]$, there exists a $\tilde t \in [(1 - \epsilon_{t}) T(t), (1 + \epsilon_t) T(t)]$ satisfying that, 
+\begin{align*}
+\E[L\left( \tilde w (k)\right)] - L( x(T_0  + \tilde t))& \le  {(d - 1) {\color{red}{ \eta_k}} \sigma^2}/{2} + \epsilon_{L} 
+\end{align*}
+with $T(t) = T + \sum\limits_{i = k_s}^{k} \eta_i$.
+\end{theorem}
+
+\begin{proof}
+    The proof is analogous to~\Cref{thm:sgd} and~\Cref{lem:tracksgd}. We will omit the detail derivation and only focus on deriving the variance of corresponding $\tilde y_k$.
+    \begin{align*}
+        \tilde y(k + 1) = \tilde y_k - \eta_k H \tilde y_k - \eta_k \noise_k, w(0) = 0,\mathbf{\noise_k} \sim \Normal(0, \sigma^2 \identity), \tilde y(0) = 0.
+    \end{align*}
+    
+    Here the covariance of $\tilde y_k$, denoted as $\Sigma_k$ satisfies that
+    \begin{align*}
+        \Sigma_{k + 1} = (\identity - \eta_k H)^2 \Sigma_{k} + \sigma^2 \eta_k^2 \identity.
+    \end{align*}
+
+
+    If we consider $i$-th eigenvector of $H$ as $v_i$, and denote $\sigma_{k,i} = v_i^\top \Sigma v_i$.
+
+    Analogous to the proof of~\Cref{thm:sgd}, $\Big | \sigma_{k_s, i}  - \frac{\eta \sigma^2}{\gamma_i} \Big | \le \frac{4 \eta^2 \sigma^2}{\gamma_i}$.
+
+
+    We further have that
+    \begin{align*}
+        \sigma_{k_s + r + 1, i} &= (1 - \frac{\eta}{2 + r \eta \gamma} \gamma_i)^2  \sigma_{k_s + r , i} + \sigma^2 \frac{\eta^2}{(2 + r \eta \gamma)^2}.
+    \end{align*}
+
+    Then by induction, we can prove that for $r \ge 0$
+    \begin{align*}
+        \sigma_{k_s + r + 1, i}  \le  \frac{\sigma^2}{\gamma_i} \frac{\eta}{2 + r \eta \gamma} + \frac{4 \eta^2 \sigma^2}{\gamma_i} = \frac{\sigma^2}{\gamma_i} \eta_{t_s + r + 1} + \frac{4 \eta^2 \sigma^2}{\gamma_i}.
+    \end{align*}
+
+    The rest follows the proof of~\Cref{thm:sgd}.
+\end{proof}
+
+
+\subsection{Proof of~\Cref{lem:sharp,thm:toy}}
+
+
+In this section, we will denote $\frac{\exp(\Theta_{i, j})}{\sum_{j = 1}^m {\exp(\Theta_{i, j})}}$ as $\mathcal{Q}_{i,j}$
+
+
+\begin{lemma}
+\label{lem:helpsharp}
+
+The loss defined $L$ in~\Cref{eq:toy} satisfies that
+\begin{align*}
+        (\nabla L(\Theta))_{(i,j)} &= \mathcal{P}_{i,j}  - \mathcal{Q}_{i,j}.\\
+    (\nabla^2 L(\Theta))_{(i,j), (i',j')} &= \one(i = i') (\mathcal{Q}_{i,j} \one(j = j') - \mathcal{Q}_{i,j} \mathcal{Q}_{i, j'}).
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+    The loss satisfies that
+    \begin{align*}
+        L(\Theta) = \sum_{i = 1}^n (\sum_{j = 1}^m \mathcal{P}_{i,j} \Theta_{i,j}) - \log(\sum_{j' = 1}^m \mathcal{P}_{i,j'}).
+    \end{align*}
+    Hence,
+    \begin{align*}
+        (\nabla L(\Theta))_{(i,j)} = \mathcal{P}_{i,j}  - \mathcal{Q}_{i,j}.
+    \end{align*}
+    Taking differentiation for another time yields the desired result.
+\end{proof}
+
+
+\begin{proof}[Proof of~\Cref{lem:sharp}]
+    This can be done by directly summing diagonal entries in~\Cref{lem:helpsharp}.
+\end{proof}
+
+\begin{assumption}
+\label{assum:P}
+    We will assume there exists constant $\gamma$ and positive integer $n' < n$ such that $\mathcal{P}$ satisfies the following assumption,
+    \begin{enumerate}
+        \item For any $i \le n'$, $\forall j, \mathcal{P}_{i,j} > 8\gamma$.
+        \item For any $i > n'$, there exists $j_i$, $\mathcal{P}_{i,j'} > 1 - \gamma$.
+    \end{enumerate}
+\end{assumption}
+
+
+
+\begin{theorem}
+\label{thm:toy}
+Under~\Cref{assum:P}, a generalized river with dimension $n'm + (n - n')$ exists in the loss landscape defined by $L$ in~\Cref{eq:toy}. 
+\end{theorem}
+
+\begin{proof}
+    According to~\Cref{lem:helpsharp}, the Hessian for $L$ is block-diagonal. Now fixing a city $i$, we will analyze the eigenvalue distribution in this block. Let $q = [\mathcal{Q}_{i,j'}]_{j' \in [m]})$, then this block is $\mathrm{diag}(q) - qq^T$. 
+    
+    For all non-zero eigenvalue $\lambda$ for this block, there exists $v$ such that
+    \begin{align*}
+        \mathrm{diag}(q) v - q^T v q = \lambda v.
+    \end{align*}
+
+    Hence, we have that
+    \begin{align*}
+        v_j = \frac{q_j q^T v}{q_j - \lambda}
+    \end{align*}
+
+    This implies $\sum_{j = 1}^m \frac{q_j^2}{q_j - c} = 1$. We then have $\lambda \ge 0$ and there exists only one eigenvector corresponding to  $\lambda = 0$. For the rest nonzero eigenvalue, we have that $\lambda > \min q_i$.
+
+    Now if we consider the manifold $\mathcal{M}$ defined as 
+    \begin{align*}
+        \mathcal{M} = \{ \Theta \mid \forall i \le n', \mathcal{Q}_{i,j} = \mathcal{P}_{i,j}; \forall i \ge n', \mathcal{Q}_{i,j_i} > 1 -  \gamma\}.
+    \end{align*}
+
+    Then for all $\Theta \in \mathcal{M}$, we have that the gradient is zero for all dimensions $(i, j)$ with $i \le n'$. Further, we know all the nonzero eigenvalues for these dimensions are at least $8 \gamma$ by~\Cref{assum:P}. For the rest of dimensions $(i, j)$ with $i > n'$, by~\Cref{lem:sharp}, the largest eigenvalue is bounded by $1 - (1 - \gamma)^2 < 2 \gamma$. This shows that the gradient falls in the eigenspace spanned by the last $n'm + (n - n')$ eigenvectors, which concludes the proof.
+\end{proof} 
+
+
+\subsection{Technical Lemma}
+
+
+\begin{lemma}
+\label{lem:expdecay}
+If a function $F(t)$ satisfies that
+\begin{align*}
+    \frac{d F(t)}{dt} \le -A F(t),
+\end{align*}
+then $F(t) \le e^{-At} F(0)$.
+\end{lemma}
+
+\begin{proof}[Proof of \Cref{lem:expdecay}]
+    Consider $G(t) = F(t) e^{At}$, then
+    \begin{align*}
+        d G(t) = e^{At} dF(t) + A e^{At} F(t) \le 0.
+    \end{align*}
+    Hence $G(t) \le G(0)$.
+\end{proof}
+
+
+\begin{lemma}
+\label{lem:normbound}
+If a random vector $g \sim \Normal(0, \Sigma)$ and $\delta \in (0, 1)$, then it holds that
+\begin{align*}
+    \prob( \| g \|_2  \ge 2 \sqrt{ \mathrm{Tr}(\Sigma)}\sqrt{ \log(2/\delta)} )  \le \delta
+\end{align*}
+\end{lemma}
+
+\begin{proof}[Proof of \Cref{lem:normbound}]
+    Assume $\Sigma = Q \Lambda^2 Q^T$ with $Q$ being an orthonormal matrix and $\Lambda$ being diagonal with diagonal $\lambda_i$ for $i \in [d]$, further let $g'$ being a standard gaussian random vector, then $g$ follows the same distribution as that of $\Lambda Q^T g'$, which is further identical to $\Lambda g'$.
+
+    \begin{align*}
+        &\prob( \| g \|_2  \ge   C) \\
+        =&  \prob( \| \Lambda g' \|_2  \ge   C) \\
+        =& \prob( \sum_{i = 1}^d \Lambda_i^2 (g'_i)^2 \ge C^2) \\
+        \le& \E[\exp( t\sum_{i = 1}^d \Lambda_i^2 (g'_i)^2 - tC^2)].
+    \end{align*}
+
+    It is well known that the moment-generating function of $(g'_i)^2$ is
+    \begin{align*}
+        E[\exp(t\Lambda_i^2 (g'_i)^2)] = \frac{1}{\sqrt{1 - 2t \Lambda_i^2}}.
+    \end{align*}
+
+    Hence
+    \begin{align*}
+        \prob( \| g \|_2  \ge   C) \le& e^{-tC^2} \prod_{i = 1}^d \frac{1}{\sqrt{1 - 2t \Lambda_i^2}} \\
+        \le&  \frac{e^{-tC^2}}{\sqrt{1 - 2t \mathrm{Tr}(\Sigma)}}.
+    \end{align*}
+
+    With $t = \frac{1}{4\mathrm{Tr}(\Sigma)}$, it holds that
+    \begin{align*}
+    \prob( \| g \|_2  \ge   C) \le& 2 e^{-\frac{C^2}{4\mathrm{Tr}(\Sigma)}}.
+    \end{align*}
+    This concludes the proof.
+\end{proof}
+
+
+\begin{lemma}[Doob's Inequality]
+\label{lem:doob}
+    Let $X_1, \dots, X_n$ as a positive submartingale adapted to filtration $\mathcal{F}_1, \ldots, \mathcal{F}_n$, which means $X_i \le \E[X_{i + 1} \mid  \mathcal{F}_i]$, then 
+    \begin{align*}
+        \prob( \sup_{i \le n} X_i > C) \le \frac{\E[X_n]}{C}.
+    \end{align*}
+\end{lemma}

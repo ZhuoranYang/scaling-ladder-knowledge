@@ -1,0 +1,42 @@
+\section{Background and Related Work}
+
+\para{Neural scaling laws.}
+Training a large language model requires two key decisions: how big to make the model and how much data to train it on. Together these determine both how much \textit{compute} is needed and the \textit{performance} of the final model. Typically, performance is measured by the model's loss on held-out text. A natural question is how loss changes as we scale up the model or the dataset. Empirically, the answer is remarkably clean: loss falls predictably as either quantity grows, following a smooth mathematical trend that holds across many orders of magnitude. These trends are called \emph{neural scaling laws}, and their predictability is what makes them useful. Instead of training many large models to find the best configuration,which would be prohibitively expensive, a researcher can fit a scaling law to many small, cheap training runs. A scaling law can then be used to forecast the loss of a much larger run before committing the compute to it.
+
+\citet{kaplan2020scaling} first established these trends, and \citet{hoffmann2022training} refined them into the Chinchilla scaling law, which expresses the final loss of a trained model as a sum of three terms:
+\begin{equation}
+    L(N, D) = E + \frac{A}{N^\alpha} + \frac{B}{D^\beta},
+    \label{eq:chinchilla}
+\end{equation}
+where $N$ is the number of model parameters and $D$ is the number of training tokens. Each of the three terms has a natural interpretation. The first term, $E$, is a floor that the loss cannot drop below no matter how much we scale compute. Natural language has inherent unpredictability (the next word is rarely fully determined by what came before), and $E$ captures that uncertainty. The second term, $A / N^\alpha$, represents the cost of having a model that is too small. A model with limited parameters cannot represent all the patterns present in language. As $N$ grows, this term shrinks toward zero, and the rate at which it shrinks is controlled by the exponent $\alpha$. The third term, $B / D^\beta$, represents the cost of having trained on too little data. Even a very large model has mediocre performance if it has not seen enough data. As $D$ grows, this term also shrinks toward zero, with its rate governed by the exponent $\beta$. Together, the three terms say that loss is the sum of what is fundamentally unlearnable, what the model was too small to learn, and what the data was too limited to teach.
+
+A practical consequence of this form is that a compute budget determines how to trade off model size against dataset size. Training compute scales as $C \approx 6ND$ (see \citep{kaplan2020scaling}), so for a fixed $C$, the scaling law picks out a specific $(N, D)$ pair that minimizes predicted loss. The exact $N:D$ ratio depends on the fitted exponents and varies across scaling studies with different datasets and training setups~\citep{li2025misfitting}. 
+
+Crucially, the Chinchilla law assumes that every training token is unique---the model sees each piece of text exactly once. In practice, high-quality text is often scarce enough that training runs pass over the same data multiple times, violating this assumption. Scaling laws of this form have been widely adopted for guiding training decisions across domains and applications~\citep{ludziejewski2024scaling, gulrajani2023likelihood, cherti2023reproducible, kumar2025scaling, aghajanyan2023scaling, sardana2024beyond, gadre2025language}.
+
+\para{Scaling under data repetition.}
+The Chinchilla law assumes each training token is seen exactly once, but in practice models often train for multiple epochs over the same data. While performance continues to improve, each additional pass over the data  yields progressively diminishing returns. At some point, additional epochs contribute almost nothing, or can even hurt performance due to overfitting. Any scaling law that accounts for repetition must capture this diminishing return.
+
+\citet{muennighoff2023scaling} formalized this intuition by replacing the raw token count $D$ in the Chinchilla law with an \emph{effective data} quantity $\widehat{D}$. The main idea is that the contribution of repeated tokens decays exponentially. The first repeat is worth almost as much as fresh data, the second repeat somewhat less, and so on, until further repeats add essentially nothing. Let $U_D$ denote the number of unique tokens in the dataset and let $R_D$ denote the number of \emph{additional} epochs beyond the first ($R_D = 0$ means the model sees each token once, $R_D = 1$ means twice, and so on). They define:
+\begin{equation}
+    \widehat{D}(U_D, R_D) = U_D \cdot \left(1 + R_D^* \cdot \left(1 - e^{-R_D / R_D^*}\right)\right),
+    \label{eq:muennighoff_deff}
+\end{equation}
+where $R_D^*$ is a fit constant that controls how quickly repeated data loses its marginal value. The behavior of this expression matches the decay intuition directly. When $R_D$ is small, the exponential term is approximately linear, so $\widehat{D}(U_D, R_D) \approx U_D \cdot (1 + R_D)$---each repeated epoch contributes nearly as much as a fresh one. As $R_D$ grows, the exponential saturates toward one, so $\widehat{D}(U_D, R_D)$ approaches an upper limit of $U_D \cdot (1 + R_D^*)$. No matter how many more epochs are added, effective data cannot exceed this ceiling. Substituting $\widehat{D}$ into the Chinchilla form gives:
+\begin{equation}
+    L(N, U_D, R_D) = E + \frac{A}{N^\alpha} + \frac{B}{\widehat{D}(U_D, R_D)^\beta}.
+    \label{eq:muennighoff_loss}
+\end{equation}
+However, this formulation treats repetition as purely a data-side phenomenon with no dependence on model size. Empirically, this is incomplete: larger models overfit more quickly on repeated data than smaller ones do, so the cost of repetition should depend on $N$ as well as $D$. To capture this, \citet{muennighoff2023scaling} apply the same saturating form to model parameters. The intuition is that a model can be too large for its dataset. If the parameter count far exceeds what the available unique tokens can support, the extra capacity yields diminishing returns. They measure excess capacity relative to $N_{\text{opt}}$, the Chinchilla compute-optimal model size for $U_D$ unique tokens. If the actual model size $N$ exceeds $N_{\text{opt}}$, the ratio $R_N = (N / U_N) - 1$ measures the degree of overparameterization; otherwise $R_N = 0$. Writing $U_N = \min\{N_{\text{opt}}, N\}$, the effective parameter count is:
+\begin{equation}
+    \widehat{N}(U_N, R_N) = U_N + U_N \cdot R_N^* \cdot \left(1 - e^{-R_N / R_N^*}\right),
+    \label{eq:muennighoff_neff}
+\end{equation}
+where $R_N^*$ plays the same role as $R_D^*$ but for excess parameters rather than repeated tokens. Substituting both $\widehat{D}$ and $\widehat{N}$ into the Chinchilla form yields a scaling law with two additional fit constants ($R_D^*$ and $R_N^*$):
+\begin{equation}
+    L(U_N, R_N, U_D, R_D) = E + \frac{A}{\widehat{N}(U_N, R_N)^\alpha} + \frac{B}{\widehat{D}(U_D, R_D)^\beta}.
+    \label{eq:muennighoff_full}
+\end{equation}
+This introduces an interaction between model size and repetition: overparameterized models see their effective capacity $\widehat{N}(U_N, R_N)$ saturate, which raises the predicted loss under heavy repetition.
+
+While this formulation correctly captures the qualitative behavior, the mechanism is indirect. It models overparameterization as a diminishing return on effective model size rather than as an explicit overfitting cost, and it is not clear why excess parameters should follow the same exponential saturation form as repeated data. In~\autoref{sec:method}, we propose an alternative formulation that explicitly separates the contribution of repeated tokens from the overfitting penalty they incur, and show that this decomposition reveals how regularization strength modulates a model's tolerance to repetition.

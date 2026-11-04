@@ -1,0 +1,101 @@
+        %auto-ignore
+\section{Classification of Depthwise Parametrizations in Linear Case}\label{sec:linearsgd_classification}
+
+We discuss the classification results on the linear residual networks with SGD training and give rigorous proofs for the claims in this simplified setting. Recall the linear residual networks:
+\[
+\forall l \in [L], x^l = x^{l-1} + a L^{-\alpha} h^l, 
+\]
+where $h^l=W^l x^l$, and the effective learning rate of $W^l$ is $\eta n^{-1} L^{-\gamma}$. Without loss of generality, we assume $\eta=a=1$. 
+
+\subsection{Initialization}
+At initialization, we have 
+\[
+\ket{x_0^l} = \ket{x_0^{l-1}} + L^{-\alpha} \ket{h^l_0},
+\]
+where \[\ket{h_0^l}=\ket{W_0^l x_0^{l-1}}=\hatket{W_0^l x_0^{l-1}}.\]
+Since $\ket{x_0^{l-1}}$ is independent from $\hatket{W_0^l x_0^{l-1}}$,
+we have 
+\[\braket{x_0^l}{x_0^l} = \braket{x_0^{l-1}}{x_0^{l-1}} + L^{-2\alpha} \braket{h^l_0}{h^l_0} = \braket{x_0^{l-1}}{x_0^{l-1}} + L^{-2\alpha} \braket{x_0^{l-1}}{x_0^{l-1}} =  (1+L^{-2\alpha})\braket{x_0^{l-1}}{x_0^{l-1}}.\]
+Using this recursion, we can write 
+\[\braket{x_0^l}{x_0^l} = (1+L^{-2\alpha})^l \braket{x_0^0}{x_0^0}.\]
+Therefore, $\braket{x_0^L}{x_0^L}=\Theta(1)$ iff $\alpha\geq 1/2$, otherwise $(1+L^{-2\alpha})^L\approx e^{L^{-2\alpha+1}}$ explodes with large $L$.
+
+A similar argument stands for $h^l_0$ and $f_0$. Therefore, we have proved \Cref{clm:stability_init}.
+
+Similarly, we can get the stability of the first backward pass, i.e., $\tilde \del x_0^l=\Theta(1)$ for $\alpha\geq 1/2$. Given $\alpha \geq 1/2$, we can also settle the size of $\tilde \del h_0$ that
+\[\tilde \del h_0^l = \Theta(L^{-\alpha}), \]
+which implies 
+\[\Delta W_1^l = L^{-\gamma+\alpha}\cdot \tilde \del  h_0^l \otimes x_0^{l-1}.\]
+
+\subsection{After the first step of gradient update}
+
+Now we look at the second forward pass, and assume the input is the same, i.e., $\ket{x_1^0}=\ket{x_0^0}$, we have
+\[\ket{x_1^l} = \ket{x_1^{l-1}} + L^{-\alpha} (\hatket{W_0^l x_1^{l-1}} + \dotket{W_0^l x_1^{l-1}}+ \oplim{\Delta W_1^l} x_1^{l-1}\ra)\]
+where $\oplim{\Delta W_1^l}= -L^{-\gamma} \Tilde{\ket{\tilde \delta h_0^l}}\bra{x_0^{l-1}}=-L^{-\gamma} \ket{\tilde \delta x_0^l}\bra{x_0^{l-1}}$, and $\Tilde{\ket{\tilde \delta h_0^l}}\odefeq L^{\alpha} \ket{\tilde \del h_0^l}$ is the normalized version of $\ket{\tilde \del h_0^l}$, which happens to equal to $\ket{\tilde \del x_0^l}$. By the definition of $\hatket{W_0^l x_1^{l-1}}$ and $\dotket{W_0^l x_1^{l-1}}$, we get a similar formula to the Depth-$\mu$P case:
+\[\ket{x_1^l} = \ket{x_1^{l-1}} + L^{-\alpha} \hatket{W_0^l x_1^{l-1}} + L^{-\alpha} \ket{\tilde \del x_0^{l}} \left(\frac{\partial \ket{x_1^{l-1}}}{\partial \hatket{W_0^{l\top} \tilde \del x_0^{l}}} - L^{-\gamma} \braket{x_0^{l-1}}{x_1^{l-1}} \right).\]
+Now we write $b^l=L^{\gamma} \frac{\partial \ket{x_1^{l-1}}}{\partial \hatket{W_0^{l\top} \tilde \del x_0^{l}}}$ and $c^l=- \braket{x_0^{l-1}}{x_1^{l-1}}$, then
+\[\ket{x_1^{l}}=\ket{x_1^{l-1}} + L^{-\alpha} \hatket{W_0^l x_1^{l-1}} + L^{-\alpha-\gamma}(b^l + c^l)\ket{\tilde \del x_0^l}.\]
+By expanding $\ket{\tilde \del x_0^{l-1}}=\ket{\tilde \del x_0^{l}} + L^{-\alpha} \hatket{W_0^{l\top}\tilde \del x_t^l}=\ket{\tilde \del x_0^L} + \sum_{m=l}^L L^{-\alpha} \hatket{W_0^{m\top}\tilde \del x_t^m}$, 
+we have 
+\begin{align}
+    \ket{x_1^{l}}=&~\ket{x_1^{l-1}} + L^{-\alpha} \hatket{W_0^l x_1^{l-1}} + L^{-\alpha-\gamma}(b^l + c^l)\left(\ket{\tilde \del x_0^L} + \sum_{m=l+1}^L L^{-\alpha} \hatket{W_0^{m\top}\tilde \del x_0^m}\right) \nonumber \\
+    =&~ \ket{x_1^{0}} + \sum_{m=1}^l L^{-\alpha} \hatket{W_0^m x_1^{m-1}} + \sum_{m=1}^l L^{-\alpha-\gamma} (b^m +c^m)\ket{\tilde \del x_0^L} \nonumber\\
+    & + \sum_{m=2}^L L^{-\alpha-\gamma} \sum_{l'=1}^{\min\{m-1,l\}} (b^{l'}+c^{l'}) L^{-\alpha} \hatket{W_0^{m\top}\tilde \del x_0^m}.\label{eq:x_1l}
+\end{align}
+Note the four terms in \cref{eq:x_1l} are independent of each other.
+
+Now it is easy to compute $c^l$ because only the first two terms in \cref{eq:x_1l} have correlation with $x_0^l$:
+\[c^l =c^{l-1} (1+ L^{-2\alpha})=\Theta(1)\]
+with $\alpha \geq 1/2$.
+For $b^l$, we have the following recursive formula:
+\[b^{l+1}=L^{-2\alpha} \sum_{m=1}^l (b^l+c^l)=\Theta(l\cdot L^{-2\alpha}).\]
+\paragraph{Stable during training and nontrivial.} Finally, we can reason about the $\mathring f_1$ (note $\mathring f_0=0$, so $\Delta \mathring f_1=\mathring f_1$), which indicates whether the parametrization is stable during the first step\footnote{We need $\Delta x$ and $\Delta h$ for stability, but they are similar to $\Delta \mathring f_1$.}, and whether the parametrization is nontrivial for the first step:
+\[\mathring f_1 = \braket{nV}{x_1^L} = \sum_{m=1}^L L^{-\alpha-\gamma} (b^m+c^m) \chi_0=\Theta(L^{1-\alpha-\gamma}).\]
+Therefore, we have proved \Cref{clm:stable_non_trivial} that the parametrization is stable during training iff $\alpha + \gamma \geq 1$, and is nontrivial iff $\alpha + \gamma \leq 1$.
+
+\paragraph{Faithfulness.} Although there is no activation in the linear case, we still prove \Cref{clm:faithful} to enlighten the proof of the general case. 
+
+At the initialization, $h_0^l$ and $x_0^{l-1}$ have the same size, therefore, faithfulness is equivalent to stability, which means it happens iff $\alpha \geq 1/2$.
+
+During training, we can expand $\ket{h_1^l}$ in a similar way to \cref{eq:x_1l} as
+\[\ket{h_1^l}=\hatket{W_0^l x_1^{l-1}} + L^{-\gamma} (b^l+c^l)\left(\ket{\tilde \del x_0^L} + \sum_{m=l+1}^L L^{-\alpha} \hatket{W_0^{m\top} \tilde \del x_0^m}\right)=\Theta(1+L^{-\gamma}).\]
+Therefore, it is faithful iff $\gamma\geq 0$. It is equivalent to $\alpha\leq 1$ because we have $\alpha+\gamma=1$.
+
+\paragraph{Feature diversity exponent.} To simplify the analysis, we assume that $\epsilon L$ is always an integer. We first expand $x_1^{l+\epsilon L}-x_1^l$ 
+\begin{align}
+    \ket{x_1^{l+\epsilon L}} - \ket{x_1^{l}}=&~ \sum_{m=l+1}^{l+\epsilon L} L^{-\alpha} \hatket{W_0^m x_1^{m-1}} + \sum_{m=l+1}^{l+\epsilon L} L^{-\alpha-\gamma} (b^m +c^m)\ket{\tilde \del x_0^L} \nonumber\\
+    & + \sum_{m=2}^L L^{-\alpha-\gamma} \sum_{l'=\min\{m-1,l\}+1}^{\min\{m-1,l+\epsilon L\}} (b^{l'}+c^{l'}) L^{-\alpha} \hatket{W_0^{m\top}\tilde \del x_0^m}. \nonumber
+\end{align}
+With $\alpha+\gamma=1$, it is clear that the first term is $\Theta(L^{-\alpha} \sqrt{\epsilon L})=\Theta(\epsilon^{1/2}L^{-\alpha+1/2})$, 
+the second term has size $\Theta(\epsilon)$, 
+and the third term has size $\Theta(\sqrt L\cdot \epsilon L^{-\alpha})=\Theta(\epsilon L^{-\alpha+1/2})$. Therefore, there are only two cases here: if $\alpha = 1/2$, the overall size is $\Theta(\epsilon^{1/2}+\epsilon)=\Theta(\epsilon^{1/2})$; if $\alpha > 1/2$, the first and the third term vanish as $L\to\infty$, so the overall size is $\Theta(\epsilon)$. In sum, we have proved \Cref{clm:redundant,clm:depth_mup}.
+
+\paragraph{Layerwise linearization.} \Cref{clm:layerwise-linearization} is trivial in this simplified setting because layerwise linearization is always true for linear nets. To enlighten the proof of the general case, we recap that $\oplim{\Delta W_1^l} x_1^{l-1} \ra = L^{-\gamma} c^l \ket{\tilde \del x_0^l}=\Theta(L^{-\gamma})$, which is much smaller than $\ket{W_0^l x_1^{l-1}}=\Theta(1)$ when $\gamma > 0$. If there were an activation function, the linearization would bring an error of $o(L^{-\gamma})$ in $h_1^l$, which means an error of $o(L^{-\gamma-\alpha})=o(L^{-1})$ to $x_1^l$.
+
+\subsection{Beyond one step}
+The argument above is in general tracking the derivatives and covariance, in other words, $\Gamma$ and $C$ in the Depth-$\mu$P case. 
+
+Now we generalize \Cref{lemma:finite_depth_gamma}, and obtain the following recursion for $\Gamma$ and $C$
+\begin{align*} 
+     \Gamma_{t,r,0,b}\left(\frac l L, q\right) = &~\Gamma_{t,r,0,b}\left(\frac{l-1}L, q\right) + L^{1/2-\alpha}\ind_{[(t=r) \wedge (b=0) \wedge (l=\lceil L q\rceil)]} \\
+     & + L^{-\alpha-\gamma} \sum_{s=0}^{t-1} \Gamma_{s,r,1,b}\left(\frac l L, q\right)\left(L^{\gamma-1/2}\Gamma_{t,s,0,1}\left(\frac{l-1}L, \frac l L\right)-C_{t,s,0}\left(\frac l L\right)\right).
+    \end{align*}
+    \begin{align*} 
+     \Gamma_{t,r,1,b}\left(\frac {l-1} L, q\right) = &~\Gamma_{t,r,1,b}\left(\frac{l}L, q\right) + L^{1/2-\alpha} \ind_{[(t=r) \wedge (b=1) \wedge (l=\lceil L q\rceil)]} \\
+     & + L^{-\alpha-\gamma} \sum_{s=0}^{t-1} \Gamma_{s,r,0,b}\left(\frac {l-1} L, q\right)\left(L^{\gamma -1/2}\Gamma_{t,s,1,0}\left(\frac{l}L, \frac l L\right)-C_{t,s,1}\left(\frac l L\right)\right).
+     \end{align*}
+     \[C_{t,s,a}(p)=\sum_{t'=-1}^{t}\sum_{s'=-1}^{s}\sum_{b\in\{0,1\}}\int_0^1 \Gamma_{t,t',a,b}(l/L,q) C_{t',s',b}(q)\Gamma_{s,s',a,b}(l/L,q) \dd q,\] where $l=\lceil Lp\rceil -1$ if $a=0$, and  $l=\lceil Lp\rceil$ if $a=1$.
+
+Then all the claims can be reasoned by tracking the order of $\Gamma$ and $C$.
+\paragraph{Distinguish parametrizations with $\alpha+\gamma=1$ and $\alpha\leq 1$. } The parametrizations with $\alpha+\gamma=1$ and $\alpha\leq 1$ are all nontrivial, stable, and faithful. However, there is a large gap between $\alpha=1/2$ (Depth-$\mu$P) and $\alpha > 1/2$ in terms of the difficulty of tracking $\Gamma$ and $C$. For $\alpha > 1/2$, we can see that
+$C_{t,s,a}=\Theta(1)$, $\Gamma_{t,-1,a,b}=\Theta(1)$ and $\Gamma_{t,s,a,b}=o(1)$ for $s\geq 0$. In this case, we can simplify the recursion by ignoring $\Gamma_{t,s,a,b}$ with $s\geq 0$: 
+\begin{align*} 
+     \Gamma_{t,-1,0,b}\left(\frac l L\right) \approx &~\Gamma_{t,-1,0,b}\left(\frac{l-1}L\right) - \frac1L \sum_{s=0}^{t-1} \Gamma_{s,-1,1,b}\left(\frac l L\right)C_{t,s,0}\left(\frac l L\right).
+    \end{align*}
+    \begin{align*} 
+     \Gamma_{t,-1,1,b}\left(\frac {l-1} L\right) \approx &~\Gamma_{t,-1,1,b}\left(\frac{l}L\right)  - \frac1L \sum_{s=0}^{t-1} \Gamma_{s,-1,0,b}\left(\frac {l-1} L\right)C_{t,s,1}\left(\frac l L\right).
+     \end{align*}
+     \[C_{t,s,a}(p)\approx\sum_{b\in\{0,1\}} \Gamma_{t,-1,a,b}(l/L) \Gamma_{s,-1,a,b}(l/L),\] where $l=\lceil Lp\rceil -1$ if $a=0$, and  $l=\lceil Lp\rceil$ if $a=1$. Note $\Gamma_{t,-1,a,b}(p,q)$ is simplified to a function that only depends on $p$ because $\Gamma_{t,-1, a,b}(p, q)$ is constant when fixing $p$. 
+
+This simplification means the randomness in any $W_0^l$ does not have an effect on the dynamics in the infinite depth limit --- the complicated functional integrals for $\alpha=1/2$ in \Cref{prop:infinite_depth_linear} are simplified to be ODEs when $\alpha >1/2$. This ODE dynamic also directly implies that the feature diversity exponent is 0 for $\alpha > 1/2$.
+

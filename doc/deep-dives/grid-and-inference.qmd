@@ -1,0 +1,46 @@
+---
+title: "Design a ladder that identifies the question you ask"
+---
+
+This companion expands notes §§5 and 8.3–8.4, and blog §§5 and 8.3–8.4. Its focus is the relationship between the grid, statistical assumptions and engineering decision.
+
+## Choose the geometry before the solver {#geometry}
+
+A fixed-TPP line uses $D=qN$. It can support forecasting along that recipe, but provides no independent intervention on size versus tokens. In a log-linear model, $\log D=\log q+\log N$ makes the two predictor columns collinear. More restrictive nonlinear forms can sometimes infer parameters along this line; that inference depends on the imposed form and does not replace observing off-line configurations.
+
+For allocation, use multiple IsoFLOP slices or a two-dimensional size/token grid. For a slice, solve the actual compute function for each candidate horizon; $D=C/(6N)$ is only a starting approximation. If the apparent minimum is at the edge, expand the slice before fitting a frontier. [Chinchilla, §3](https://arxiv.org/abs/2203.15556).
+
+## Concrete experiment: AI2's 16 runs {#ai2}
+
+AI2 uses four sizes—190M, 370M, 760M and 1.3B—and four horizons $D=20N\times\{1,2,5,10\}$. This gives variation in both size and horizon rather than one TPP trajectory. It predicts 7B/13B target task performance under its recipe, with peak LR, batch and warmup extrapolated from a target anchor. It is not an exhaustive frontier search at every configuration. [Bhagia et al., §2.1/Table 1](https://arxiv.org/abs/2412.04403).
+
+**Illustrative design:** fit three sizes at several horizons; use a fourth size for development and a larger unseen tier for final validation. Exact sizes, seeds and token budgets must come from measured throughput, noise and the target decision. Development runs used to choose a fit are not untouched test runs.
+
+## Fit a declared objective {#fitting}
+
+For endpoints $(N_i,D_i,L_i)$, one possible objective is
+
+$$J(\theta)=\sum_i w_i\,\rho_\delta\!\left(\log\widehat L_\theta(N_i,D_i)-\log L_i\right),$$
+
+where $\rho_\delta$ is Huber loss, $w_i$ are declared weights and $\theta$ contains the surface parameters. Fitting log loss and fitting raw loss emphasize different discrepancies. Positivity constraints do not make every nonlinear scaling fit globally convex. Multi-start optimization reduces sensitivity to initialization; it does not certify a global optimum.
+
+Freeze the transformation, bounds, floor treatment, exclusions and validation criterion. Report alternative solutions with similar objectives but different target predictions. [Besiroglu et al., Chinchilla replication](https://arxiv.org/abs/2404.10102); [(Mis)Fitting survey](https://arxiv.org/abs/2502.18969).
+
+## Respect dependence between observations {#dependence}
+
+Intermediate checkpoints share initialization and data history; annealing branches share their trunk. Count prefix compute once, preserve the parent-child lineage, and bootstrap at the independent-run or shared-trunk-cluster level. A branch is a new endpoint but not an independent initial training history.
+
+For each bootstrap replicate, refit the selected model and recompute the candidate gap or feasible allocation. Merely placing intervals on the exponents leaves the decision uncertainty unanswered.
+
+## Diagnose errors before adding compute {#diagnostics}
+
+| Pattern | Plausible explanation | Useful next experiment |
+|---|---|---|
+| Similar configuration varies across seeds | Training/evaluation noise | Independent repeats |
+| Residual curvature across size and horizon | Functional-form or recipe mismatch | Off-axis runs and alternative form |
+| Only long-horizon points fail | Schedule, repetition or stability | Matched-exposure long runs |
+| Loss forecast passes, task forecast fails | Calibration/metric mismatch | Task-specific continuous metrics |
+
+These are diagnostic hypotheses, not automatic causal diagnoses. **Required artifact:** a frozen run table, development/test assignments, solver specification, residual plots and decision intervals.
+
+[Back to the blog reading guide](../reading/jiaxuan-reading-guide.qmd) · [Quarto notes](../reading/deep-dive-notes.qmd)

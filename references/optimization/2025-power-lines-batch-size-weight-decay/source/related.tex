@@ -1,0 +1,260 @@
+\subsection{Optimizers for large-batch training}
+
+Prior work has explored optimizers designed specifically for
+large-batch training, including LARS~\citep{you2017large} and
+LAMB~\citep{you2019large}.  It is instructive to consider these prior
+findings in light of the scaling laws from our paper.
+%
+In particular, both original BERT~\citep{devlin2019bert} and the LAMB
+replication were trained on 85.2B tokens.  Applying our fitted
+$\bcrit$ power law over $D$=85.2B, we obtain an estimated $\bcrit$ of
+about 12M tokens.  Original BERT was trained for 90\% of steps with a
+batch size of 65K tokens (512 sequences of length 128).  LAMB
+increased the batch size to 4M tokens (32K sequences), justifying
+their claim, ``BERT training can be reduced from 3 days to just 76
+minutes'' \citep{you2019large}.  However, based on the predicted
+$\bcrit$ of 12M, batch size 4M is still well within the expected range
+of efficient batch sizes. Moreover, the LAMB paper later notes, ``we
+did not observe any speedup by increasing the batch size from 65536 to
+131072 [sequences, or 16.8M tokens].''  In other words, they reach the
+point of diminishing return \emph{exactly where $B$ exceeds our
+predicted $\bcrit$}.
+
+It is likely that some optimization issues solved by LAMB (to enable
+stable large-batch training) are solved other ways in modern LLM
+training setups, via, e.g., gradient clipping, pre-LayerNorm
+placement, better initialization and stability control through $\mup$,
+etc.  Scaling $\lambda$ rather than $\eta$ with $B$, as we propose,
+further supports stable, efficient training. However, gradient
+redundancy imposes an inherent limit on useful batch sizes, ensuring
+critical batch size remains relevant.
+
+\subsection{Critical batch size}\label{sec:app_bcrit}
+
+Observations of critical batch size have previously been related to
+data complexity~\citep{golmant2018computational}, loss
+curvature~\citep{ma2018power,zhang2019algorithmic}, and model
+architecture~\citep{shallue2019measuring}.
+
+\citet{merrill2025critical} define $\bcrit$ as the largest $B$ such
+that loss does not degrade by more than a fixed fraction $\epsilon$
+from the $\bopt$ setting.  They measure this $\bcrit$ instantaneously
+throughout training, by repeatedly branching from a checkpoint with
+different $B$ settings and assessing the impact on loss.
+
+Recent work also defines $\cbs$ in terms of how $\eta$ scales with
+$B$~\citep{filatov2024time,li2024surge}; unlike our work, these recent
+studies use a constant learning rate schedule and no weight decay.
+
+We follow \citet{mccandlish2018empirical}'s definition of $\bcrit$
+(\cref{def:cbs}).
+%
+Given various theoretical assumptions, \citet{mccandlish2018empirical}
+derived a direct equivalence between $\bcrit$ and what they call the
+\emph{gradient noise scale} (GNS): the variation of the gradients
+between different training examples.
+%
+However, they noted that the GNS ``accurately predicts the largest
+usable batch size (at the order of magnitude level),'' which is below
+the level of precision needed for large-scale training.
+%
+\citet{merrill2025critical} recently found ``the gradient noise scale
+underestimates the CBS [i.e., $\bcrit$].''
+%
+This lack of precision may be why, in Kaplan et al's original scaling
+laws paper~\citep{kaplan2020scaling}, they note that, ``although the
+critical batch size roughly matches the gradient noise scale, we are
+using a direct [empirical] measurement of $\bcrit$.'' Our approach to
+measuring $\bcrit$ (\cref{sec:estimating_bcrit}) similarly provides a
+direct empirical measurement, but one that can be efficiently computed
+with any learning rate schedule or optimizer.
+
+\subsection{Detailed comparison with \citet{zhang2024how}}\label{sec:appendix_zhang}
+
+Here we provide further comparison with the concurrent work
+by \citet{zhang2024how}.
+%
+The primary point of distinction of our paper is that we conducted a
+large-scale empirical study into the scaling of AdamW's weight decay
+hyperparameter (including its scaling with $B$), ultimately deriving a
+precise power law for the optimal AdamW timescale in
+tokens-per-parameter.  \citet{zhang2024how} did not use weight decay.
+Further, we also explored scaling of $\bopt$ in addition to $\bcrit$.
+%
+Beyond use of weight decay, further methodological differences in our
+main experiments include that we used a longer context length (2048
+vs.\ 512), a cleaner dataset (SlimPajama vs. C4), the $\mup$
+parameterization, a decaying LR schedule (more on this below), and
+that we tuned HPs at most $N$, $D$, $B$ (\cref{tab:train_steps}),
+while \citet{zhang2024how} performed a HP sweep for a 151M model, and
+re-used optimal values at other scales.
+%
+We now focus on differences in estimating and measuring the scaling of
+$\bcrit$.
+
+\paragraph{Estimating $\bcrit$ for a specific target loss}
+
+Both our work and \citet{zhang2024how} require measuring, for
+different batch sizes, how many training steps it takes to reach a
+particular target loss.
+%
+Since the number of steps to reach that loss is not known \emph{a
+priori}, it is inherently difficult to study $\bcrit$ when using a LR
+decay schedule, where you must specify the number of steps in advance.
+Using a constant LR (as was done in early work on
+$\bcrit$~\citep{mccandlish2018empirical}) simply does not result in
+competitive models~\citep{bergsma2025straight}.
+%
+Unfortunately, it is not feasible to \emph{search} for the precise
+step count needed, i.e., by conducting full training runs with
+different schedules/step budgets.
+
+\citet{zhang2024how} creatively solve this issue by conducting a
+single training run at a constant LR, while using weight averaging to
+generate higher-quality checkpoints for evaluation.  With this
+approach, they still ``need to frequently evaluate the model on a
+holdout evaluation set'' \citep{zhang2024how}.
+
+Given LR decay, as opposed to weight averaging, remains the standard
+practice for current state-of-the-art LLMs, we independently developed
+a different approach.  This led to the novel method described in our
+paper.  In contrast with~\citet{zhang2024how}, we do not need to
+frequently evaluate the model, as we instead fit a $B$-specific loss
+power law through a few validation loss values
+(\cref{sec:estimating_bcrit}).  Indeed, our approach may improve the
+efficiency of \citet{zhang2024how}'s method, as it would obviate the
+cost of continuous validation, which concerned them (see their section
+``Evaluation data size and frequency'').
+
+\paragraph{Estimating the $\bcrit$ power law}
+
+Collecting $\bcrit$ data across multiple model scales and loss targets
+is expensive.  \citet{zhang2024how} establish $\bcrit$ scaling in $D$
+through three targeted experiments:
+\begin{itemize}
+\item measuring $\bcrit$ while scaling $N$ but leaving $D$ fixed to 3.07B
+\item measuring $\bcrit$ while scaling $D$ but leaving $N$ fixed to 302M
+\item measuring $\bcrit$ while scaling both $N$ and $D$ proportionally (at 20 TPP)
+\end{itemize}
+Interestingly, $\bcrit$ was found to only scale weakly in $N$, but
+scale similarly whenever $D$ is scaled.  They then fit a power law to
+their data points for the 302M-parameter model, obtaining the fit
+\mbox{$\bcrit = 22.91 D^{0.47}$} (in tokens).
+
+In comparison, we took a more brute-force approach, computing $\bcrit$
+across many different $N$ and $D$ values, and ultimately fitting our
+$\bcrit$ power law across multiple different model sizes and TPP
+settings (\cref{fig:hook}, $\rightfig$).  Also,
+unlike~\citet{zhang2024how}, we assessed the quality of fit via
+computation of both $\Rtwo$ values and parameter quantiles via
+bootstrapping (\cref{sec:results_cbs}).
+
+Recall also that \citet{zhang2024how} used a different definition of
+critical batch size.  Let us denote their quantity $\cbszhang$.  They
+set $\cbszhang$ to be the $B$ such that the data required to reach a
+loss target is $1.2 \times \dmin$ (i.e., $1.2 \times$ the data
+required with $\bopt$).
+%Their fitted power law is
+%\mbox{$\cbszhang = 22.91 D^{0.47}$}, where $\cbszhang$ is in tokens.
+
+We can use \cref{eq:s_extra} to align their fitted law with our own.
+By this equation, we have:
+\begin{align*}
+  D &= \dmin(1 + \frac{\cbszhang}{\cbs}) \\
+    &:= \dmin(1.2) \\
+  \Rightarrow \frac{\cbszhang}{\cbs} &= 0.2 \\
+  \Rightarrow \cbs &= 5 \cbszhang
+\end{align*}
+%
+Thus, to convert their coefficient to our scale, we multiply it by 5,
+and, dividing by the number of tokens in our sequences, obtain
+$\cbszhang = 0.0559 D^{0.47}$.
+%
+The $\cbszhang$ coefficient (0.0559) is 19\% larger than our own
+(0.0471), perhaps reflecting differences in training setup or data
+quality (and worth investigating further in future work).
+%
+However, the exponents are quite similar (0.47 vs. 0.462), suggesting
+that both works are independently measuring the same fundamental
+scaling behavior.
+
+We emphasize that $\bcrit$ directly reflects the fundamental limit to
+data parallelism in training neural networks.  Given the significant
+implications of $\bcrit$ scaling in $D$ rather than $C$ or $L$
+(including those discussed in \cref{sec:balancing}), we note the
+scientific and practical value in having different approaches
+independently observe this same phenomenon.
+
+\subsection{Hyperparameter scaling with $B$}
+
+It has long been recognized that the optimal learning rate, $\etaopt$, scales
+with $B$, with reports of both
+linear~\citep{krizhevsky2014one,chen2016revisiting,smith2017bayesian,smith2018dont}
+and square-root
+scaling~\citep{hoffer2017train,you2019large,malladi2022sdes}.
+%
+Recent work has found $\etaopt$ to \emph{decrease} when $B
+> \cbs$~\citep{li2024surge,filatov2024time}, which resonates with our
+own findings (\cref{fig:tepochs}, $\rightfig$).
+%
+%\citet{li2024surge} look at learning rate scaling with Adam, they see an
+%increase, then a decrease, then an increase again, but at many
+%multiples of $\cbs$...
+%- That Time Transfer paper also sees this with MUP
+%
+Since it is difficult to predict exactly how $\eta$ will scale with
+$B$, studies of $\cbs$ have often done full HP sweeps at each
+$B$~\citep{mccandlish2018empirical,shallue2019measuring}.
+% \citet{zhang2024how} perform a HP sweep for a 151M model, and then
+%re-use optimal values at other scales.
+
+The only work we are aware of that specifically recommends scaling
+weight decay with $B$ is \citet{loshchilov2017decoupled}, who suggest
+$\lambda \propto \sqrt{B}$, though this rule is not evaluated
+systematically. It is also important to note that
+\citet{loshchilov2017decoupled} use the \emph{independent} form of
+weight decay, where decay is applied independently of the learning
+rate $\eta$, unlike common implementations such as AdamW in
+PyTorch~\citep{wortsman2023small}. In these more typical
+\emph{dependent} implementations, weight decay is scaled by $\eta$, so
+any increase in $\eta$ with $B$ (e.g., $\eta \propto B$ or $\sqrt{B}$)
+already increases the effective weight decay strength accordingly.
+
+%399R: Note in Loshchilov & Hutter (2017) they use fully decoupled weight decay. Scaling it with the sqrt(B) may therefore simply be equivalent to scaling the learning rate by sqrt(B) in the more common not-fully-decoupled AdamW implementation (default in PyTorch).
+
+\subsection{$\tepoch$ and effective learning rates}
+
+The concept of effective learning rates, influenced by weight decay,
+has been widely
+discussed~\citep{van2017l2,hoffer2018norm,zhang2018three,chiley2019online,li2019exponential,wan2020spherical,kosson2023rotational,dangelo2024why}.
+%
+In its simplest form, the effective or \emph{intrinsic} LR is simply
+$\eta\lambda$, but in these prior works, effective LRs typically
+measure functional updates relative to weight magnitude, which is
+particularly relevant for normalization-based networks.
+%
+Comparison of the effects of $\lambda$ vs.\ $\eta$ adjustments in the
+context of LR decay schedules was explored
+in~\citet{bergsma2025straight}.
+
+The behavior of effective LRs (relative update sizes) over the course
+of training has been studied comprehensively
+by \citet{kosson2023rotational}, including comparing the effects of
+increasing $\eta$ vs.\ increasing $\lambda$.
+%
+This work shows that higher $\eta$ values can cause large relative
+updates early in training, which can destabilize training or require
+longer warmups~\citep{kosson2024analyzing}.
+%
+High $\eta$ and low $\lambda$ can also lead to larger weight
+norms~\citep{kosson2023rotational,dangelo2024why}, which also has a
+destabilizing effect, particularly on low-precision training.
+%
+These effects may explain why we were able to achieve higher effective
+LRs $\eta\lambda$ by tuning $\lambda$ rather than tuning $\eta$ with
+$B$ (\cref{fig:tepochs}, $\middlefig$).
+
+For a given dataset size $D$, the $\tepoch$ and the batch-normalized
+effective LR $\frac{\eta\lambda}{B}$ are equivalent, and thus
+effective LRs and the AdamW timescale can be viewed as different
+perspectives on the AdamW optimization process.

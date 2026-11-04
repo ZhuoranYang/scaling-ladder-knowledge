@@ -1,0 +1,116 @@
+\section{Introduction}
+Recent advancements in AI system engineering~\citep{fa,jacobs2023deepspeed,fu2024data} and language model designs~\citep{pi,abf} have enabled efficient scaling up of context length for language models~\citep{lwm, yi}. Previous works~\citep{jamba, grok, gemini, claude3} commonly adopt synthetic tasks, such as passkey retrieval~\citep{landmark} and needle-in-a-haystack~\citep{needle} to evaluate long-context LMs. However, these evaluations are used inconsistently across works and reveal merely the retrieval capability, failing to gauge other forms of long-context understanding. 
+
+In this work, we propose \ruler, a new benchmark to evaluate long-context modeling capabilities for language models. 
+% Compared to existing benchmarks (Table~\ref{tab:related_benchmarks}), \ruler~consists solely of synthetic tasks, which offer the flexibility to control sequence length and task complexity. The synthetic input in \ruler~encourages models to utilize contextual information, minimizing reliance on parametric knowledge.
+% % , which interferes with the utilization of long-context input in realistic tasks
+% ~\citep{zeroscrolls, longbench}. 
+\ruler~contains four task categories to test behaviors~\citep{ribeiro-etal-2020-beyond} beyond simple retrieval from context:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Retrieval:} we extend the needle-in-a-haystack~\citep[][NIAH]{needle} test to evaluate retrieval capability with diverse types and quantities of needles.
+    \item \textbf{Multi-hop Tracing:} we propose \emph{variable tracking}, a minimal proxy task for coreference chain resolution to check the behavior of tracing entities with multi-hop connections. 
+    \item \textbf{Aggregation:} we propose \emph{common}/\emph{frequent words extraction}, proxy tasks for summarization to test the ability to aggregate relevant information that spans long-range context.
+    \item \textbf{Question Answering:} we add distracting information to the input of existing short-context QA datasets to evaluate question answering capability at various context sizes. 
+\end{enumerate}
+Compared to existing realistic benchmarks (Table~\ref{tab:related_benchmarks}), \ruler~consists solely of synthetic tasks, which offer the flexibility to control sequence length and task complexity. 
+The synthetic input in \ruler~reduces reliance on parametric knowledge, which interferes with the utilization of long-context input in realistic tasks~\citep{zeroscrolls, longbench}.
+% encourages models to utilize contextual information, thus minimizes reliance on parametric knowledge, which influences realistic tasks~\citep{zeroscrolls, longbench}. 
+% , which interferes with the utilization of long-context input in realistic tasks
+
+
+% Each category in \ruler~contains tasks of configurable length and complexity.
+% , suggesting inadequacy of evaluating exclusively on one simple retrieval-based task.
+\input{Table/benchmark_related}
+Using \ruler, we benchmark Gemini-1.5 ~\citep{gemini}, GPT-4 ~\citep{openai2023gpt4}, and 15 open-source models with context length ranging from 4k to 128k. Despite achieving nearly perfect performance on the vanilla NIAH test, almost all models exhibit large degradation on more complex tasks in \ruler~as sequence length increases. While all models claim context size of 32k tokens or greater, our results indicate that only half of them can effectively handle sequence length of 32K by exceeding a qualitative threshold. Moreover, almost all models fall below the threshold before reaching the claimed context lengths.
+To obtain fine-grained model comparisons, we aggregate performance from 4k to 128k with two weighted average scores where the weights simulate the length distribution of real-world use cases. The top two models - Gemini-1.5 and GPT-4, consistently outperform other models regardless of the chosen weighting scheme.
+
+We further analyze Yi-34B, which claims context length of 200K and achieves reasonably good performance on \ruler~among open-source models. Our results demonstrate large degradation in Yi's performance as we increase input length and task complexity. At large context sizes, Yi-34B often returns incomplete answers and fails to precisely locate the relevant information. Furthermore, we observe two behaviors emerging with the scaling of context size across multiple models: the increased reliance on parametric knowledge and the increased tendency to copy from context for non-retrieval tasks. Our additional ablations demonstrate that training on longer sequences does not always lead to better performance on \ruler, and that larger model sizes positively correlate with better long-context capabilities. Finally, we show that non-Transformer architectures, such as RWKV and Mamba, still lag behind Transformer by large margins on \ruler.
+% 1. Incomplete answers if they are long.
+% 2. Parametric knowledge if cannot retrieve
+% 3. Distracted by in-distribution haystack and demonstration
+
+Our contributions are as follows:
+\begin{itemize}[leftmargin=*]
+\vspace{-0.5em}
+    \item We propose a new benchmark \ruler~for evaluating long-context language models via synthetic tasks with flexible configurations.  \vspace{-0.2em}
+    \item We introduce new task categories, specifically multi-hop tracing and aggregation, to test behaviors other than retrieval from long context. \vspace{-0.2em}
+    \item We evaluate 17 long-context LMs using \ruler~and perform analysis across models and task complexities.
+\end{itemize}
+
+We open source \ruler~to spur future research in long-context language models.\footnote{\url{https://github.com/hsiehjackson/RULER}}
+
+% When dealing with long input context, we find models tend to return incomplete answers, incorrectly generate distraction text or parametric knowledge as answers, and/or perform retrieval when aggregation operation is needed. 
+
+% We use weighted average of performance among various sequence lengths to balance the absolute performance and degradation with the increase of input length. These weights are determined by three simple linear functions to simulate the length distribution in real-world use cases. Our analysis shows that the top three models GPT-4, Yi-34B, and Mixtral consistently outperform other models regardless of the weighting scheme we choose. The comparison between Yi-34B, Yi-9B, and Yi-6B suggests that large parameter size yields better long-context modeling capability. We also observe (almost) linear degradation in model performance on our benchmark with the increase of sequence length, however the 
+% \sscomment{add a summary of top models, e.g., they use large base frequency, they have large parameter size etc; also need to mention somewhere perf comparison between short-context and long context}
+
+% evaluation metric: weighted average, length distribution varies by use cases (we use three simple settings to attempt a incomplete 
+% \sscomment{one caveat of our evaluation is that the result doesn't show the degradation with respect to the position of the needle as in the standard NIAH test plot. }
+% \cpcomment{We use a weighted average score to balance the degradation performance across different sequence lengths. These weights are determined by three simple linear functions to simulate the length distribution in real-world use cases.}
+% Moreover, we introduce a standard to qualify effective context length, examining whether the benchmark performance at a given length surpasses the LLama2-7b series~\citep{llama2} at 4k. Surprisingly, only Mixtral~\citep{mixtral} and Yi~\citep{yi} can meet this requirement at 32k, suggesting that the majority of existing models lack sufficient context understanding ability in long context. 
+% We contend that further research is imperative to ensure long-context language models demonstrate consistent context understanding ability as input length increases, rather than merely claiming the capacity to process extremely long contexts.
+
+
+% Contributions
+% We should mention
+% 1. flexible configuration to change lengths, volume and position of information, and task difficulties.
+% 2. new tasks more than Single NIAH
+
+% We open-source the code and data to spur research in long-context language models.
+
+
+
+% In the development of large language models, there have been significant efforts extending model context length to handle long sequence inputs. Recent works have claimed the capability to process hundreds of thousands to millions of tokens. 
+% Although these studies enable models to accommodate lengthy inputs, we should evaluate if they can still demonstrate comparable context understanding ability as length increases. Various benchmarks have emerged to compare models based on real-world long context tasks~\citep{zeroscrolls, longbench, leval, loogle, inftybench, bamboo}. However, these benchmarks lack length flexibility to test extremely long texts, context controllability to evaluate performance as length increases, and non-parametric knowledge to prevent bias toward sources like Project Gutenberg, Wikipedia, and Arxiv. Given these shortcomings, prior studies have evaluated models through retrieval-based synthetic tasks~\citep{landmark, longchat, needle, lwm, gemini, yi}. Nevertheless, they often introduce their own setup, resulting in non-consistent and non-comprehensive evaluation. 
+
+% \sscomment{we should emphasize the shortcomings of their evaluations, e.g., they are not using consistent evaluation setups, so it's hard to say which model is better or worse; they use the very simple single needle-in-the-haystack task, and it's by no means a comprehensive evaluation of the long context modeling capability. } 
+% \sscomment{We can have a paragraph to describe what principles we follow to design the benchmark even though it's not how the benchmark came into its final form... e.g., we propose a synthetic benchmark:
+% \begin{itemize}
+%     \item to serve as a synthetic test bed for these models with minimal interference from parametric knowledge (disentangle semantic information)
+%     \item flexible configuration with controllable seq length
+%     \item flexible configuration with controllable difficulty
+%     \item comprehensive setup (e.g., various types of key and values) for testing various model behaviors 
+%     \item going beyond in-context recall capabilities
+% \end{itemize}
+% }
+
+% The rising of long context LLMs and the need of benchmark to truly measure long context ability.
+% Existing evaluation benchmark: PPL and Real world datasets (issues)
+% Existing evaluation of synthetic tasks (advantages) and why we need this? Our proposed taxonomy of synthetic tasks
+% Metrics and Results
+
+% Though perplexity is commonly used to evaluate long context models~\citep{longnet, longlora, lminfinite, streemllm, memformer, pi, yarn, longrope}, it often fails to reflect the performance of long context understanding~\citep{pplanalysis}. To address this, various benchmarks have emerged to evaluate tasks in real-world scenarios~\citep{zeroscrolls, longbench, leval, loogle, inftybench, bamboo}. However, these benchmarks face challenges to test extremely long contexts, mainly due to the difficulty of obtaining such extensive real-world data. Additionally, they encounter issues in assessing model performance when context length increases, as it involves a complex balance between potential enhancements derived from additional relevant information and the potential degradation associated with the context extension of models. Furthermore, relying on sources like Project Gutenberg, Wikipedia, and Arxiv may bias models toward parametric knowledge without considering context. Given these limitations, we advocate for the evaluation of long context models through synthetic tasks.
+
+% Synthetic tasks possess the flexibility to accommodate arbitrary context lengths, adjust the volume or placement of relevant information, and exclude parametric knowledge. Leveraging these benefits, prior studies have evaluated long context language models through synthetic tasks~\citep{landmark, pi, longlora, longchat, needle, lwm, gemini, yi}. Nevertheless, they often introduce their own variations of retrieval-based synthetic tasks, resulting in non-consistent and non-comprehensive evaluation. 
+
+% difficulty ignoring distractions, recalling all pertinent details, and demonstrating reasoning and aggregation skills. 
+% We organize existing retrieval-based synthetic tasks and devise novel tasks that require higher levels of context understanding ability. Our benchmark totally contains 18 tasks across 4 categories, including retrieval, reasoning, aggregation, and question answering. 
+% For retrieval, we expand the needle-in-a-haystack evaluation~\citep{needle} to encompass previous retrieval-based synthetic tasks~\citep{landmark,longchat,lostmiddle} and explore the multi-variant configurations. Regarding reasoning, we introduce variable tracking as a task of coreference resolution based on mimic reasoning hops and coreference chains. 
+% With respect to aggregation, we propose the extraction of common words and frequent words based on different word distributions to examine the summarization ability. 
+% In the realm of question answering, we augment existing short context extractive and abstractive QA tasks by incorporating additional paragraphs, reflecting the use case of increasing retrieved documents for retrieval-augmented generation (RAG)~\citep{rag}.   
+
+
+% Results and findings
+% 1. Degradation happens.
+% 2. Analyaze 
+% Fail to ignore distraction
+% Fail to retrieve all values
+% Fail to reasoning, aggregation
+
+% 3. Threshold to pass.
+% 4. AUC
+
+
+% We have conducted a thorough evaluation of 18 models, all purportedly capable of handling input lengths exceeding 32k. 
+
+
+% To facilitate fair model comparisons, we advocate for the use of Area Under Curve (AUC @ length) metric, which offers insight into performance trends as length increases, balancing high scores against degradation. 
+
+% notice the tendency of copying from context verbatim without emerging with the scaling of context size. Besides the copying issue, Yi-34B and other models can also incorrectly use parametric knowledge to answer a query, ignoring the long input context. 
+
+% On long sequences with increased task complexity, Yi-34B may get confused from the contexts with in-distribution distractors or given demonstrations, return incomplete long answers, and ignore contextual information by responding with parametric knowledge or hallucination. 
+% Moreover, our model analysis reveals almost linear degradation within the training length and abrupt performance drops in extrapolation. 
+% We observe large parameter size yields higher absolute performance and relatively small degradation. 
+% Also, among existing model architectures for language modeling, transformer still demonstrates better long-context understanding performance except poor extrapolation ability.
+
+% We further analyze Yi-34B, the model with highest long-context score between open-source models, by varying task complexities and show that there exists large room to improve. 

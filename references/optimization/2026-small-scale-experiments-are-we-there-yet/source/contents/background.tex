@@ -1,0 +1,44 @@
+\section{Background and related work}
+\label{sec:background}
+
+\subsection{Scaling Laws}
+\label{sec:background:scaling-laws}
+
+Researchers have long sought to predict the outcomes of large-scale training from small-scale experiments. Early work studied how models improve with more data \citep{cortes1993learning, hestness2017deep, sun2017revisiting}; later work, with the arrival of web-scale data, turned towards parameters and compute as scaling laws became the primary tool for managing the rising cost of experiments \citep{rosenfeld2020a, Kaplan2020ScalingLaws}. After \citet{Kaplan2020ScalingLaws} demonstrated that pretraining loss falls predictably over many orders of magnitude for language models, similar scaling laws were soon discovered in many other domains \citep{henighan2020scalinglawsautoregressivegenerative, jones2021scalingscalinglawsboard, Cherti_2023_CVPR}. Such scaling laws offered an enticing promise: study a model cheaply at the small scale, then extrapolate to the large.
+ 
+Classically, scaling laws  relate parameters ($p$) and data ($d$) to pretraining loss ($\mathcal{L}$). \citet{Hoffmann2022AnEmpirical} popularized the most widely used functional form \citep{rosenfeld2020a}:
+%
+\begin{equation}\label{eq:scaling-law_joint}
+    \mathcal{L}(p, d) = \epsilon + \frac{\zeta}{p^\iota} + \frac{\eta}{d^\kappa}
+\end{equation}
+%
+
+During training the network runs on every example, so compute is proportional to parameters times data: $c \propto p d$. With  \Cref{eq:scaling-law_joint}, this constraint gives the compute-optimal loss as a power law: $\mathcal{L}(p, d) - \epsilon \propto c^{-\frac{\iota\kappa}{\iota + \kappa}}$ given a fixed compute budget, see \Cref{app:scaling-laws} for details. 
+
+However, the promise of predictable large scale performance for fixed compute budget proved difficult to keep. \citet{pearce2024reconciling} found small-scale experiments led to discrepancies across major scaling law studies \citep{Kaplan2020ScalingLaws, Hoffmann2022AnEmpirical}. More recently, \citet{li2025misfitting} surveyed the literature, found scaling law estimates hard to reproduce, and reported those built from small models are unreliable. We revisit this regime and reach a more optimistic conclusion: with rigorous tuning, scaling laws exist even at a few million parameters though we must extrapolate them with care.
+
+
+\subsection{Hyperparameter Optimality}
+\label{sec:background:the-noisy-quadratic-limit}
+
+With the evidence presented in the previous section, we might develop the intuition that tuning hyperparamerters is one of the most important problems in estimating accurate scaling laws. 
+If that is true, how do we know if hyperparameters are fully tuned? 
+\citet{lourie2025hyperparameter} found that near the optima, hyperparameter-loss surfaces can be well approximated with a simple low rank model; the noisy quadratic.
+Empirically, this approximation holds for a large region around the optimum. 
+Since this region determines the practical questions we care about, like tuning difficulty or the best attainable performance, we will use the noisy quadratic throughout this study. For more details see \Cref{app:background:the-noisy-quadratic-limit}.
+
+After drawing conclusions at the small scale, we still need the right hyperparameters to scale up. One strategy parametrizes them so that their optimal values stay \textit{fixed} across scales  \citep{yang2021tuning, yang2024tensor, dey2025completep, mlodozeniec2026completed}. A complementary approach fits scaling laws for the optimal values themselves \citep{deepseekai2024deepseekllmscalingopensource, li2025predictablescaleistep, Bergsma2025PowerLines}. 
+Many methods work reasonably well. We will later see that is is likely because as models grow, they become less sensitive to their hyperparameters thus a configuration tuned cheaply at the small scale transfers well with just a little adjustment --- a central empirical finding in this study we will detail later.
+
+%We will try to model the hyperparameter progression through scales with the noisy quadratic, similar in spirit to \citet{zhang2026configurationtoperformancescalinglawneural} who predict performance from scale together with the full hyperparameter configuration but different in that they fit across scales using publicly available training runs, an approach better suited to modeling familiar configurations than evaluating wholly new ideas.
+
+
+
+
+\subsection{Perplexity--Capability Correspondence}
+\label{sec:background:perplexity-capability-correspondence}
+
+Scaling laws' successes in pretraining inspired many to seek them for downstream tasks \citep{ivgi-etal-2022-scaling, gadre2025language, chen2025scaling,Mahmood_2022_CVPR, openai2023gpt4}. This stream of work delivered mixed results however as downstream laws inherit and compound the tuning difficulties of upstream ones, spread across multiple training stages and a battery of evaluations. As a consequence, downstream tasks exhibit a wide range of unpredictable behavior, such as emergent \citep{wei2022emergent,srivastava2023beyond}, inverse \citep{mckenzie2023inverse, wilcox2024bigger}, or even U-shaped scaling \citep{wei2023inversescalingushaped}. \citet{lourie-etal-2025-scaling} found as little as 39\% of tasks scale reliably. Carefully chosen metrics can mitigate some of this irregularity \citep{schaeffer2023mirage, schaeffer2025why} but not eliminate it \citep{du-etal-2024-understanding, zhao2026randomscalingemergentcapabilities}. 
+
+To sidestep this issue, researchers recast downstream performance as a function of pretraining loss instead of data and compute \citep{xia-etal-2023-training, snell2024predicting, huang2024compression, du-etal-2024-understanding, gadre2025language, chen2025scaling}. Remarkably, \citet{mayilvahanan25a} showed pretraining loss corresponds to capability as long as the pretraining data is held fixed across changes in scale, hyperparameters, architecture, and even the tokenizer. In other words: models of the same perplexity obtain the same capabilities, even when those capabilities are hard to know in advance. We term this phenomenon \emph{perplexity--capability correspondence}. Hence in this study we will rely on and assume this correspondence; a practical illustration is in Appendix~\ref{sec:appendix-Downstream-Scaling-laws}.
+

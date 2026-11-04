@@ -1,0 +1,159 @@
+        %auto-ignore
+
+\global\long\def\MS{\mathrm{MS}}%
+
+\global\long\def\rav{\check{\ra}}%
+
+\global\long\def\lav{\check{\la}}%
+
+\global\long\def\dket#1{\ob#1 \rav}%
+
+\global\long\def\dbra#1{\lav#1 \ob}%
+
+\global\long\def\dotob{\dot{\ob}}%
+
+\global\long\def\hatob{\hat{\ob}}%
+
+\global\long\def\hatoplim#1{\hatob#1 \hatob}%
+
+\global\long\def\dotoplim#1{\dotob#1 \dotob}%
+\section{Classification of Depthwise Parametrizations}\label{sec:convergence}
+
+In this section, we provide a comprehensive description of the impact of depth parametrization on stability and update size. For this purpose, we only have two scalings to keep track of: the branch multiplier and
+the learning rate scaling because the initialization scale is fixed
+by the faithfulness property (defined below). Requiring that the features don't blow up at initialization means that the branch multipliers must be at
+most $\Theta(1/\sqrt{L})$. Assuming the updates are faithful (i.e.,
+input to gradient processing functions are $\Theta(1)$ entrywise),
+the update size can be at most $1/L$ for the hidden layers, by an
+(Jacobian) operator-norm argument, but potentially much less. Naively
+speaking, there can be a trade-off between update size and initialization:
+if initialization is large, then the update may need to be small so
+as not to blow up the other parts of the network; likewise if the
+initialization is small, then the update size can be larger. But one
+may be surprised that a careful calculation shows that there is no
+trade-off: we can maximize both initialization and update size at
+the same time.
+
+Before delving into the details, let us first define the notions of training routine, stability, faithfulness, and non-triviality. Hereafter, all the aymptotic notations such as $\cO$, $\Omega$ and $o$ should be understood in the limit ``$n \to \infty, \textrm{ then } L \to \infty$''. For random variables, such notations should be understood in the sense of weak convergence (convergence in distribution). When we use the notation $x = \cO(1)$ for some vector $x = (x_1, \dots, x_n) \in \mathbb{R}^n$, it should understood in the sense that for all $i \in [n], x_i = \cO(1)$. Lastly, we will use bold characters (e.g. $\hh$ instead of $h$) to denote `batched' versions of the quantities. This is just to emphasize that the following claims should hold for batched quantities as well.
+
+\emph{Remark:} in this section, we state the results as ``claims'' instead of theorems. In Appendix~\ref{sec:claim_justifications}, we provide ``heuristic'' proofs that can be made rigorous under non-trivial technical conditions. We also showcase the correctness of the claims by proving them rigorously in our linear setting in \Cref{sec:linearsgd_classification}. We believe this additional layer of complexity is unneeded and does not serve the purpose of this paper. 
+
+\begin{defn}[Training routine]\label{defn:training_routine}
+    A training routine is the package of $\eta$, $\QQ$, and the input batches.
+\end{defn}
+
+\begin{defn}[Stability]\label{defn:stability} 
+    We say a parametrization is
+    \begin{enumerate}
+    \item \emph{stable at initialization} if %
+    \begin{equation}
+    \hh_{0}^{l},\xx_{0}^{l}=\cO(1),\forall l\in[L],\quad\text{and}\quad \ff_{0}=\cO(1).\label{eq:initstable}
+    \end{equation}
+    %
+    \item \emph{stable during training} if for any training routine, any time $t\ge0$, $l\in[L]$, we have 
+    \[
+    \Delta \hh_{t}^{l},\Delta \xx_{t}^{l}=\cO(1),\forall l\in[L],\quad\text{and}\quad \Delta\ff_{t}=\cO(1),
+    \]
+     where the symbol `$\Delta$' refers to the change after one gradient step.\\
+    \end{enumerate}
+   
+    We say the parametrization is \emph{stable} if it is stable both at initialization and during training.
+\end{defn}
+
+\begin{defn}[Faithful]\label{defn:faithful} 
+    We say a parametrization is \emph{faithful at step $t$} if $\hh_{t}^{l}=\Theta(1)$ for all $l\in[L]$.
+    %
+    %
+    %
+    %
+    %
+    %
+    %
+    %
+    %
+    %
+    %
+    We say the parametrization is \emph{faithful} if it is faithful for all $t$.
+    We also say it is \emph{faithful at initialization} (resp.\ faithful during training) if this is true at $t = 0$ (resp.\ for $t \ge 1$).
+\end{defn}
+Note faithfulness here refers to ``faithfulness to $\phi$'', meaning the input to $\phi$ is $\Theta(1)$. This is different from the definition of faithfulness in \citet{yang2023tensor}, where faithfulness refers to ``faithfulness to $Q$'' meaning the input to $Q$ is $\Theta(1)$. ``faithfulness to $Q$'' is already assumed in this work as mentioned in \Cref{sec:unified_scaling}.
+
+\begin{defn}[Nontriviality]
+    We say a parametrization is \emph{trivial} if for every training routine and any time $t\ge1$, $\ff_{t}-\ff_{0}\asto0$ in the limit ``$n\to\infty,$ then $L \to \infty$'' (i.e., the function does not evolve in the infinite-width-then-depth limit). We say the parametrization is \emph{nontrivial} otherwise.
+  \end{defn}
+
+\begin{defn}[Feature Learning]
+    We say a parametrization induces \emph{feature learning} in the limit ``$n \to \infty$, then $L \to \infty$'', if there exist a training routine, and $t\ge1$, and any $\lambda > 0$, we have $\Delta\hh_{t}^{\lfloor\lambda L\rfloor} = \Theta(1)$.
+  \end{defn}
+
+\subsection{Main Claims}
+ We are now ready to state the main results. The next claim provides a necessary and sufficient condition under which a parametrization is stable at initialization.
+
+\begin{claim}\label{clm:stability_init}
+    A parametrization is stable at initialization iff $\alpha\ge1/2$.
+\end{claim}
+\Cref{clm:stability_init} is not new and similar results were reported by \citet{hayou21stable}. However, \citet{hayou21stable} focuses on initialization and lacks a similar stability analysis during training. In the next result, we identify two different behaviours depending on the scaling of the learning rate.
+\begin{claim}\label{clm:stable_non_trivial}
+Consider a parametrization that is stable at initialization. Then the following hold (separately from each other).
+\begin{itemize}
+    \item It is stable during training as well iff $\alpha + \gamma \ge 1$.
+    \item It is nontrivial iff $\alpha + \gamma \le 1$.
+\end{itemize}
+Therefore, it is both stable and nontrivial iff $\alpha + \gamma = 1$.
+\end{claim}
+
+From \Cref{clm:stability_init} and \Cref{clm:stable_non_trivial}, having $\alpha+\gamma=1$ and $\alpha\ge1/2$ is a necessary and sufficient condition for a parametrization to be stable and nontrivial throughout training. In the next result, we therefore restrict our analysis to such parametrizations and study their faithfulness. 
+\begin{claim}\label{clm:faithful}
+    Consider a stable and nontrivial parametrization. The following hold (separately from each other).
+    \begin{itemize}
+        \item It is faithful at initialization iff $\alpha \geq 1/2$. As a result, $\alpha=1/2$ is the minimal choice of $\alpha$ that guarantees faithfulness.
+        \item It is faithful during training iff $\alpha \le 1$.
+    \end{itemize}
+Therefore, a stable and nontrivial parametrization is faithful iff $\alpha \in [1/2,1]$.
+\end{claim}
+The first claim follows from well-known calculations of randomly initialized residual networks \cite{hayou21stable}.
+For the second claim, the intuition here is just that if $\alpha+\gamma=1$ and $\alpha>1$
+then $\gamma<0$, i.e., the update size blows up with depth. This
+would then cause the input to the nonlinearities to blow up with size.
+
+One might argue that faithfulness at initialization is not important (e.g. features at initialization could converge to zero without any stability or triviality issues) and what matters is faithfulness throughout training. It turns out that faithfulness at initialization plays a crucial role in the optimal use of network capacity. To see this, we first define the notion of feature diversity exponent, which relates to the similarity in the features of adjacent layers.
+\begin{defn}[Feature Diversity Exponent]
+We say a parametrization has feature diversity exponent $\kappa\geq 0$ if $\kappa$ is the maixmal value such that for all $\lambda \in [0, 1]$ and sufficiently small $\epsilon > 0$, and all time $t$, 
+\[\frac{1}{\sqrt{n}} \left\| \xx^{\lfloor (\lambda + \epsilon) L \rfloor}_t - \xx_t^{\lfloor \lambda L \rfloor} \right\| = \Omega(\epsilon^{1-\kappa}),\]
+where $\Omega(1)$ should be interpreted in the limit ``$n \to \infty$, then $L \to \infty$, then $\epsilon \to 0$''. We say a parametrization is \emph{redundant} if $\kappa=0$.
+\end{defn}
+In other words, the feature diversity exponent $\kappa$ is a measure of how different the outputs are in layers that are close to each other. With $\kappa=0$, the output of each layer is essentially the same as the output of the previous layer in the sense that the rate of change from one layer to the next is bounded (at least locally), and hence the network is intuitively ``wasting'' parameters.
+
+\begin{claim}\label{clm:redundant}
+    Consider a stable and nontrivial parametrization that is furthermore faithful during training (but not necessarily at initialization).
+    Then it is redundant if $\alpha \in (1/2, 1]$.
+\end{claim}
+To understand the intuition behind \Cref{clm:redundant}, let us see what happens when $\alpha > 1/2$. In this case, the randomness of the initialization weights will have no impact on training trajectory as depth increases. To see this, consider some layer index $\lfloor \lambda L\rfloor$. The blocks are divided by $L^{\alpha}$ which is larger than the magnitude of accumulated randomness (of order $(\lambda L)^{1/2}$). This basically destroys all the randomness from initialization and therefore the randomness in the learned features will consist only of that coming from $U$ and $V$ (input and output matrices). When depth goes to infinity, the contribution of the randomness in two adjacent layers becomes less important, we end up with adjacent layers becoming very similar because the gradients to these layers are highly correlated. 
+
+In contrast, we have the following result, which defines Depth-$\mu$P.
+
+\begin{claim}[Depth-$\mu$P]\label{clm:depth_mup}
+    $\alpha = \gamma = 1/2$ is the unique parametrization that is stable, nontrivial, faithful, induces feature learning, and achieves maximal feature diversity with $\kappa =1/2$.
+\end{claim}
+
+In terms of feature diversity, a phase transition phenomenon occurs when $\alpha = 1/2$. More precisely, for Depth-$\mu$P, we can show that $n^{-1/2} \left\| {\xx^{\lfloor (\lambda + \epsilon) L \rfloor}_t - \xx_t^{\lfloor \lambda L \rfloor}} \right\| = \cO(\epsilon^{1/2})$ while the same quantity is $\cO(\epsilon)$ for all $\alpha \in (1/2,1]$, which suggests that Depth-$\mu$P yields \emph{rough} path for $\xx_t$. This allows the features to change significantly from one layer to the next, hence efficiently using the parameters. For readers who are familiar with rough path theory, the $1/2$ continuity exponent is a result of Brownian increments in the path.\footnote{The reader might ask whether we can obtain an exponent smaller than $1/2$. This is indeed possible, but it will entail using correlated weights. We leave this question for future work.}
+
+Moreover, with $\alpha = 1$, there is a phenomenon of feature collapse in the sense that the features will be contained in the $\sigma$-algebra generated by the input and output layers, but contains no randomness from the hidden layers (see \Cref{heuristics:inv-depth}). Intuitively, the case of $\alpha=1$ is analogous to width situation, where deep mean field collapses to a
+single neuron (all neurons become essentially the same). For depth, the features (layers) are still relatively different but the redundancy does not allow significant variety in these features.
+
+\subsection{Sublety: Layerwise (local) linearization but not global linearization}
+
+\begin{defn}\label{defn:layerwise-linearization}
+    We say a parametrization induces layerwise linearization iff each layer can be linearized without changing the network output when $L\to \infty$, that is, $\forall l\in [L]$, 
+    \[L^{-\alpha}G\left(\phi(W^l_t\xx_t^{l-1})-\phi( W^l_0\xx_t^{l-1}) - \phi'(W_0^l\xx_t^{l-1})\odot ((W_t^l-W_0^l)\xx_t^{l-1})\right) = o(L^{-1})\]
+\end{defn}
+
+\begin{claim}\label{clm:layerwise-linearization}
+    A stable and nontrivial parametrization induces layerwise linearization iff $\alpha \in [1/2, 1)$.
+\end{claim}
+
+However, note that this does not imply the entire network is linearized (w.r.t. all the parameters in the sense of Neural Tangent Kernel).
+In our setup, where the input and output layers are initialized at a constant scale (w.r.t. $L$), it is actually not possible to have a kernel limit. Even in our linear case in \Cref{sec:linearsgd}, one can see the learned model is not linear. 
+
+If the initialization of the output layer is $L$ times larger than our setup (assuming $L\ll n$ so the widthwise scaling still follows $\mu$P), it may induce a parametrization that can linearize the entire network. In that situation, the learning rate has to be $L$ times smaller than Depth-$\mu$P to obtain stability during training, so the change of parameters is also $L$ times smaller, which can lead to the linearization of the entire network. Since we focus on maximal feature learning, the rigorous argument is beyond the scope of this paper.
+

@@ -1,0 +1,1987 @@
+                                                       Power Lines: Scaling Laws for Weight Decay and Batch
+                                                                      Size in LLM Pre-training
+
+                                                      Shane Bergsma, Nolan Dey, Gurpreet Gosal, Gavia Gray, Daria Soboleva, Joel Hestness
+                                                                                     Cerebras Systems
+                                                                             {shane.bergsma,joel}@cerebras.net
+arXiv:2505.13738v2 [cs.LG] 23 Nov 2025
+
+
+
+
+                                         Abstract. Efficient LLM pre-training requires well-tuned hyperparameters (HPs), including learning rate
+                                         η and weight decay λ. We study scaling laws for HPs: formulas for how to scale HPs as we scale model
+                                         size N , dataset size D, and batch size B. Recent work (Wang & Aitchison, 2024) suggests the AdamW
+                                         timescale, τ = B/(ηλD), should remain constant across training settings, and we verify the implication
+                                         that optimal λ scales linearly with B, for a fixed N and D. However, as N and D scale, we show optimal τ
+                                         obeys a precise power law in the tokens-per-parameter ratio, D/N . This law thus provides a method to
+                                         accurately predict λopt in advance of large-scale training. We also study scaling laws for optimal batch size
+                                         Bopt (the B enabling lowest loss at a given N, D) and critical batch size Bcrit (the B beyond which further
+                                         data parallelism becomes ineffective). In contrast to prior work, we find both Bopt and Bcrit scale as power
+                                         laws in D, independent of model size, N . Finally, we analyze how these findings inform the real-world
+                                         selection of Pareto-optimal N and D under dual training time and compute objectives. All experiments
+                                         were run on Cerebras CS-3 systems.
+
+
+                                                                     AdamW timescale decreases with TPP                                           Optimal batch size grows with data                                           Critical batch size grows with data
+
+                                                            10   0                               N                                       10   3       N                                                                104        N
+                                                                                                                                                                                                                                            610M-200TPP        1.7B-
+                                                                                           111M      1.7B                                            111M                                                                        111M
+                                                                                                             Bopt (optimal batch size)
+
+
+
+
+                                                                                                                                                                                                                                                               80TPP
+                                                                                                                                                                                         Bcrit (critical batch size)
+
+
+
+                                                                                           266M      3.3B                                            266M   1.7B-80TPP                                                           266M
+                                                                                                                                                                              111M-                                                                     3.3B-16TPP
+                                         Optimal τ = ηλD
+
+
+
+
+                                                                                           610M                                                      610M 610M-200TPP                                                            610M
+                                                      B
+
+
+
+
+                                                                                                                                                                              1280TPP
+                                                                                                                                                     1.7B                                                                        1.7B
+                                                                                    3.3B-30TPP                                                                                                                                                       111M-310TPP
+                                                                                                                                                                                                                                 3.3B
+                                                           10−1                        1.7B-80TPP
+
+                                                                                            610M-320TPP
+                                                                                                   111M-                                                                                                               103
+                                                                                                   1280TPP
+                                                                            τ = 1.084(TPP)−0.527                                         102                   Bopt = 0.0306D 0.383                                                     Bcrit = 0.0471(Dmin )0.462
+                                                           10−2
+                                                                     100     101     102    103       104                                          109       1010      1011       1012                                         109         1010         1011
+                                                                           TPP (tokens-per-parameter)                                                      D (total tokens)                                                  Dmin (min. tokens to reach target loss)
+
+                                         Figure 1: Hyperparameters and their power lines: Optimal τ obeys a power law in tokens-per-parameter
+                                         (left), while optimal batch size (middle) and critical batch size (right) obey power laws in D. Faded markers
+                                         indicate points not used in fitting; all fits generalize well to larger-scale runs.
+
+
+                                         1                  Introduction
+
+                                         LLMs predictably improve as model size N and training data size D increase (Hestness et al., 2017; Hoffmann
+                                         et al., 2022; Kaplan et al., 2020). Today, state-of-the-art LLMs are trained at computational scales that
+                                         leave no scope for hyperparameter (HP) tuning, although it is widely accepted that good HPs are critical for
+                                         effective training (Yang et al., 2021; Wortsman et al., 2023; Bi et al., 2024).
+                                         Both theoretical and empirical efforts have sought to address this. Theoretically, maximal update parame-
+                                                                                                                            2
+                                         terization (µP) allows the optimal learning rate ηopt and initial weight variance σopt to remain stable when
+                                         scaling model width (Yang & Hu, 2020; Yang et al., 2021), enabling a “tune small and train large” strategy.
+
+
+                                         © 2025 Cerebras Systems Inc. All Rights Reserved.                                                                     1
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Empirically, DeepSeek LLM (Bi et al., 2024) adopted “scaling laws for HPs,” where optimal batch size Bopt
+and optimal learning rate ηopt are estimated at small scale, and then extrapolated via a power law fit in total
+compute FLOPs, C. A similar approach was used in Kaplan et al. (2020), forecasting Bopt and ηopt from loss
+L and model size N .
+Relying on a unique predicted Bopt is inflexible—it precludes adjusting B for compute/time trade-offs or
+hardware constraints. It is also unclear whether C, L, N , or D (or a combination) best explains scaling.
+Bi et al. (2024) noted, “for models with the same [C] but different model/data allocations, the optimal
+parameter space varies slightly.” Also, no comparable study has been done for weight decay λ.
+This paper introduces a flexible, unified approach to HPs, using both µP and scaling laws. We fit power
+laws to losses derived from hundreds of µP-trained models, focusing on combinations of λ, B, N , and D. We
+study both compute-optimal and overtrained models. The fewest FLOPs to achieve a loss typically occurs
+when training at ≈20 tokens-per-parameter (TPP = D/N ) (Hoffmann et al., 2022; Besiroglu et al., 2024),
+but overtrained models (>20 TPP) offer more-efficient inference (Touvron et al., 2023). We study TPPs from
+20 to 1280.
+To capture λ’s interaction with other scaling HPs (η, B), we model scaling of the AdamW timescale,
+τ = B/(ηλD). Wang & Aitchison (2024) found optimal τ stable with varying D, but we show it obeys a
+power law in TPP (Fig. 1, left). This law thus enables accurate estimation of λopt for any N , D, B.
+Leveraging these better HPs as B scales, we also study optimal batch size: the Bopt that minimizes loss at a
+given N and D. While Bopt scales as a power law in C when TPP is fixed (Fig. 5, left), our results show this
+arises from a more fundamental power-law dependence on D (Fig. 1, middle).
+Importantly, increasing B > Bopt can still reduce training time (fewer steps) and improve hardware utilization.
+This raises the question: how much extra data is needed when using large B? Prior work defines the critical
+batch size Bcrit as the point where training to a target loss requires 2 × Dmin , with rapidly-diminishing returns
+in training speed thereafter (McCandlish et al., 2018). We show Bcrit also scales with D (Fig. 1, right), not L
+as suggested in Kaplan et al. (2020) (Fig. 5, middle), consistent with recent results from Zhang et al. (2024).
+Finally, amid intense competition to advance LLM performance, a key question is: which N , D, and B yield
+the best trade-off between training speed and compute cost? Using our fit Bcrit law, we derive Pareto-optimal
+solutions to these competing objectives, and show that small, overtrained models can be best—offering both
+faster steps and greater parallelism via larger D (and thus higher Bcrit ).
+Key findings and takeaways are highlighted in the paper. Our main contributions are:
+ • The first large-scale empirical study varying weight decay λ across N , D, and B in LLMs.
+ • Showing the AdamW timescale obeys a power law, enabling λopt for any N , D, B (Sec. 2).
+ • A new method for estimating Bcrit , suitable for any LR schedule or optimizer (Sec. 3.2).
+ • Confirmation that both Bopt and Bcrit scale as power laws in D (Sec. 3).
+ • New methods for selecting N , D, and B to trade-off training time vs. compute (Sec. 4).
+
+
+2     Scaling of the AdamW timescale τ , and optimal weight decay λopt
+
+2.1    Background: µP, AdamW, and τepoch
+
+µP µP is increasingly used in LLM training (Dey et al., 2023a;b; Sengupta et al., 2023; Shen et al., 2024;
+Hu et al., 2024; Abdin et al., 2024). With µP, base HPs are tuned on a proxy model and then transferred to
+wider (Yang et al., 2021) and deeper (Dey et al., 2025) models. Given the width of the proxy model, dp , and
+target, dt , µP prescribes scaling factors to apply to the LR, initial weight variance, and other base HPs. In
+particular, the optimal base LR, η̃opt is scaled down to ηopt = (dp/dt )η̃opt .
+While µP enables the same base LR to be used across different N , η̃opt has empirically been found to vary
+with B (Yang et al., 2021; Lingle, 2024; Noci et al., 2024; Shen et al., 2024). Moreover, recent work has also
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.       2
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+observed η̃opt decreasing in D, leading to proposals for scaling η̃opt as a (decreasing) power law in D (Shen
+et al., 2024; Bjorck et al., 2024).
+
+The EMA view of AdamW Rather than adjusting η as D scales, Wang & Aitchison (2024) proposed
+that, if using the AdamW optimizer (Loshchilov & Hutter, 2017) with µP, then the weight decay, λ, should
+instead be adjusted. To see this, note an AdamW update at each step, t, can be expressed in terms of ηλ as:
+
+                                                                          m̂t
+                                               θt = (1 − ηλ)θt−1 − η √                                                   (1)
+                                                                         v̂t + ϵ
+
+Here, η is the µP-adjusted LR, and m̂t and v̂t are (bias-corrected) exponentially-weighted moving averages
+(EMAs) of gradients and squared gradients (Kingma & Ba, 2014). Wang & Aitchison (2024) observed
+AdamW’s parameters, θt , can also be viewed as an EMA—of weight updates. Specifically, the standard
+EMA form yt = (1 − α)yt−1 + αxt matches AdamW when yt = θt , α = ηλ, and xt = − λ1 √m̂           t
+                                                                                              v̂t +ϵ
+                                                                                                     . The quantity
+1/α = 1/ηλ provides a measure of the number of iterations (i.e., steps) over which updates are averaged; Wang &
+
+Aitchison (2024) denote it as τiter . They show that if the timescale is measured in epochs as τepoch = τiter /M ,
+where M is iterations-per-epoch, then the optimal τepoch remains stable when N or D scale (on image tasks).
+I.e., if M scales up, λ should be scaled down to maintain constant τepoch .
+
+
+2.2    Methods: The AdamW timescale for LLMs, τ , and its scaling
+
+Since LLM pre-training only uses one “epoch” of data, we normalize the timescale as τ = τiter /S, where S is
+the total number of optimization steps.1 Moreover, since S=D/B,
+
+                                                                  B
+                                                            τ=                                                           (2)
+                                                                 ηλD
+
+
+τ reflects the fraction of past iterations to include in the final weights. While Wang & Aitchison (2024) did
+not vary B, their work suggests this fraction should remain constant as B scales. We hypothesize that when
+moving from compute-efficient to overtrained LLMs, updates can be integrated over a smaller fraction of the
+data; specifically, that τopt decreases as a power law in TPP := D/N :
+
+                                                    τopt (TPP) = cτ · TPPmτ                                              (3)
+
+where cτ and mτ are parameters to be fit. Appendix Algorithm 1 summarizes the fitting procedure. Taking
+the µP-adjusted η as our LR, λopt can be computed from Eqs. (2) and (3):
+
+                                                             B           B · TPP−mτ
+                                        λopt =                         =                                                 (4)
+                                                    η · D · τopt (TPP)    cτ · η · D
+
+
+2.3    Experimental details
+
+We use a GPT2-like LLM (Radford et al., 2019), with ALiBi embeddings (Press et al., 2022) and
+SwiGLU (Shazeer, 2020). We train on SlimPajama (Soboleva et al., 2023) and always evaluate over a
+held-out set of 1.1B tokens. We use AdamW and µP, with µP HPs derived from a smaller proxy model, and
+a linear LR schedule, with a 10% warmup followed by decay-to-zero (Bergsma et al., 2025). Appendix C has
+full experimental details.
+
+   1 Because it depends on η, timescale τ varies during LR decay. Here we compute τ at peak LR. Notably, if two training runs
+
+share the same LR schedule (shape) and τ (at peak LR), their final AdamW timescale (EMA contributions over the data) will
+match—even if B differs. Appendix E.4 provides further details.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                3
+                                     Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+2.4                     Results: τ and scaling λ
+
+                               Sweeping weight decay, λ                                                                                               Sweeping learning rate, η
+                                                                                              Weight decay, λ
+                               B                                                  100         Learning rate, η                                        B
+                  2.9              63                                                                                                    2.9              63
+
+
+
+
+                                                              Optimal HP value
+                                   126                                                                                                                    126
+Validation loss
+
+
+
+
+                                                                                                                       Validation loss
+                                   252                                                                                                                    252
+                  2.8              504                                                                                                   2.8              504
+                                   1008                                          10−1                                                                     1008
+                                   2016                                                                                                                   2016
+                  2.7                                                                                                                    2.7
+                                   4032                                                                                                                   4032
+                                   8064                                                                                                                   8064
+                  2.6                                                                                                                    2.6
+                                                                                 10−2
+
+                        10−2        10−1     100        101                             102              103     104                           10−2        10−1     100        101
+                                   AdamW timescale, τ                                            Batch size, B                                            AdamW timescale, τ
+
+Figure 2: (610M 20TPP): For each B, we sweep λ and find τopt (left). τopt is stable around 0.21 for
+B ∈ [63, 2016], meaning λopt scales linearly with B over this range (middle). When sweeping η (right), the
+lower boundary over all curves is a bowl with a minimum at 0.21; the smallest B settings have τopt within
+2× of this value, but as B increases, τopt quickly drifts higher.
+
+
+   Finding 1: The optimal τ remains stable as B scales; λopt scales linearly with B (Fig. 2).
+
+As B increases and λ is tuned, we find that τopt remains roughly constant—i.e., changes in B lead to
+commensurate changes in λopt (Fig. 2, middle)—but only up to a certain point, after which τopt begins to
+drift. The drift point corresponds to the critical batch size Bcrit , above which gradient information no longer
+scales linearly with B and diminishing returns set in (Sec. 3).2
+If η is tuned instead, ηopt fails to scale with B up to Bcrit (Fig. 2, middle); we observe instead a certain
+maximum η, above which training becomes unstable; above this, loss spikes occur from which training does
+not recover. Consequently, η has less flexibility to scale with B; training stability is more fundamental than
+timescale.
+In general, LLMs typically train faster and utilize hardware better with larger B, but only up to Bcrit :
+beyond this point, much more data (and compute) is needed to obtain the same loss, without meaningfully
+reducing the total number of sequential training steps (the poor trade-off for B > Bcrit is depicted in Fig. 4).
+Furthermore, Sec. 3 will show that there is also an optimal batch size, Bopt , below which loss is worse and
+utilization/parallelism suffer (because batches are small). In practice, LLMs should therefore be trained in
+the regime Bopt ≤ B ≤ Bcrit . Notably, this is precisely the range where we have shown weight decay to scale
+predictably with batch size; our findings therefore support the direct optimization of weight decay in the
+most practically relevant training regimes.
+
+   Finding 2: With AdamW, we should adjust λ, not η, as B changes.
+
+Since tuning at scale is infeasible, we need a recipe for selecting HPs in advance. Unlike η, optimal λ follows
+a predictable relationship with B (Fig. 2, middle), making λ the more viable target for real-world adjustment.
+Moreover, since η has less flexibility to maintain optimal timescale, we hypothesize adjusting λ could also be
+more effective. We tested this by comparing either tuning η (using a default λ=0.1—standard practice in
+LLM pre-training (Hoffmann et al., 2022; Brown et al., 2020; Almazrouei et al., 2023; Aleph Alpha, 2024))—or
+tuning λ (using the µP proxy-tuned η). Tuning λ was strictly superior in 6 of 8 cases (Table 1).
+   2 Training with B > B
+                         crit can be viewed as training with less effective data, thus decreasing the TPP, and shifting τopt higher
+(by our power law) and thus λopt lower. A decrease in the optimal learning rate ηopt when B > Bcrit has been previously
+observed (Li et al., 2024; Filatov et al., 2024). These works measure ηopt at very large batch sizes, e.g., 10× or 100× Bcrit ,
+which was not practical at the scales that we trained. Nevertheless, our observation of a similar “surge” phenomenon with λopt ,
+occurring in AdamW rather than vanilla Adam, motivates further study.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                                                  4
+                   Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+      Table 1: (610M, 20TPP) Validation losses comparing tuning λ vs. η across B (data from Fig. 2).
+
+              η̃         λ       B= 63              126    252     504    1008    2016     4032    8064
+          1.6e-02      0.1           2.595      2.570     2.563   2.573   2.599   2.649    2.755   2.923
+          Tuned        0.1           2.583      2.570     2.563   2.571   2.597   2.625    2.754   2.923
+          1.6e-02     Tuned          2.579      2.565     2.563   2.570   2.592   2.637    2.733   2.891
+
+
+We also compared adjusting λ versus η as D changes. For a 111M 200TPP model, default HPs obtain a loss
+of 2.810, tuning η achieves 2.808, and tuning λ obtains 2.805. While differences are small, the key point is
+that, when scaling B or D: optimizing λ alone is viable and effective.
+
+ Finding 3: τopt decreases as a power law in TPP; the law holds at scale (Fig. 1, left).
+
+At each N and D, we calculated τopt over all (λ, B) pairs; we then fit Eq. (3) to the results. Full details
+are in Appendix E.2. A precise power law emerges (R2 =0.975), with an optimal τ around 1.0 at 1 TPP,
+decreasing to 0.01 at 1000 TPP. 10th and 90th percentiles of fitted mτ over all points are (-0.529, -0.507)
+(computed as in Hoffmann et al. (2022) by bootstrapping: re-fitting on 80% of points, 1000×), indicating a
+reliable power-law trend. A decreasing τ stands in contrast to the prescription of Wang & Aitchison (2024)
+(for multi-epoch training), who advocated keeping τ constant as D changes.
+Fig. 1 (left) includes four (labeled) points not used in fitting, but computed later to evaluate predictive
+ability. Even though some of these points are interpolated in terms of the fitting range (i.e., TPP range), they
+nevertheless represent much greater scales; e.g., training a 3.3B-30TPP model requires 1000× the FLOPs
+compared to training the 111M-20TPP model (whose data point is plotted nearby). In other words, the law
+generalizes across at least 3 orders of magnitude in compute.
+
+Discussion The τ scaling law also predicts previously-observed HP scaling in the literature. E.g., for a fixed
+N , Eqs. (2) and (3) together imply: ηopt = B · cηD · DmηD , where cηD and mηD are parameters. This matches
+Equation (1) in Shen et al. (2024), and our implied mηD is close to their fit value (see Appendix E.3.1).
+Bjorck et al. (2024) also scaled η as a power law in D. They note that fitted power law exponents are similar
+when B is doubled, although the optimal η is “higher”. More precisely, we can see from their Figure 13 that
+the optimal η appears to, in fact, also double—consistent with the derived ηopt equation above.
+
+ Key takeaway 1: With AdamW, you can find τopt for a small N, D by tuning λ. From there, τopt scales
+ ∝ (D/N )−0.5 . At larger N , D, set λopt via Eq. (4) and enjoy well-tuned models.
+
+
+3     Scaling of optimal batch size Bopt and critical batch size Bcrit
+
+We now develop methodology to estimate Bopt and Bcrit over the dimensions of total training tokens D, total
+compute FLOPs C, and validation loss L. Results show power-law scaling of both Bopt and Bcrit with D,
+enabling estimation of Bcrit at scale via a small number of test runs at modest budgets.
+
+3.1    Background: Bopt and Bcrit
+
+Bopt As noted above, recent work has pursued an optimal B: the B achieving lowest loss given N, D. Hu
+et al. (2024) fit Bopt using a power law in (estimated) loss, and use µP to set η. Joint power laws for optimal
+η and B have also been fit (Bi et al., 2024; Porian et al., 2024; Carbonneaux et al., 2025). E.g., Bi et al.
+(2024) estimated Bopt = 0.292C 0.3271 (in tokens); we refer to this fit as Bdeepseek below. Li et al. (2025) found
+ηopt to scale in N, D, while Bopt primarily scales in D. Qwen2.5 (Yang et al., 2024) also report studying how
+ηopt and Bopt scale with N and D (across dense and mixture-of-expert LLMs), but without further details.
+
+Bcrit Let D be the number of training tokens required to reach target loss L̂ when using a batch size of B.
+S = D/B is the corresponding number of optimization steps. Doubling a small B doubles per-step gradient
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.            5
+                                    Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+                  3.4                                                                                                610M                                1.7B
+                                                     B                                                        Increasing B
+                  3.3                          192       1536
+                                               384       3072                                                                                                                  2.6
+
+
+
+
+                                                                   D (total training tokens)
+                  3.2                          768       6144                                  1012
+Validation loss
+
+
+
+
+                                                                                                                                                                                     Validation Loss
+                                                                                                                                                                               2.5
+                  3.1
+                                                                                                                                                       Bcrit =6787
+                                                                                                                     Bcrit =6450                                               2.4
+                  3.0                                                                                                                                Bcrit =5064
+                                                                                               1011              Bcrit =3979                     Bcrit =4025
+                                                                                                                                                                               2.3
+                  2.9                                                                                         Bcrit =2930                      Bcrit =3274
+                                                                                                           Bcrit =2337
+                                                                                                         Bcrit =1951                                                           2.2
+                  2.8
+                                                                                                                                               B-specific scaling law points
+                                                                                                    10
+                                                                                               10                                              Fitted Equation (6)
+                  2.7         Observed data
+
+                        109       1010        1011          1012                                               104                 105           104                   105
+                              D (total training tokens)                                                               S (total number of optimization steps)
+
+Figure 3: (111M): Fitted B-                                        Figure 4: Eq. (5) fits observed data well: Increasing B (moving
+specific power laws, LB (D), for                                   leftward along curves) decreases optimization steps (x-axis), but re-
+inferring steps to reach target loss                               quires more tokens (y-axis) to reach target loss (in color). Bcrit is the
+L̂ (arrowed blue line).                                            transition point along each fitted curve.
+
+
+information; L̂ can be reached in half the optimization steps, using the same total D (so-called “perfect
+scaling” (Ma et al., 2018; Shallue et al., 2019)). But as B increases further, step-wise gradient information
+becomes more and more redundant: eventually, much larger D is required to reach L̂, and S decreases only
+marginally. McCandlish et al. (2018) show that ⟨D, S⟩ pairs can be well fit by the equation:
+                                                                   S/Smin − 1 = (D/Dmin − 1)−1                                                                                   (5)
+where Smin and Dmin are parameters to be fit. Intuitively, Dmin < D is the asymptotically minimum number
+of tokens that can reach L̂ (achieved with Bopt ) and Smin < S is the asymptotically minimum number of
+steps that can reach L̂ (achieved as B → ∞). Eq. (5) defines a hyperbolic curve, like those in Fig. 4, where
+B controls the position on the curve and can be set depending on the importance of time (higher B → higher
+D, lower S) or compute (lower B → lower D, higher S).
+Definition 3.1. The critical batch size at L̂ is defined from the fit of Eq. (5) as Bcrit =Dmin /Smin .
+
+From Eq. (5), we can derive (Appendix F.1), for a given B, the D needed compared to Dmin :
+                                                                                                D = Dmin (1 + B/Bcrit )                                                          (6)
+Eq. (6) implies that when B=Bcrit , we require 2 × Dmin tokens (and 2 × Smin steps) to reach L̂. Bcrit is a
+transition point along the D vs. S curve: for B > Bcrit , much higher D is needed for only small reductions in
+S (Fig. 4). Kaplan et al. (2020) refer to Bcrit as the optimal compromise between time and compute. They
+determine Bcrit at smaller scales and fit a power law for Bcrit as a function of L̂.
+Eqs. (5) and (6) also imply Bopt is theoretically equal to 1. In practice, loss degrades below a particular
+Bopt (Hu et al., 2024; Bi et al., 2024; Porian et al., 2024), a finding that “appears to contradict the conventional
+wisdom” about Bcrit (Porian et al., 2024). With well-tuned λ, we find small differences in loss across small B,
+suggesting Eq. (5) may nevertheless provide a good fit to observed data. Appendix B has further discussion.
+In recent work, Zhang et al. (2024) define Bcrit as the point where D = 1.2 × Dmin . They use a different
+training setup, with a constant LR, weight averaging, and no weight decay. Notably, they observe little change
+in Bcrit as N varies at fixed D, but, for a 302M model, find power-law scaling in D as Bcrit = 22.91D0.47
+(in tokens), consistent with observed scaling across models at fixed TPP. See Appendix D.3 for further
+differences with Zhang et al. (2024).
+
+3.2                      Methods: estimating Bopt and Bcrit , and their scaling
+
+Estimating Bopt We use the same experimental settings as Sec. 2.3. To ensure good HPs, we sweep λ by
+factors of 2× at each B, D, N , except at the largest scales (see Appendix Table 3) where we set λ via the
+projected value from Eq. (4). In all figures, B is reported in units of sequences.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                                                            6
+                                                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Estimating Bcrit Unlike Bopt , measuring Bcrit requires training models with different B to the same L̂.
+Unfortunately, we do not know a priori how many steps are required to reach L̂, yet we need this information
+to configure a LR schedule that reaches its minimum value on the final step (the typical setup, shown to be
+consequential in prior work (Hoffmann et al., 2022; Hägele et al., 2024)). Unfortunately, it is not feasible to
+search for the precise steps needed, i.e., by conducting training runs with different schedules/step budgets.
+McCandlish et al. (2018) address this issue by performing a single training run at a constant LR, while
+Zhang et al. (2024) also use a constant LR, but use weight averaging to frequently generate higher-quality
+checkpoints for evaluation (Appendix D.3).
+In contrast, we desired a method agnostic to the LR schedule. We achieved this by fitting batch-size-specific
+power laws that model how loss scales with D. These laws allow us to accurately interpolate the D required
+to reach L̂. Fig. 3 depicts, for different B and a given L̂, the interpolated D values (intersection points of
+arrowed line and fitted loss curves). The full process to obtain Bcrit at L̂ is:
+
+     1. For each B, train over different D, and subsequently fit a B-specific power law LB (D) = EN + Dconst D−β
+        on the resulting loss values (fitted curves in Fig. 3).
+                                                                                                                                                                                                                    1
+     2. Use fitted LB (D) to infer the DB needed to reach L̂ as: DB = L−1
+                                                                       B (L̂) = (
+                                                                                  Dconst/L̂−EN ) β .
+
+
+     3. Fit Eq. (5) on the resulting ⟨DB , S=D/B⟩ pairs, and obtain Bcrit = Dmin /Smin .
+
+This method makes no assumptions about the LR schedule or optimizer, while enabling measurement of Bcrit
+at arbitrary losses without re-training. Appendix F.2 provides further details, including fits of LB (D) at
+other model scales (Fig. 9) and a summary of the full procedure (Algorithm 2).
+
+Bopt and Bcrit scaling We collect Bopt across different N and D, and fit a power law in both data D and
+compute C (via the standard approximation C ≈ 6N D (Kaplan et al., 2020; Hoffmann et al., 2022)). For
+Bcrit , we use the procedure described above to estimate Bcrit across multiple L̂, across different N . From each
+Bcrit estimate, we obtain a pair ⟨Dmin , Bcrit ⟩. We propose that Bcrit follows a power law in Dmin , according
+to:
+                                                                   mBcrit
+                                         Bcrit (Dmin ) = cBcrit · Dmin                                         (7)
+Where cBcrit and mBcrit are fit on the ⟨Dmin , Bcrit ⟩ pairs.
+
+3.3                               Results: Bopt and Bcrit
+
+                            103                                                                               104
+                                         N                                                                             80TPP                              N                                          Bcrit (D) = 0.0471D0.462
+                                         111M                                                                                                             111M                                       Bopt (D) = 0.0306D0.383
+                                                                                                                                                                                               105
+                                                                                                                                                                 Optimal/critical batch size
+Bopt (optimal batch size)
+
+
+
+
+                                                                                Bcrit (critical batch size)
+
+
+
+
+                                         266M                         80TPP                                                                               266M
+                                         610M                                                                                   80TPP
+                                                                                                                                                          610M
+                                         1.7B                                                                             20TPP                           1.7B
+                                                            80TPP                                                                                                                              104
+                                                                                                                                       80TPP
+                                                    80TPP      20TPP
+                                                                                                                                   20TPP
+                                                                                                                                                  80TPP                                        103
+                                                       20TPP
+                                              80TPP                                                                                        20TPP
+                                               20TPP
+                                                                                                                   3                                                                           102           Bdeepseek (C) = 0.292C 0.327
+                                                                                                              10
+                                                                                                                                                                                                                N =100M         N =10B
+                                         20TPP
+                                                                                                                                                      20TPP                                                     N =1B           N =100B
+                            102
+                                  1018       1019   1020       1021      1022                                            2.25     2.50         2.75   3.00                                            1010          1012         1014
+                                              C (Training FLOPs)                                                           L̂ (target validation loss)                                                          D (tokens)
+
+Figure 5: Prior work suggests Bopt scales in C (left) and Bcrit in loss (middle), but this only holds at a fixed
+N /TPP (same data as Fig. 1 middle/right); Fig. 1 shows scaling in D is the fundamental relationship. Plotting
+Bdeepseek (C) law from Bi et al. (2024) (right), but over D (using C ≈ 6N D to obtain C for the spurious
+dependence on N ), we see Bi et al. (2024) used generally efficient B values (i.e., within the Bopt < B < Bcrit
+regime) despite fitting C rather than D (Bopt and Bcrit lines from Fig. 1).
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                                                                                  7
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+
+ Finding 4: Eq. (5) provides a decent fit to the trade-off between training time and compute.
+
+Across different model scales and loss targets, we consistently find that our ⟨D, S⟩ pairs fit Eq. (5) well
+(examples in Fig. 4, appendix Fig. 10). Fits are worse at very small B, as noted above: smaller batches are
+not monotonically more efficient; Appendix B discusses some potential reasons for this.
+
+ Finding 5: Bopt and Bcrit obey power laws in D and Dmin , not in C or L.
+
+Bopt and Bcrit datapoints fit power laws quite well (Fig. 1, middle, R2 =0.984) and (Fig. 1, right, R2 =0.940).
+10th and 90th percentiles over all points are (0.367, 0.391) for fitted mBopt and (0.491, 0.526) for mBcrit
+(computed as in Sec. 2.4). Note mBcrit is higher when fitted over all points (as opposed to only small-scale
+runs), partly reflecting the 111M points trending lower as TPP increases.
+Our fitted Bcrit power law exponent is very close to that from Zhang et al. (2024): 0.47 vs. 0.462. Given the
+many differences in approach (including dataset, use of weight decay, LR schedule, etc., Appendix D.3), this
+agreement suggests the fundamental relationship of Bcrit with D persists across such differences.
+Fig. 5 (left) plots Bopt versus C and Fig. 5 (middle) gives Bcrit versus L using the same data as in Fig. 1.
+In each case, a power law does not fit all points (as proposed previously), but points at the same N , or
+same TPP, can roughly be linked by (parallel) lines. This is a consequence of power-law scaling in D (see
+Appendix F.4). That is, scaling in D is the fundamental scaling relationship: Bopt and Bcrit both scale in D
+regardless of TPP, model size, or loss—it is only when using another (misleading) scaling factor such as C or
+L̂ that TPP or model size appears important, as in these plots.
+Fig. 5 (right) compares the recommended batch sizes from Bdeepseek to those from Bopt and Bcrit . Since
+Bdeepseek scales in C, it is larger for larger N . Over a range of modern model sizes, Bdeepseek values generally
+fall between our projected Bopt and Bcrit , varying in the extent to which they are compute-efficient (close to
+Bopt ) or time-efficient (close to Bcrit ).
+
+ Finding 6: Weight decay affects the accuracy of fitted batch size scaling laws.
+
+Prior work has typically held λ fixed when fitting batch-size scaling laws (Bi et al., 2024; Porian et al., 2024;
+Zhang et al., 2024). Doing so not only degrades loss (Sec. 2) but also reduces the accuracy and generality of
+the fitted scaling relationships. We demonstrate this in appendix Table 5: rather than tuning λ for each B,
+we train with several fixed λ values across all runs. As Table 5 shows, increasing λ systematically raises the
+estimated Bopt . This arises because the fundamental scaling variable is the AdamW timescale τ = B/(ηλD):
+when λ increases, the batch size that minimizes loss must increase proportionally to preserve the optimal τ .
+In Appendix F.5, we show that these effects distort the fitted power-law slope and reduce fit quality (R2 ),
+leading to scaling laws that do not generalize to large-scale training—even if the same fixed weight decay is
+used there. When λ is tuned to maintain the optimal timescale (final row of Table 5), the resulting Bopt
+follows a clean and accurate power law.
+Similar distortions occur for Bcrit when λ is fixed (Appendix F.5).
+
+ Key takeaway 2: You can estimate Bopt and Bcrit for a small N by training with different B, D and λopt ,
+ and computing loss. From there, Bopt ∝ D0.4 and Bcrit ∝ D0.5 . At larger N and D, Eq. (6) lets you estimate
+ trade-offs in FLOPs (∝ D) vs. training time (∝ S = D/B) at different B.
+
+
+4     Training settings for balancing time and compute
+
+4.1    Background: compute-optimal and overtrained models
+
+Given a fixed training FLOPs budget, C, how should we allocate model size N versus number of training
+tokens D in order to minimize loss? Hoffmann et al. (2022) propose to model loss as:
+
+                                        L(N, D) = E + Nconst N −α + Dconst D−β                                (8)
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.         8
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Nconst , α, Dconst , and β are parameters fit on observed training runs. From Eq. (8), (Hoffmann et al.,
+2022) derives functions for loss-optimal Nopt (C) and Dopt (C) (constraining L(N, D) by C ≈ 6N D). Results
+indicate Nopt and Dopt scale roughly equally as C increases, with the optimal D/N ratio relatively constant
+at around 20 TPP. Replication studies have found similar results (Besiroglu et al., 2024; Porian et al., 2024),
+and 20 TPP has become a rule-of-thumb for compute-optimal training (Dey et al., 2023a; Zhang et al., 2024).
+Overtrained, inference-efficient models (Touvron et al., 2023; Biderman et al., 2023; Dubey et al., 2024) have
+largely trained with similar batch sizes to those used in compute-optimal training; such efforts should now
+consider training with much greater data parallelism, leveraging our finding that Bopt and Bcrit will be higher
+given the higher training D.
+
+4.2    Methods: exploring the trade-offs of FLOPs vs. time
+
+To compare models of different sizes on a common temporal axis, we must map number-of-optimization-steps
+to a common temporal scale. Our initial approximation is Training Time ∝ Total FLOPs/B , which is also
+FLOPs per token times number of steps. E.g., if FLOPs ≈ 6N D, Training Time ≈ 6N D/B = 6N · S. This
+aligns well with our measured runtimes: doubling N doubles step time; doubling B halves wall-clock time (for
+the same S).
+Now, assume a model of size N can train to loss L̂ using Dmin tokens (here min denotes using Bopt ). Let
+us refer to N and Dmin as a base setting. A variety of N , Dmin pairs can reach L̂ in the Bopt setting, from
+small models trained on many tokens, to large models trained on fewer tokens. Hoffmann et al. (2022) refers
+to these as iso-loss contours of Eq. (8). Suppose a given base setting requires C(N, Dmin ) FLOPs. From
+this setting, we may increase B to decrease training time (fewer steps), but Eq. (6) indicates a need for
+(1 + B/Bcrit ) extra data in order to reach the same L̂. If FLOPs is linear in D (as in C = 6N D), we will
+require the same proportion of extra FLOPs, i.e.,
+                                  C+ (N, Dmin , B) = C(N, Dmin )(1 + B/Bcrit (Dmin ))                        (9)
+where C+ (N, Dmin , B) denotes the total FLOPs needed at B > Bopt , and Bcrit (Dmin ) captures that the
+excess FLOPs depends on Bcrit , which itself scales with Dmin . In other words, the base setting dictates Bcrit ,
+and B/Bcrit dictates the excess FLOPs.
+Consider a target FLOP budget of C+ (N, Dmin , B) = Ĉ and the goal of reaching L̂ as fast as possible. Since
+time ∝ Total FLOPs/B , time is minimized by maximizing B. However, by construction, B is not a free variable:
+it is constrained by Eq. (9) and can be expressed as a function of N and Dmin :
+                                                                !
+                                                     Ĉ
+                                B(N, Dmin ) =               − 1 Bcrit (Dmin )                            (10)
+                                                C(N, Dmin )
+
+Time is therefore minimized by finding N , Dmin that maximize this function (over all the N , Dmin that
+train to loss L̂). The Ĉ/C ratio is a measure of the excess FLOPs that can be spent toward increasing B;
+it is largest when C(N, Dmin ) is smallest, i.e., when N and Dmin is most compute-efficient (i.e., N/Dmin ≈
+20 TPP). But Eq. (10) as a whole captures an elegant tension between compute efficiency and Bcrit : we can
+maximize B (and minimize training time) by either (1) minimizing the FLOPs of the base setting (generating
+more excess FLOPs for increasing B), or (2) maximizing Dmin (overtraining, which increases Bcrit (Dmin )).
+For a given Ĉ, either (1) or (2) may take precedence.
+We use the following procedure to explore the time vs. compute Pareto frontier for a target loss L̂:
+
+ 1. Fit Eq. (8) on our Bopt training runs. Express resulting L(N, Dmin ) as Dmin L̂ (N ).
+ 2. Using Dmin L̂ (N ), get contour points ⟨N, Dmin ⟩ of the given L̂. Each such pair consumes C(N, Dmin ) ≈
+    6N Dmin FLOPs and takes C(N,Dmin )/B time (rightmost points on Fig. 6 curves).
+ 3. Use Eq. (9) to compute C+ (N, Dmin , B) as we scale B (crucially, using the estimate of Bcrit from fitted
+    Eq. (7)), and generate further points along each curve.
+ 4. The non-dominated points over all curves provide the time vs. compute Pareto frontier.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.         9
+                                  Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+4.3              Results: balancing time and compute
+
+We carry out this procedure using model sizes of 150M, 210M, 550M, 1.1B, and 2.1B, and a loss target of
+L̂=2.6, yielding iso-loss contour points from 150M 600TPP to 2.1B 2TPP. Our fit of Eq. (8) yielded α=0.313
+≈ β=0.282, giving an optimal TPP ratio of ≈20.6 at L̂=2.6.
+
+  Finding 7: Overtrained, but not undertrained, models are on the FLOPs vs. time Pareto frontier.
+
+                                                                              ×1016
+                                             L̂=2.6                                                                                                                                     L̂=2.6
+                                          2.1B-2TPP+
+                                                                       3.00                  610M, 20TPP                                                                              2.1B-2TPP+
+                                                                                                                 2.85
+                                          1.1B-6TPP+                                         266M, 80TPP                                                                              1.1B-6TPP+
+                                                                       2.75
+                                          550M-20TPP+                                                            2.80                                                                 550M-20TPP+
+              1021                        210M-200TPP+                                         Pareto front                                             1021                          210M-200TPP+
+
+
+
+
+                                                                                                                        Validation Loss
+                                                                       2.50
+Total FLOPs
+
+
+
+
+                                                                                                                                          Total FLOPs
+                                                         Total FLOPs
+                                          150M-600TPP+                                                           2.75                                                                 150M-600TPP+
+                                                                              B:   8064 4032 2016 1008 504 252
+                                                                       2.25
+                                                                                                                 2.70
+                                         Increasing B                  2.00
+                                                                                                                                                                                       Increasing B
+                                                                                                                 2.65
+                                                                       1.75   B:    6144 3072 1536 768 384 192
+              1020                                                                                                                                      10   20
+                                                                                                                 2.60
+                                                                       1.50
+                     Better                                                        Pareto front                                                                   Better
+                                                                       1.25                                      2.55
+                        1013                     1014                     1012             1013           1014
+                                                                                                                                                                                104
+                      Total FLOPs [≈ Training Time]                      Total FLOPs [≈ Training Time]
+                              B                                                    B                                                                              Number of optimization steps, S
+
+Figure 6: (left): Iso-loss curves illustrating time–compute Pareto frontier (L̂=2.6). As B increases along
+curves, more compute (y-axis), but less time (x-axis) is required. Here time ∝ Total FLOPs/B . (middle):
+Observed runs where some overtrained models (red line) are on frontier: L in color, B labeled. (right):
+Iso-loss curves, but where time = steps; a very different frontier emerges.
+
+
+Specifically, when using Training Time ∝ Total FLOPs/B , we find overtrained models are FLOP-optimal at
+certain time budgets (Fig. 6, left). Compute-efficient 20 TPP are optimal in pure FLOPs (i.e., ignoring time),
+as expected, while compute-efficient and overtrained models dominate undertrained (< 20 TPP) models in
+time and FLOPs. Indeed, this is expected from Eq. (10): undertraining reduces both the excess FLOPs and
+Bcrit terms, and thus is never optimal with this model of time.
+
+  Finding 8: When using B ≫ Bopt , it is Pareto-inefficient to train to 20 TPP.
+
+Notice that Fig. 6 adds “. . .TPP+” to curve labels. Here the + sign is a reminder that as we increase B,
+we require (1 + B/Bcrit ) extra data to reach the same L̂; i.e., points with higher B are trained to a higher
+actual TPP than the base setting. For example, once the 2TPP+ curve in Fig. 6 reaches 10× its minimum
+FLOPs, it is actually training at 20 TPP. Since starting from an undertrained base setting is never Pareto
+optimal (as just discussed above), it is always suboptimal to train a model with a large B to 20 actual TPP.
+If large-batch training is needed, the configuration should start from a 20 TPP+ base setting and scale B
+from there (to >20 TPP).
+We can see this finding play out in real training runs. Fig. 6 (middle) demonstrates observed runs where our
+266M 80TPP models dominate our 610M 20TPP models (i.e., in FLOPs and time)—when both train with
+large B. (Note in this plot, results are not iso-loss: the frontier is over L, C, and time.)
+
+  Finding 9: The Pareto-optimal settings depend on the formulation of time/parallelism strategy.
+
+While FLOPs/B is a good model of data parallel training, it does not incorporate the potential for model
+parallelism (Smith et al., 2022). In the extreme we could assume that all 6N FLOPs could be executed
+concurrently per input token. Under this formulation, training time is proportional only to the number
+of steps, regardless of model scale. Fig. 6 (right) shows the Pareto frontier that would result from this
+formulation; if we pay no time cost for larger models, we can train faster by using undertrained large models,
+although, exactly as with overtrained models, they suffer in FLOPs.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                                               10
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+While LLMs cannot be fully parallelized due to the inherent sequential nature of a Transformer’s layer-by-layer
+computation, this formulation could be refined by incorporating depth or other architectural features. For
+example, Inbar & Sernau (2024) predict training time via linear regression over total FLOPs and memory-copy
+operations, fit to real (single-TPU) runs. As formulations improve, different Pareto-optimal configurations
+will emerge.
+
+ Finding 10: Inaccurate Bcrit scaling leads to inaccurate Pareto-optimal configurations.
+
+Because the Pareto frontier in Sec. 4 depends directly on the Bcrit power-law fit, any error in that fit produces
+corresponding errors in the predicted trade-offs between training time and compute. Accurate Bcrit estimation,
+in turn, depends on effective λ tuning (Finding 6 and Appendix F.5). When λ is fixed as in standard practice
+(and thus the Bcrit (D) slope is misestimated), Bcrit will be systematically over- or underpredicted at scale,
+altering the computed frontier and the apparent Pareto-optimal configurations. To illustrate, artificially
+varying the Bcrit exponent changes which models appear on the frontier: as the exponent increases (and Bcrit
+rises), higher-TPP models move to the frontier; when Bcrit is underestimated, only low-TPP (e.g., 20 TPP)
+models appear Pareto-optimal. Hence, an inaccurate Bcrit scaling law produces misleading frontiers and can
+lead to unexpectedly-longer training durations and suboptimal compute allocations.
+Recent work suggests that other estimators of Bcrit (such as those based on the gradient noise scale (McCandlish
+et al., 2018)) can also be systematically biased (Appendix D.2), leading to similar distortions in the Pareto
+frontier.
+
+ Key takeaway 3: To balance time and compute at a target loss, select (N, Dmin ) from Eq. (8), determine
+ Bcrit (Dmin ) via Eq. (7), and use Eq. (9) to estimate compute for any B. Under Time ∝ FLOPs/B, the resulting
+ time–compute trade-off favors higher D (overtraining) (Fig. 6).
+
+
+5    Conclusion
+
+We have presented a comprehensive empirical study of hyperparameter scaling laws in LLM pre-training,
+focusing on weight decay and batch size. Our approach leverages the AdamW timescale (τ ) to develop
+robust scaling relationships that predict optimal hyperparameter settings across a broad spectrum of model
+(N ), dataset (D), and batch sizes (B). We demonstrated that optimal τ decreases as a power law with
+the tokens-per-parameter ratio, providing a systematic method to set weight decay optimally across diverse
+training scenarios.
+Furthermore, we introduced a novel, practical methodology for estimating critical batch size (Bcrit ). Our
+findings diverge from influential prior work that tied Bcrit predominantly to compute or loss, while agreeing
+with the recent findings of Zhang et al. (2024) that underscore dataset size as the principal scaling factor.
+Additionally, we showed that contrary to previous studies suggesting optimal batch size (Bopt ) scales primarily
+with compute, it also exhibits a clear power-law dependence on D.
+Also, our analysis of Pareto-optimal configurations reveals an important strategic advantage for smaller,
+overtrained models in scenarios where rapid training and high parallelism are prioritized.
+Appendix B notes limitations and directions for further study suggested by our results. In particular, as
+inference-time scaling comes to the fore, inference time and compute must also be considered as first-class
+Pareto objectives. Moreover, finer-grained configuration decisions, such as model depth and context length,
+should be considered along with N , D, and B.
+
+
+Acknowledgments and Disclosure of Funding
+
+We thank the NeurIPS reviewers for their helpful feedback. None of the authors received third-party funding
+or third-party support for this work. None of the authors have financial relationships with outside parties
+that could potentially be perceived to influence this research.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.      11
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+References
+Marah Abdin, Jyoti Aneja, Hany Awadalla, Ahmed Awadallah, Ammar Ahmad Awan, Nguyen Bach, Amit
+ Bahree, Arash Bakhtiari, Jianmin Bao, Harkirat Behl, et al. Phi-3 technical report: A highly capable
+ language model locally on your phone. arXiv preprint arXiv:2404.14219, 2024.
+
+Aleph Alpha. Introducing Pharia-1-LLM: Transparent and compliant. Web page, 2024. Accessed: 2024-09-07.
+
+Ebtesam Almazrouei, Hamza Alobeidli, Abdulaziz Alshamsi, Alessandro Cappelli, Ruxandra Cojocaru,
+  Mérouane Debbah, Étienne Goffinet, Daniel Hesslow, Julien Launay, Quentin Malartic, et al. The Falcon
+  series of open language models. arXiv preprint arXiv:2311.16867, 2023.
+
+Emily M Bender, Timnit Gebru, Angelina McMillan-Major, and Shmargaret Shmitchell. On the dangers
+ of stochastic parrots: Can language models be too big? In Proceedings of the 2021 ACM conference on
+ fairness, accountability, and transparency, pp. 610–623, 2021.
+
+Shane Bergsma, Nolan Dey, Gurpreet Gosal, Gavia Gray, Daria Soboleva, and Joel Hestness. Straight to zero:
+  Why linearly decaying the learning rate to zero works best for LLMs. arXiv preprint arXiv:2502.15938,
+  2025.
+
+Tamay Besiroglu, Ege Erdil, Matthew Barnett, and Josh You. Chinchilla scaling: A replication attempt.
+  arXiv preprint arXiv:2404.10102, 2024.
+
+Xiao Bi, Deli Chen, Guanting Chen, Shanhuang Chen, Damai Dai, Chengqi Deng, Honghui Ding, Kai Dong,
+  Qiushi Du, Zhe Fu, et al. DeepSeek LLM: Scaling open-source language models with longtermism. arXiv
+  preprint arXiv:2401.02954, 2024.
+
+Stella Biderman, Hailey Schoelkopf, Quentin Anthony, Herbie Bradley, Kyle O’Brien, Eric Hallahan, Mo-
+  hammad Aflah Khan, Shivanshu Purohit, USVSN Sai Prashanth, Edward Raff, et al. Pythia: A suite for
+  analyzing large language models across training and scaling, 2023.
+
+Johan Bjorck, Alon Benhaim, Vishrav Chaudhary, Furu Wei, and Xia Song. Scaling optimal LR across token
+  horizons. arXiv preprint arXiv:2409.19913, 2024.
+
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind
+  Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. Language models are few-shot learners.
+  Advances in Neural Information Processing Systems, 33:1877–1901, 2020.
+
+Quentin Carbonneaux, Gal Cohen, Jonas Gehring, Jacob Kahn, Jannik Kossen, Felix Kreuk, Emily McMilin,
+ Michel Meyer, Yuxiang Wei, David Zhang, et al. CWM: An open-weights llm for research on code generation
+ with world models. arXiv preprint arXiv:2510.02387, 2025.
+
+Jianmin Chen, Xinghao Pan, Rajat Monga, Samy Bengio, and Rafal Jozefowicz. Revisiting distributed
+  synchronous SGD. arXiv preprint arXiv:1604.00981, 2016.
+
+Vitaliy Chiley, Ilya Sharapov, Atli Kosson, Urs Koster, Ryan Reece, Sofia Samaniego de la Fuente, Vishal
+  Subbiah, and Michael James. Online normalization for training neural networks. Advances in Neural
+  Information Processing Systems, 32, 2019.
+
+Francesco D’Angelo, Maksym Andriushchenko, Aditya Vardhan Varre, and Nicolas Flammarion. Why do
+  we need weight decay in modern deep learning? Advances in Neural Information Processing Systems, 37:
+  23191–23223, 2024.
+
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. BERT: Pre-training of deep bidirectional
+  transformers for language understanding. In NAACL-HLT, 2019.
+
+Nolan Dey, Gurpreet Gosal, Hemant Khachane, William Marshall, Ribhu Pathria, Marvin Tom, and Joel
+ Hestness. Cerebras-GPT: Open compute-optimal language models trained on the Cerebras wafer-scale
+ cluster. arXiv preprint arXiv:2304.03208, 2023a.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.     12
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Nolan Dey, Daria Soboleva, Faisal Al-Khateeb, Bowen Yang, Ribhu Pathria, Hemant Khachane, Shaheer
+ Muhammad, Zhiming, Chen, Robert Myers, et al. BTLM-3B-8K: 7B parameter performance in a 3B
+ parameter model, 2023b.
+Nolan Dey, Quentin Anthony, and Joel Hestness. The practitioner’s guide to the maximal update parameteri-
+  zation. Blog post, September 2024.
+Nolan Dey, Bin Claire Zhang, Lorenzo Noci, Mufan Li, Blake Bordelon, Shane Bergsma, Cengiz Pehlevan,
+ Boris Hanin, and Joel Hestness. Don’t be lazy: CompleteP enables compute-efficient deep transformers.
+ arXiv preprint arXiv:2505.01618, 2025.
+Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman,
+ Akhil Mathur, Alan Schelten, Amy Yang, Angela Fan, et al. The Llama 3 herd of models. arXiv preprint
+ arXiv:2407.21783, 2024.
+Oleg Filatov, Jan Ebert, Jiangtao Wang, and Stefan Kesselheim. Time transfer: On optimal learning rate
+  and batch size in the infinite data limit. arXiv preprint arXiv:2410.05838, 2024.
+Samir Yitzhak Gadre, Georgios Smyrnis, Vaishaal Shankar, Suchin Gururangan, Mitchell Wortsman, Rulin
+  Shao, Jean Mercat, Alex Fang, Jeffrey Li, Sedrick Keh, et al. Language models scale reliably with
+  over-training and on downstream tasks. arXiv preprint arXiv:2403.08540, 2024.
+Noah Golmant, Nikita Vemuri, Zhewei Yao, Vladimir Feinberg, Amir Gholami, Kai Rothauge, Michael W
+ Mahoney, and Joseph Gonzalez. On the computational inefficiency of large batch sizes for stochastic
+ gradient descent. arXiv preprint arXiv:1811.12941, 2018.
+Vineet Gupta, Tomer Koren, and Yoram Singer. Shampoo: Preconditioned stochastic tensor optimization. In
+  International Conference on Machine Learning, pp. 1842–1850. PMLR, 2018.
+Alexander Hägele, Elie Bakouch, Atli Kosson, Loubna Ben Allal, Leandro Von Werra, and Martin Jaggi.
+  Scaling laws and compute-optimal training beyond fixed training durations. arXiv preprint arXiv:2405.18392,
+  2024.
+Joel Hestness, Sharan Narang, Newsha Ardalani, Gregory Diamos, Heewoo Jun, Hassan Kianinejad, Md.
+  Mostofa Ali Patwary, Yang Yang, and Yanqi Zhou. Deep learning scaling is predictable, empirically, 2017.
+Elad Hoffer, Itay Hubara, and Daniel Soudry. Train longer, generalize better: Closing the generalization gap
+  in large batch training of neural networks. Advances in Neural Information Processing Systems, 30, 2017.
+Elad Hoffer, Ron Banner, Itay Golan, and Daniel Soudry. Norm matters: efficient and accurate normalization
+  schemes in deep networks. Advances in Neural Information Processing Systems, 31, 2018.
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford,
+  Diego de Las Casas, Lisa Anne Hendricks, Johannes Welbl, Aidan Clark, et al. An empirical analysis of
+  compute-optimal large language model training. Advances in Neural Information Processing Systems, 35,
+  2022.
+Shengding Hu, Yuge Tu, Xu Han, Chaoqun He, Ganqu Cui, Xiang Long, Zhi Zheng, Yewei Fang, Yuxiang
+  Huang, Weilin Zhao, et al. MiniCPM: Unveiling the potential of small language models with scalable
+  training strategies. arXiv preprint arXiv:2404.06395, 2024.
+Itay Inbar and Luke Sernau. Time matters: Scaling laws for any budget. arXiv preprint arXiv:2406.18922,
+  2024.
+Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B. Brown, Benjamin Chess, Rewon Child, Scott Gray,
+  Alec Radford, Jeffrey Wu, and Dario Amodei. Scaling laws for neural language models. arXiv preprint
+  arXiv:2001.08361, 2020.
+Diederik P Kingma and Jimmy Ba.                     Adam: A method for stochastic optimization.   arXiv preprint
+  arXiv:1412.6980, 2014.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.             13
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Atli Kosson, Bettina Messmer, and Martin Jaggi. Rotational equilibrium: How weight decay balances learning
+  across neural networks. arXiv preprint arXiv:2305.17212, 2023.
+
+Atli Kosson, Bettina Messmer, and Martin Jaggi. Analyzing & reducing the need for learning rate warmup in
+  GPT training. arXiv preprint arXiv:2410.23922, 2024.
+
+Jakub Krajewski, Jan Ludziejewski, Kamil Adamczewski, Maciej Pióro, Michał Krutul, Szymon Antoniak,
+  Kamil Ciebiera, Krystian Król, Tomasz Odrzygóźdź, Piotr Sankowski, et al. Scaling laws for fine-grained
+  mixture of experts. arXiv preprint arXiv:2402.07871, 2024.
+
+Alex Krizhevsky. One weird trick for parallelizing convolutional neural networks.            arXiv preprint
+  arXiv:1404.5997, 2014.
+
+Tanishq Kumar, Zachary Ankner, Benjamin F Spector, Blake Bordelon, Niklas Muennighoff, Mansheej Paul,
+  Cengiz Pehlevan, Christopher Ré, and Aditi Raghunathan. Scaling laws for precision. arXiv preprint
+  arXiv:2411.04330, 2024.
+
+Houyi Li, Wenzhen Zheng, Qiufeng Wang, Hanshan Zhang, Zili Wang, Shijie Xuyang, Yuantao Fan, Zhenyu
+  Ding, Haoying Wang, Ning Ding, et al. Predictable scale: Part I, step law – optimal hyperparameter
+  scaling law in large language model pretraining. arXiv preprint arXiv:2503.04715, 2025.
+
+Shuaipeng Li, Penghao Zhao, Hailin Zhang, Xingwu Sun, Hao Wu, Dian Jiao, Weiyan Wang, Chengjun Liu,
+  Zheng Fang, Jinbao Xue, et al. Surge phenomenon in optimal learning rate and batch size scaling. arXiv
+  preprint arXiv:2405.14578, 2024.
+
+Zhiyuan Li and Sanjeev Arora. An exponential learning rate schedule for deep learning. arXiv preprint
+  arXiv:1910.07454, 2019.
+
+Lucas Lingle. A large-scale exploration of µ-transfer. arXiv preprint arXiv:2404.05728, 2024.
+
+Hong Liu, Zhiyuan Li, David Hall, Percy Liang, and Tengyu Ma. Sophia: A scalable stochastic second-order
+  optimizer for language model pre-training. arXiv preprint arXiv:2305.14342, 2023.
+
+Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. In International Conference on
+   Learning Representations, 2017.
+
+Siyuan Ma, Raef Bassily, and Mikhail Belkin. The power of interpolation: Understanding the effectiveness
+  of SGD in modern over-parametrized learning. In International Conference on Machine Learning, pp.
+  3325–3334. PMLR, 2018.
+
+Sadhika Malladi, Kaifeng Lyu, Abhishek Panigrahi, and Sanjeev Arora. On the SDEs and scaling rules for
+  adaptive gradient algorithms. Advances in Neural Information Processing Systems, 35:7697–7711, 2022.
+
+Martin Marek, Sanae Lotfi, Aditya Somasundaram, Andrew Gordon Wilson, and Micah Goldblum. Small
+ batch size training for language models: When vanilla SGD works, and why gradient accumulation is
+ wasteful. arXiv preprint arXiv:2507.07101, 2025.
+
+Sam McCandlish, Jared Kaplan, Dario Amodei, et al. An empirical model of large-batch training. arXiv
+  preprint arXiv:1812.06162, 2018.
+
+William Merrill, Shane Arora, Dirk Groeneveld, and Hannaneh Hajishirzi. Critical batch size revisited: A
+ simple empirical approach to large-batch language model training. arXiv preprint arXiv:2505.23971, 2025.
+
+Alexandru Meterez, Depen Morwani, Jingfeng Wu, Costin-Andrei Oncescu, Cengiz Pehlevan, and Sham
+  Kakade. Seesaw: Accelerating training by balancing learning rate and batch size scheduling. arXiv preprint
+  arXiv:2510.14717, 2025.
+
+Lorenzo Noci, Alexandru Meterez, Thomas Hofmann, and Antonio Orvieto. Why do learning rates transfer?
+  Reconciling optimization and scaling limits for deep learning. arXiv preprint arXiv:2402.17457, 2024.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.     14
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+David Patterson, Joseph Gonzalez, Quoc Le, Chen Liang, Lluis-Miquel Munguia, Daniel Rothchild, David
+ So, Maud Texier, and Jeff Dean. Carbon emissions and large neural network training. arXiv preprint
+ arXiv:2104.10350, 2021.
+
+Tomer Porian, Mitchell Wortsman, Jenia Jitsev, Ludwig Schmidt, and Yair Carmon. Resolving discrepancies
+  in compute-optimal scaling of language models. arXiv preprint arXiv:2406.19146, 2024.
+
+Ofir Press, Noah Smith, and Mike Lewis. Train short, test long: Attention with linear biases enables input
+  length extrapolation. In International Conference on Learning Representations, 2022.
+
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language models
+  are unsupervised multitask learners, 2019.
+
+Jack W. Rae, Sebastian Borgeaud, Trevor Cai, Katie Millican, Jordan Hoffmann, Francis Song, John Aslanides,
+  Sarah Henderson, Roman Ring, Susannah Young, et al. Scaling language models: Methods, analysis &
+  insights from training Gopher, 2022.
+
+Neha Sengupta, Sunil Kumar Sahu, Bokang Jia, Satheesh Katipomu, Haonan Li, Fajri Koto, William Marshall,
+  Gurpreet Gosal, Cynthia Liu, Zhiming Chen, et al. Jais and Jais-chat: Arabic-centric foundation and
+  instruction-tuned open generative large language models. arXiv preprint arXiv:2308.16149, 2023.
+
+Christopher J Shallue, Jaehoon Lee, Joseph Antognini, Jascha Sohl-Dickstein, Roy Frostig, and George E
+ Dahl. Measuring the effects of data parallelism on neural network training. Journal of Machine Learning
+ Research, 20(112):1–49, 2019.
+
+Noam Shazeer. GLU variants improve transformer, 2020.
+
+Yikang Shen, Matthew Stallone, Mayank Mishra, Gaoyuan Zhang, Shawn Tan, Aditya Prasad, Adriana Meza
+  Soria, David D Cox, and Rameswar Panda. Power scheduler: A batch size and token number agnostic
+  learning rate scheduler. arXiv preprint arXiv:2408.13359, 2024.
+
+Samuel L Smith and Quoc V Le. A Bayesian perspective on generalization and stochastic gradient descent.
+  arXiv preprint arXiv:1710.06451, 2017.
+
+Samuel L. Smith, Pieter-Jan Kindermans, and Quoc V. Le. Don’t decay the learning rate, increase the batch
+  size. In International Conference on Learning Representations, 2018.
+
+Shaden Smith, Mostofa Patwary, Brandon Norick, Patrick LeGresley, Samyam Rajbhandari, Jared Casper,
+  Zhun Liu, Shrimai Prabhumoye, George Zerveas, Vijay Korthikanti, et al. Using DeepSpeed and Megatron to
+  train Megatron-Turing NLG 530B, a large-scale generative language model. arXiv preprint arXiv:2201.11990,
+  2022.
+
+Daria Soboleva, Faisal Al-Khateeb, Robert Myers, Jacob R Steeves, Joel Hestness, and Nolan Dey. SlimPajama:
+ A 627B token cleaned and deduplicated version of RedPajama. Web page, 2023.
+
+Emma Strubell, Ananya Ganesh, and Andrew McCallum. Energy and policy considerations for deep learning
+ in NLP. arXiv preprint arXiv:1906.02243, 2019.
+
+Kimi Team. Kimi K2: Open agentic intelligence. Tech report, 2025.
+
+Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée Lacroix,
+ Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, et al. LLaMA: Open and efficient foundation
+ language models, 2023.
+
+Twan Van Laarhoven. L2 regularization versus batch and weight normalization.                 arXiv preprint
+ arXiv:1706.05350, 2017.
+
+Nikhil Vyas, Depen Morwani, Rosie Zhao, Mujin Kwun, Itai Shapira, David Brandfonbrener, Lucas Janson,
+  and Sham Kakade. SOAP: Improving and stabilizing shampoo using adam. arXiv preprint arXiv:2409.11321,
+  2024.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.     15
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Ruosi Wan, Zhanxing Zhu, Xiangyu Zhang, and Jian Sun. Spherical motion dynamics: Learning dynamics of
+  neural network with normalization, weight decay, and sgd. arXiv preprint arXiv:2006.08419, 2020.
+Xi Wang and Laurence Aitchison. How to set AdamW’s weight decay as you scale model and dataset size.
+  arXiv preprint arXiv:2405.13698, 2024.
+
+Kaiyue Wen, Zhiyuan Li, Jason Wang, David Hall, Percy Liang, and Tengyu Ma. Understanding warmup-
+ stable-decay learning rates: A river valley loss landscape perspective. arXiv preprint arXiv:2410.05192,
+ 2024.
+Mitchell Wortsman, Peter J Liu, Lechao Xiao, Katie Everett, Alex Alemi, Ben Adlam, John D Co-Reyes,
+ Izzeddin Gur, Abhishek Kumar, Roman Novak, et al. Small-scale proxies for large-scale transformer
+ training instabilities. arXiv preprint arXiv:2309.14322, 2023.
+An Yang, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chengyuan Li, Dayiheng Liu,
+ Fei Huang, Haoran Wei, et al. Qwen2.5 technical report. arXiv preprint arXiv:2412.15115, 2024.
+Greg Yang and Edward J Hu.                 Feature learning in infinite-width neural networks.   arXiv preprint
+ arXiv:2011.14522, 2020.
+Greg Yang, Edward Hu, Igor Babuschkin, Szymon Sidor, Xiaodong Liu, David Farhi, Nick Ryder, Jakub
+ Pachocki, Weizhu Chen, and Jianfeng Gao. Tuning large neural networks via zero-shot hyperparameter
+ transfer. In Advances in Neural Information Processing Systems, 2021.
+
+Yang You, Igor Gitman, and Boris Ginsburg. Large batch training of convolutional networks. arXiv preprint
+  arXiv:1708.03888, 2017.
+Yang You, Jing Li, Sashank Reddi, Jonathan Hseu, Sanjiv Kumar, Srinadh Bhojanapalli, Xiaodan Song,
+  James Demmel, Kurt Keutzer, and Cho-Jui Hsieh. Large batch optimization for deep learning: Training
+  BERT in 76 minutes. arXiv preprint arXiv:1904.00962, 2019.
+
+Guodong Zhang, Chaoqi Wang, Bowen Xu, and Roger Grosse. Three mechanisms of weight decay regularization.
+ arXiv preprint arXiv:1810.12281, 2018.
+Guodong Zhang, Lala Li, Zachary Nado, James Martens, Sushant Sachdeva, George Dahl, Chris Shallue, and
+ Roger B Grosse. Which algorithmic choices matter at which batch sizes? insights from a noisy quadratic
+ model. Advances in neural information processing systems, 32, 2019.
+
+Hanlin Zhang, Depen Morwani, Nikhil Vyas, Jingfeng Wu, Difan Zou, Udaya Ghai, Dean Foster, and Sham
+  Kakade. How does critical batch size scale in pre-training? arXiv preprint arXiv:2410.21676, 2024.
+
+
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.         16
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+A     Broader impacts
+
+This paper presents methods to train LLMs more efficiently: practitioners can use our methods to reduce the
+total compute FLOPs used to train models, subject to time constraints. Given the intense pressure to advance
+LLM capabilities as quickly as possible, our methods can therefore reduce the associated environmental and
+financial costs of LLM training (Patterson et al., 2021; Bender et al., 2021).
+Moreover, hyperparameter tuning is a key contributor to these costs, and impairs equity in AI research, as
+tuning success depends directly on researcher finances (Strubell et al., 2019). We hope our exploration of
+optimal hyperparameter scaling can reduce the burden of hyperparameter tuning at scale and thus improve
+equity in AI.
+
+
+B     Limitations
+
+While our findings corroborate prior work and provide strong evidence for the proposed scaling laws in τ ,
+Bopt , and Bcrit , there are several limitations that merit further study.
+
+EMA perspective As the EMA perspective regards parameters yt as a function of updates xt , it fails
+to account for xt actually depending on earlier values of yt (e.g., yt−1 ). Yet although this perspective has
+formal limitations, we nevertheless find it a useful conceptual model of training, as it predicts behavior that
+is supported by experiments.
+
+Optimization and training setup Our work focuses on AdamW (the standard optimizer for LLM
+training). While the EMA perspective applies directly to other optimizers that use decoupled weight decay,
+such as Sophia (Liu et al., 2023) and MuonClip (Team, 2025), it may not apply to approximate second order
+methods, e.g., Shampoo (Gupta et al., 2018). However, it can be used when applying AdamW (and related
+optimizers) in Shampoo’s eigenbasis, which was shown to be effective in SOAP (Vyas et al., 2024).
+We present results with a single (standard) learning rate schedule. Our method for obtaining Bcrit estimates
+would be quite efficient with a warmup-stable-decay (WSD) schedule (Hu et al., 2024; Wen et al., 2024), as
+we could perform a single training run with each batch size, but decay at various milestones in order to get
+points along the scaling law, essentially following the approach in Hägele et al. (2024), but with separate laws
+for each batch size.
+We used the maximal update parameterization in all experiments, which generates a learning rate η adjustment
+for each model width. Our results suggest this approach enables good models at arbitrary N , D, and B when
+combined with adjustments to λ. This strategy is informed by our experiments comparing re-adjusting η vs.
+λ in Sec. 2.4. However, it is not feasible, at this scale, to verify whether substantially better models could be
+obtained by sweeping the full cross-product of η and λ values.
+Our study specifically focuses on the practically important setting of single-epoch LLM pre-training. Wang &
+Aitchison (2024) indeed noted differences in optimal τ when using multi-epoch training, possibly due to data
+repetition. Reconciling these differences by isolating the effects of repetition versus scale is an interesting
+follow-up direction.
+Here we only experimented with a single dataset, vocabulary, and context length. We obtained a similar
+Bcrit scaling law to Zhang et al. (2024), but it would be interesting to see if differences in the coefficient of
+our power laws could be attributed to specific differences in approach (e.g., differences in dataset, context
+length, learning rate schedule, use of weight decay, etc.). Appendix D.3 has further discussion of differences
+with Zhang et al. (2024).
+We have also not explored how changes in numerical precision could affect scaling laws. Recent work (Kumar
+et al., 2024) showed that, in terms of scaling laws, lower precision reduces the model’s effective parameter
+count. This suggests precision would have no impact on scaling of Bopt or Bcrit , which do not scale in N .
+Lower precision, however, could increase the effective TPP (via smaller effective N ), thereby altering τopt .
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.      17
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+                                  Table 2: Model architectures used in experiments
+
+                                            Model   dmodel    nlayers   dhead
+                                            111M     768          10     64
+                                            266M     768          32     64
+                                            610M    2048          10     64
+                                            1.7B    2048          32     64
+                                            3.3B    2048          64     64
+
+
+
+Small batches, large batches, and dynamic batch sizing We consistently find that smaller and
+smaller batches do not grow asymptotically closer to Dmin , as predicted by theory, but eventually degrade
+in loss. One possibility is that λ tuning is not sufficient with very small B, and further tuning of other
+hyperparameters may be needed, such as the Adam β parameters (as suggested in recent work (Porian et al.,
+2024; Zhang et al., 2024; Marek et al., 2025)). Some preliminary tests using the β2 scaling rule from Marek
+et al. (2025) showed loss improvements at small B. Since we are unlikely to train with small batches at scale,
+and using them even with smaller LLMs significantly impairs our ability to train both efficiently and quickly,
+it is unfortunately difficult to justify further exploration in this direction.
+Regarding large batches, our methods do not account for the many practical systems-related issues, including
+bandwidth and communication overheads, memory limits of hardware, synchronization delays, etc. Moreover,
+as batch sizes increase, techniques such as optimizer sharding may be needed, which further complicate
+performance model (Almazrouei et al., 2023). Our scaling laws do, however, explicitly define a practically
+relevant regime of training batch sizes: Bopt ≤ B ≤ Bcrit . Practitioners can leverage this identified regime
+alongside system-specific profiling (e.g., evaluating utilization at various batch sizes) to select optimal settings
+balancing algorithmic and systems constraints.
+Exploring optimal dynamic batch sizing is a natural future direction for our work. While the potential gains
+were found to be small in theory by McCandlish et al. (2018), more recent work has found significant wall
+clock speedups (Meterez et al., 2025).
+
+
+C     Experimental Details
+
+Table 2 provides details on the model architecture and hyperparameters for models used in the experiments.
+Table 3 provides, for each model scale and TPP, the dataset sizes used in training, the number of batch sizes
+tested, and the number of batch sizes for which λ was tuned. Around 400 models in total were trained for
+the main experiments.
+All the models in our main experiments were trained on the SlimPajama dataset (Soboleva et al., 2023),
+a cleaned and deduplicated version of the RedPajama dataset. We use the GPT-2 (Radford et al., 2019)
+vocabulary of size 50257, and a context length of 2048 tokens. Following standard practice, we do not apply
+weight decay or bias to LayerNorm layers. AdamW settings are β1 = 0.9, β2 = 0.95, and ϵ = 1e−8. Validation
+loss is always computed over a held-out 1.1B tokens, regardless of training TPP. We report cross-entropy
+loss. By default we parameterize with µP, with hyperparameters set via proxy tuning, as described below.
+For a given TPP, all models have the exact same warmup phase: a linear warmup of the learning rate from
+0 to the maximum value. In all our runs, warmup was 10% of the total steps. Learning rate warmup is
+standard practice in LLM pre-training (Brown et al., 2020; Rae et al., 2022; Biderman et al., 2023; Dubey
+et al., 2024; Kosson et al., 2024).
+All models in the main experiments were trained on a Cerebras CS-3 system. 610M-parameter 20TPP models
+take roughly 6 hours each to train on a single CS-3.
+For a given model configuration, we find results to be very stable across random seeds. To quantify the
+variance, we repeated 111M-parameter, 20 TPP training four additional times for six different hyperparameter
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.            18
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Table 3: Models, tokens-per-parameter (TPP) and corresponding dataset sizes (in tokens) used in main
+experiments. We also list the total number of batch sizes, B, trained at each scale and TPP, as well as the
+number of B for which we tuned λ. For B where λ was not tuned, it was inferred via the τopt scaling law
+(Sec. 2). Additional sweeps of η were done at each B at 610M-20TPP scale for the experiments in Sec. 2.4.
+Around 400 different LLMs were trained in total across all the experiments.
+
+                       Model      TPP         D     Number of B      Number of B with λ tuned
+                       111M        20       2.19B         8                     8
+                       111M        80       8.76B         8                     8
+                       111M       200       21.9B         7                     7
+                       111M       320       35.0B         8                     8
+                       111M       1280     140.1B         6                     1
+                       266M        20       5.31B         7                     7
+                       266M        80       21.2B         7                     7
+                       266M       320       85.0B         6                     6
+                       266M       1280     339.8B         1                     0
+                       610M        20       12.1B         8                     8
+                       610M        80       48.5B         7                     7
+                       610M       200      121.3B         6                     6
+                       610M       320      194.1B         2                     1
+                       1.7B         20      34.3B         7                     7
+                       1.7B         80     137.2B         7                     1
+                       1.7B        320     548.6B         1                     0
+                       3.3B         20      66.5B         1                     0
+                       3.3B         23      76.5B         1                     0
+                       3.3B         30      99.8B         2                     1
+
+                                Table 4: Tuned hyperparameters for µP proxy model
+
+                                                    σW,base    8.67e-02
+                                                      η̃       1.62e-02
+                                                    αinput       9.17
+                                                    αoutput      1.095
+
+
+settings, resulting in 5 total validation loss results for each of the six training runs. Standard deviation of the
+validation loss was below 0.003 in all cases.
+
+Proxy model hyperparameter tuning To find the optimal µP hyperparameters (HPs), we trained a
+39M proxy model using a width dmodel of 256, with 24 layers and head size of 64. We trained this model
+on 800M tokens with a batch size of 256 sequences and a context length 2048. We randomly sampled 350
+configurations of base learning rates, base initialization standard deviation, and embedding and output logits
+scaling factors, and used the top-performing values as our tuned HPs (Table 4).
+
+D     Additional related work
+
+D.1    Optimizers for large-batch training
+
+Prior work has explored optimizers designed specifically for large-batch training, including LARS (You et al.,
+2017) and LAMB (You et al., 2019). It is instructive to consider these prior findings in light of the scaling
+laws from our paper. In particular, both original BERT (Devlin et al., 2019) and the LAMB replication were
+trained on 85.2B tokens. Applying our fitted Bcrit power law over D=85.2B, we obtain an estimated Bcrit
+of about 12M tokens. Original BERT was trained for 90% of steps with a batch size of 65K tokens (512
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.             19
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+sequences of length 128). LAMB increased the batch size to 4M tokens (32K sequences), justifying their
+claim, “BERT training can be reduced from 3 days to just 76 minutes” (You et al., 2019). However, based
+on the predicted Bcrit of 12M, batch size 4M is still well within the expected range of efficient batch sizes.
+Moreover, the LAMB paper later notes, “we did not observe any speedup by increasing the batch size from
+65536 to 131072 [sequences, or 16.8M tokens].” In other words, they reach the point of diminishing return
+exactly where B exceeds our predicted Bcrit .
+It is likely that some optimization issues solved by LAMB (to enable stable large-batch training) are solved
+other ways in modern LLM training setups, via, e.g., gradient clipping, pre-LayerNorm placement, better
+initialization and stability control through µP, etc. Scaling λ rather than η with B, as we propose, further
+supports stable, efficient training. However, gradient redundancy imposes an inherent limit on useful batch
+sizes, ensuring critical batch size remains relevant.
+
+D.2    Critical batch size
+
+Observations of critical batch size have previously been related to data complexity (Golmant et al., 2018),
+loss curvature (Ma et al., 2018; Zhang et al., 2019), and model architecture (Shallue et al., 2019).
+Merrill et al. (2025) define Bcrit as the largest B such that loss does not degrade by more than a fixed
+fraction ϵ from the Bopt setting. They measure this Bcrit instantaneously throughout training, by repeatedly
+branching from a checkpoint with different B settings and assessing the impact on loss.
+Recent work also defines Bcrit in terms of how η scales with B (Filatov et al., 2024; Li et al., 2024); unlike
+our work, these recent studies use a constant learning rate schedule and no weight decay.
+We follow McCandlish et al. (2018)’s definition of Bcrit (Definition 3.1). Given various theoretical assumptions,
+McCandlish et al. (2018) derived a direct equivalence between Bcrit and what they call the gradient noise
+scale (GNS): the variation of the gradients between different training examples. However, they noted that
+the GNS “accurately predicts the largest usable batch size (at the order of magnitude level),” which is below
+the level of precision needed for large-scale training. Merrill et al. (2025) recently found “the gradient noise
+scale underestimates the CBS [i.e., Bcrit ].” This lack of precision may be why, in Kaplan et al’s original
+scaling laws paper (Kaplan et al., 2020), they note that, “although the critical batch size roughly matches
+the gradient noise scale, we are using a direct [empirical] measurement of Bcrit .” Our approach to measuring
+Bcrit (Sec. 3.2) similarly provides a direct empirical measurement, but one that can be efficiently computed
+with any learning rate schedule or optimizer.
+
+D.3    Detailed comparison with Zhang et al. (2024)
+
+Here we provide further comparison with the concurrent work by Zhang et al. (2024). The primary point
+of distinction of our paper is that we conducted a large-scale empirical study into the scaling of AdamW’s
+weight decay hyperparameter (including its scaling with B), ultimately deriving a precise power law for the
+optimal AdamW timescale in tokens-per-parameter. Zhang et al. (2024) did not use weight decay. Further,
+we also explored scaling of Bopt in addition to Bcrit . Beyond use of weight decay, further methodological
+differences in our main experiments include that we used a longer context length (2048 vs. 512), a cleaner
+dataset (SlimPajama vs. C4), the µP parameterization, a decaying LR schedule (more on this below), and
+that we tuned HPs at most N , D, B (Table 3), while Zhang et al. (2024) performed a HP sweep for a 151M
+model, and re-used optimal values at other scales. We now focus on differences in estimating and measuring
+the scaling of Bcrit .
+
+Estimating Bcrit for a specific target loss Both our work and Zhang et al. (2024) require measuring,
+for different batch sizes, how many training steps it takes to reach a particular target loss. Since the number
+of steps to reach that loss is not known a priori, it is inherently difficult to study Bcrit when using a LR
+decay schedule, where you must specify the number of steps in advance. Using a constant LR (as was done in
+early work on Bcrit (McCandlish et al., 2018)) simply does not result in competitive models (Bergsma et al.,
+2025). Unfortunately, it is not feasible to search for the precise step count needed, i.e., by conducting full
+training runs with different schedules/step budgets.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.      20
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Zhang et al. (2024) creatively solve this issue by conducting a single training run at a constant LR, while
+using weight averaging to generate higher-quality checkpoints for evaluation. With this approach, they still
+“need to frequently evaluate the model on a holdout evaluation set” (Zhang et al., 2024).
+Given LR decay, as opposed to weight averaging, remains the standard practice for current state-of-the-art
+LLMs, we independently developed a different approach. This led to the novel method described in our paper.
+In contrast with Zhang et al. (2024), we do not need to frequently evaluate the model, as we instead fit a
+B-specific loss power law through a few validation loss values (Sec. 3.2). Indeed, our approach may improve
+the efficiency of Zhang et al. (2024)’s method, as it would obviate the cost of continuous validation, which
+concerned them (see their section “Evaluation data size and frequency”).
+
+Estimating the Bcrit power law Collecting Bcrit data across multiple model scales and loss targets is
+expensive. Zhang et al. (2024) establish Bcrit scaling in D through three targeted experiments:
+
+ • measuring Bcrit while scaling N but leaving D fixed to 3.07B
+ • measuring Bcrit while scaling D but leaving N fixed to 302M
+ • measuring Bcrit while scaling both N and D proportionally (at 20 TPP)
+
+Interestingly, Bcrit was found to only scale weakly in N , but scale similarly whenever D is scaled. They then
+fit a power law to their data points for the 302M-parameter model, obtaining the fit Bcrit = 22.91D0.47 (in
+tokens).
+In comparison, we took a more brute-force approach, computing Bcrit across many different N and D values,
+and ultimately fitting our Bcrit power law across multiple different model sizes and TPP settings (Fig. 1,
+right). Also, unlike Zhang et al. (2024), we assessed the quality of fit via computation of both R2 values and
+parameter quantiles via bootstrapping (Sec. 3.3).
+Recall also that Zhang et al. (2024) used a different definition of critical batch size. Let us denote their
+quantity Bzhang . They set Bzhang to be the B such that the data required to reach a loss target is 1.2 × Dmin
+(i.e., 1.2× the data required with Bopt ).
+We can use Eq. (6) to align their fitted law with our own. By this equation, we have:
+
+                                                                        Bzhang
+                                                         D = Dmin (1 +         )
+                                                                         Bcrit
+                                                           := Dmin (1.2)
+                                                    Bzhang
+                                              ⇒             = 0.2
+                                                     Bcrit
+                                                    ⇒ Bcrit = 5Bzhang
+
+Thus, to convert their coefficient to our scale, we multiply it by 5, and, dividing by the number of tokens
+in our sequences, obtain Bzhang = 0.0559D0.47 . The Bzhang coefficient (0.0559) is 19% larger than our own
+(0.0471), perhaps reflecting differences in training setup or data quality (and worth investigating further in
+future work). However, the exponents are quite similar (0.47 vs. 0.462), suggesting that both works are
+independently measuring the same fundamental scaling behavior.
+We emphasize that Bcrit directly reflects the fundamental limit to data parallelism in training neural networks.
+Given the significant implications of Bcrit scaling in D rather than C or L (including those discussed in
+Sec. 4), we note the scientific and practical value in having different approaches independently observe this
+same phenomenon.
+
+D.4    Hyperparameter scaling with B
+
+It has long been recognized that the optimal learning rate, ηopt , scales with B, with reports of both
+linear (Krizhevsky, 2014; Chen et al., 2016; Smith & Le, 2017; Smith et al., 2018) and square-root scaling (Hoffer
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.              21
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+et al., 2017; You et al., 2019; Malladi et al., 2022). Recent work has found ηopt to decrease when B > Bcrit (Li
+et al., 2024; Filatov et al., 2024), which resonates with our own findings (Fig. 2, right). Since it is difficult to
+predict exactly how η will scale with B, studies of Bcrit have often done full HP sweeps at each B (McCandlish
+et al., 2018; Shallue et al., 2019).
+The only work we are aware of that√ specifically recommends scaling weight decay with B is Loshchilov &
+Hutter (2017), who suggest λ ∝ B, though this rule is not evaluated systematically. It is also important
+to note that Loshchilov & Hutter (2017) use the independent form of weight decay, where decay is applied
+independently of the learning rate η, unlike common implementations such as AdamW in PyTorch (Wortsman
+et al., 2023). In these more √
+                             typical dependent implementations, weight decay is scaled by η, so any increase
+in η with B (e.g., η ∝ B or B) already increases the effective weight decay strength accordingly.
+
+
+D.5    τ and effective learning rates
+
+The concept of effective learning rates, influenced by weight decay, has been widely discussed (Van Laarhoven,
+2017; Hoffer et al., 2018; Zhang et al., 2018; Chiley et al., 2019; Li & Arora, 2019; Wan et al., 2020; Kosson
+et al., 2023; D’Angelo et al., 2024). In its simplest form, the effective or intrinsic LR is simply ηλ, but in
+these prior works, effective LRs typically measure functional updates relative to weight magnitude, which is
+particularly relevant for normalization-based networks. Comparison of the effects of λ vs. η adjustments in
+the context of LR decay schedules was explored in Bergsma et al. (2025).
+The behavior of effective LRs (relative update sizes) over the course of training has been studied comprehen-
+sively by Kosson et al. (2023), including comparing the effects of increasing η vs. increasing λ. This work
+shows that higher η values can cause large relative updates early in training, which can destabilize training or
+require longer warmups (Kosson et al., 2024). High η and low λ can also lead to larger weight norms (Kosson
+et al., 2023; D’Angelo et al., 2024), which also has a destabilizing effect, particularly on low-precision training.
+These effects may explain why we were able to achieve higher effective LRs ηλ by tuning λ rather than tuning
+η with B (Fig. 2, middle).
+For a given dataset size D, the τ and the batch-normalized effective LR ηλ
+                                                                        B are equivalent, and thus effective
+LRs and the AdamW timescale can be viewed as different perspectives on the AdamW optimization process.
+
+
+
+E     Scaling of τ and λ: additional details and results
+
+E.1    λ scaling with B
+
+Fig. 7 shows how optimal λ changes across B, for all of the model scales and TPP levels where we did
+hyperparameter sweeps. There is a strong linear relationship between λ and B over the smaller batch sizes
+B < Bcrit , with optimal λ eventually plateauing (or decreasing). Note the standard use of λ=0.1 (Hoffmann
+et al., 2022; Brown et al., 2020; Almazrouei et al., 2023; Aleph Alpha, 2024) is only optimal at specific B,
+and this B changes with TPP.
+
+
+E.2    Additional details on τ fitting
+
+We now describe how we obtained the optimal τ values at specific model scales and TPP ratios. Rather than
+taking the empirical minimum loss, we fit a parabola to the ⟨L, τ ⟩ points in log space and took the analytic
+minimum of the parabola. If we have multiple loss values at the same τ (e.g., our data for a single scale and
+TPP comprises multiple different batch sizes), we only kept the lowest loss points at each τ prior to parabola
+fitting. We used validation loss on the held-out validation set. For our τ calculations, we input B in units
+of tokens (in contrast to the output of our reported Bopt and Bcrit scaling laws, which we report in units of
+sequences, of 2048 tokens). Algorithm 1 sketches the full procedure for generating the τ power law (Eq. (3)).
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.       22
+                                             Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+
+                                              20TPP                                                                                         20TPP
+                           100                80TPP                                                                           100           80TPP
+Optimal weight decay, λ
+
+
+
+
+                                                                                                   Optimal weight decay, λ
+                                              320TPP                                                                                        320TPP
+
+
+
+
+                          10−1                                                                                               10−1
+
+
+
+
+                                         102              103                                                                       102                103
+                                                 Batch size, B                                                                                 Batch size, B
+                                          (a) 111M scale                                                                                  (b) 266M scale
+
+                                              20TPP                                                                                         20TPP
+                                              80TPP
+Optimal weight decay, λ
+
+
+
+
+                                                                                                   Optimal weight decay, λ
+                                              200TPP
+
+
+
+                                                                                                                             10−1
+                               −1
+                          10
+
+
+
+
+                                       102              103          104                                                                             103
+                                                 Batch size, B                                                                                 Batch size, B
+                                          (c) 610M scale                                                                                  (d) 1.7B scale
+
+Figure 7: Optimal weight decay scaling with B: The optimal weight decay increases linearly over small
+batch sizes—until B > Bcrit .
+
+
+
+E.3                            Relationship to prior power laws
+
+E.3.1                               Relationship to ηopt scaling laws in dataset size, D
+
+Both Shen et al. (2024) and Bjorck et al. (2024) propose scaling laws for the optimal learning rate, ηopt , as a
+power law in the amount of data, D:
+
+                                                                           ηopt = B · cηD · DmηD
+
+We now discuss how this power law also follows from the power law of τopt in TPP. By Eq. (3), we have:
+
+                                                                      τopt (TPP) = cτ · TPPmτ
+                                                                                         mτ
+                                                                                         D
+                                                                                 = cτ ·
+                                                                                         N
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                                   23
+                  Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Algorithm 1 Generating the optimal τ power law
+  Input: small batch size B, optimal per-N learning rates η
+  Initialize tau_scaling_law_fitting_points = [ ]
+  for N in model_scales do
+    for D in 10N, 20N, 80N, 320N, ... do
+       Reset loss_points = [ ]
+       for λ in lambda_range do
+          Train LLM (N, D, B, λ, η), get validation loss L′
+          τ = B/ηλD
+          loss_points[τ ] = L′
+       end for
+       τopt = arg minτ (loss_points)
+       tau_scaling_law_fitting_points.add(⟨TPP=D/N , τopt ⟩)
+    end for
+  end for
+  Fit c, m for τopt = cTPPm on tau_scaling_law_fitting_points
+
+
+
+Substituting in the definition of τ (Eq. (2)), and assuming λ, B, and N are fixed,3 this implies ηopt will scale
+as:
+
+                                                 B          D mτ
+                                                      = cτ · mτ
+                                              ηopt λD       N
+                                                           mτ 
+                                                            N
+                                               ⇒ ηopt = B          D−(mτ +1)
+                                                            λ · cτ
+                                                        = B · cηD · DmηD                                                       (11)
+
+                                                       N mτ
+                                     where     cηD =             and    mηD = −(mτ + 1)
+                                                       λ · cτ
+Eq. (11) is exactly the form of the power law used in Shen et al. (2024), and explains the results across batch
+sizes seen in Bjorck et al. (2024), as discussed in Sec. 2.4.
+                                                                                                   mτ
+Comparison to fit in Power Scheduler (Shen et al., 2024) Given cηD = Nλ·cτ and mηD = −(mτ + 1),
+we can use these formulas to compare our fit coefficients to those in Shen et al. (2024).
+In Shen et al. (2024), they find mηD = −0.51. In our case, mτ = −0.520, and therefore mηD = −0.48, which
+is quite similar.
+Comparing our cηD to their cηD (= 4.6) is a bit less straightforward. First of all, Shen et al. (2024) inputs B
+in sequences (of length 4096). We thus convert to the scale of our coefficient by dividing by their sequence
+length, obtaining cηD = 0.0011. Secondly, the power law of Shen et al. (2024) is actually for the base µP
+learning rate η̃, while our derivation above assumes the adjusted (final) learning rate η (Sec. 2.1).
+Let us first compare cηD coefficients at the proxy-model scale, i.e., where η = η̃. If we were to use a
+28M-parameter proxy model, and a default λ=0.1 (and using our fit values of cτ = 1.084 and mτ = −0.527),
+                 mτ
+then, by cηD = Nλcτ , our cηD would also equal 0.0011.
+Now we consider how our coefficient varies when N scales. To convert our η scaling law into one for the
+                                  N mτ
+base η̃, we can instead use cηD = λ·ρ·c τ
+                                          , where ρ = P/W , P is the width of the proxy model, and W is the
+width of the target model. The width also affects the number of parameters, N , and hence the term N mτ . In
+Transformers, N scales roughly as N ∝ LW 2 , where L is the model depth and W is the model width. If
+we round the fitted exponent to mτ ≈ −0.5, and substitute the value ρ ∝ 1/W into the denominator, we
+   3 Bjorck et al. (2024) use a fixed λ=0.1, a fixed batch size of 0.5M tokens (for most of their experiments), and fit scaling laws
+
+separately at different model sizes (except in their Section 4). Shen et al. (2024) use µP to adjust the LR for different model
+scales, so the derivation applies at any particular N ; they do not report which optimizer is used nor any of its settings.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.               24
+                  Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+therefore have:
+                                                            N mτ
+                                                    cηD =
+                                                            λρcτ
+                                                            N −0.5
+                                                       ∝      1
+                                                              W
+                                                                       −0.5
+                                                       ∝ (LW 2 )              W
+                                                                         2 −0.5
+                                                       ∝L    −0.5
+                                                                    (W )          W
+                                                             −0.5
+                                                       ∝L
+
+which is invariant to changes in W —i.e., the µP adjustment cancels out the model scaling in width. So, if we
+only scale W , τ scaling would stay in agreement with the Power Scheduler recipe, but if we increase depth, τ
+                                            √
+scaling would decrease η proportional to 1/ L in a manner that is not accounted for in Shen et al. (2024).
+The key point is that the scaling law used by Shen et al. (2024) is valid, indeed, has similar fitted exponents,
+to what would be predicted by the τopt scaling law—but in a specific context only (small models, or models
+only scaling in width). Moreover, we have shown it may be less effective to adjust η in order to optimize τ
+(as these approaches implicitly do); we obtained superior results by instead adjusting λ. By considering η, λ,
+and B holistically, our scaling laws are a superset of these laws for ηopt , as well as other laws that we discuss
+further presently.
+
+E.3.2    Relationship to ηopt scaling laws in model size, N
+
+Sec. 2.2 gave our recipe for tuning hyperparameters, for an arbitrary N , D, and B setting. Here we advocated
+setting peak η to the µP-adjusted learning rate (where the base learning rate comes from proxy-tuning).
+Rather than further adjusting this LR based on the dataset size or batch size, we argued for instead adjusting
+λ so that τ is tuned to its optimal value. Based on both theory, and our empirical findings comparing tuning
+η to tuning λ, we believe that using µP to scale ηopt with model width is sufficient for well-tuned models.
+That is, the theoretical scaling law for ηopt (in model width), given by µP, is sufficient for good performance.
+We discuss this perspective further in this section, specifically how the µP scaling law can explain recent
+work in empirical ηopt power laws.
+As noted in Sec. 2.1, when using µP, a base η is tuned on a small proxy model, and then scaled depending on
+the width of the target model. Let W be the width of the target model, and let P be the width of the proxy
+model. µP prescribes scaling the optimal base learning rate, η̃opt , down to ηopt = ρη̃opt , where ρ = P/W .
+That is, ηopt = P η̃opt /W . As models grow in size, P and η̃opt do not change, so ηopt will scale ∝ 1/W . Dey
+et al. (2024, Figure 2) show that, indeed, a range of LLMs from the GPT, Llama, and DeepMind series are
+roughly following a scaling law where their chosen learning rate, η is following η ∝ 1/W . In other words,
+if one were to build a scaling law for ηopt based on published LLM settings, it would roughly obey the µP
+theoretical scaling law.
+Furthermore, we can develop a scaling law for ηopt in model size, N , using µP, and show that it matches a
+recent empirical scaling law by Porian et al. (2024). The number of model parameters in any Transformer-
+based LLM scales roughly in the depth, L, and width, W , as N ∝ LW 2 . If we assume that we maintain a
+fixed width-to-depth ratio, i.e., R = W/L, or L = W/R, then we have N ∝ W 3 , or W ∝ N 1/3 . Now, since
+µP prescribe scaling ηopt ∝ W −1 , then for a fixed aspect ratio, ηopt ∝ N −1/3 .
+Taking a very different approach, Porian et al. (2024) developed an empirical scaling law for ηopt as a function
+of the number of model parameters. At each model scale, they trained with a variety of batch sizes and
+learning rates, and found the optimal settings of these hyperparameters. All models were trained to 20 TPP.
+They then fit a power law through the optimal LR settings, and found that ηopt ∝ N −1/3 , exactly as would
+be expected if one simply followed µP.
+As it provides a principled approach to scaling hyperparameters, µP can adapt to scaling when aspect ratio
+is not fixed. We therefore advocate using µP to set ηopt , rather than fitting special ηopt power laws. However,
+with regards to our overall approach, it does not actually matter whether one uses the µP theoretical scaling
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                 25
+                                                      Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+                               6.0e-03        τ = 3.3                                                                  6.0e-04         τ = 3.3                                                                     6.0e-05       τ = 3.3
+                                              τ = 0.33                                                                                 τ = 0.33                                                                                  τ = 0.33
+Weight update coeff. (ct,i )
+
+
+
+
+                                                                                        Weight update coeff. (ct,i )
+
+
+
+
+                                                                                                                                                                                    Weight update coeff. (ct,i )
+                               5.0e-03        τ = 0.033                                                                5.0e-04         τ = 0.033                                                                   5.0e-05       τ = 0.033
+
+                               4.0e-03                                                                                 4.0e-04                                                                                     4.0e-05
+
+                               3.0e-03                                                                                 3.0e-04                                                                                     3.0e-05
+
+                               2.0e-03                                                                                 2.0e-04                                                                                     2.0e-05
+
+                               1.0e-03                                                                                 1.0e-04                                                                                     1.0e-05
+
+                                    0                                                                                       0                                                                                           0
+                                          0    100        200     300       400   500                                            0     1000        2000     3000      4000   5000                                            0       10000   20000 30000 40000    50000
+                                                          Weight update (i)                                                                         Weight update (i)                                                                         Weight update (i)
+
+
+
+
+                                               (a) 557 steps                                                                           (b) 5568 steps                                                                            (c) 55680 steps
+
+Figure 8: τ is invariant to steps, with a learning rate decay schedule (111M scale, proxy-tuned peak
+η with linear decay-to-zero): Here we adjust weight decay, λ, in order to maintain τ at a constant value,
+decreasing λ proportional to the increase in S. Regardless of the total number of optimization steps, we see
+that the same τ corresponds to the same shape of the distribution of weight update coefficients (i.e., the same
+shape over the data, regardless of how the data is discretized in training). For batch sizing, this means that if
+we use a constant D but increase B by K× (decreasing S by K×), we will incorporate information across
+the data similarly—provided we use the same τ .
+
+
+law or an empirical one. The key point is that these laws can be used to set η at a particular model scale,
+while the τ law should further be used to set λ depending on the B or D values.
+
+E.4                                      The EMA perspective and learning rate schedules
+
+To understand how the EMA view applies with a dynamic LR schedule, we follow the discussion of Bergsma
+et al. (2025), who extended the formulation in Wang & Aitchison (2024). Bergsma et al. (2025) consider
+EMAs with time-varying smoothing, αt ∈ [0, 1]. Letting α1 = 1 (i.e., y1 = x1 ), they express yt in terms of all
+inputs xt :
+
+                                                                                        y1                                  =        α1 x1 ,
+                                                                                        y2                                  =        (1 − α2 )α1 x1 + α2 x2 , · · ·
+                                                                                                                                                         
+                                                                                                                                     Xt     Y t
+                                                                                         yt                                 =                   (1 − αj ) αi xi                                                                                                    (12)
+                                                                                                                                     i=1       j=i+1
+
+                                                                                                                                                                             Q                                                  
+                                                                          t
+The EMA coefficient on each input is denoted ct,i , where ct,i =          j=i+1 (1 − αj ) αi . In other words, ct,i
+                                                                             Pt
+reflects the contribution of input xi to output yt at time t, such that yt = i=1 ct,i xi . Unlike a standard EMA
+with a fixed smoothing parameter, in this extended EMA the coefficients need not decrease exponentially as i
+decreases. Indeed, any set of coefficients can be generated by some particular smoothing schedule.
+In terms of learning rate schedules for AdamW training, αt = ηt λ becomes the smoothing parameter at step
+t (cf. Sec. 2.1). The EMA itself, yt , is the model parameters. The EMA is over weight updates: a large
+coefficient ct,i means the ith weight update contributes a lot to the EMA at step t. The EMA coefficients
+thus provide a more granular view of the contribution timescale than τ alone.
+We now study the question, how do the EMA coefficients change as the step count changes? We generated
+the ct,i coefficients for the linear decay-to-zero LR schedule, and plot these coefficients at the final step (i.e.,
+showing the contribution of weight updates to the final parameters). We use the µP-tuned and adjusted peak
+η, for 111M models. The learning rate increases linearly to the peak for the first 10% of steps, then decreases
+from the peak to 0 for the remainder of steps. We simulated three cases: where we take 557 steps, where
+we take 5568 steps, and where we take 55680 steps (5568 steps would be 20 TPP for a 111M model using
+B=192). From the perspective of batch sizing, these different steps could be achieved by decreasing the batch
+size twice by 10×.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                                                                                                   26
+                  Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+We adjusted λ for each step count in order to obtain the same three specific τ values. In Fig. 8, we see that
+the same τ implies the same shape of coefficients across the steps, and hence the same contribution over
+(normalized) time. That is, weight updates from the same portion of the training data contribute equally to
+the final model parameters.4
+The key takeaway is that since τ is independent of the number of steps, it theoretically provides a B-
+independent measure of the AdamW timescale over weight updates, regardless of learning rate schedule.
+However, this equivalence for different B breaks down when B > Bcrit and weight updates themselves no
+longer contain linearly B× the information of a single sample.
+
+F     Scaling of Bopt and Bcrit : additional details and results
+
+F.1    Derivation of “extra data” Eq. (6)
+
+Eq. (5) can be written as:
+                                                          D − Dmin       Smin
+                                                                     =
+                                                            Dmin       S − Smin
+                                            ⇒ (D − Dmin )(S − Smin ) = Dmin Smin
+                                            ⇒ DS − DSmin − SDmin = 0
+
+Given B = D/S, we can substitute in S = D/B to get an equation in a single variable, from which we can
+solve for D.
+                                           D2           DDmin
+                                              − DSmin −       =0
+                                           B             B
+                                        ⇒ D2 − DBSmin − DDmin = 0
+                                         ⇒ D(D − BSmin − Dmin ) = 0
+                                                                    ⇒ D = Dmin + BSmin
+
+Given Bcrit = Dmin /Smin , we can substitute Smin = Dmin /Bcrit and obtain:
+                                                                   Dmin
+                                                    ⇒ D = Dmin + B
+                                                                   Bcrit
+                                                                         
+                                                                     B
+                                                    ⇒ D = Dmin 1 +
+                                                                    Bcrit
+
+F.2    Estimating Bcrit
+
+We first provide some learnings from developing the Bcrit estimation procedure.
+First, regarding the functional form LB (D) = EN + Dconst D−β , we found that including the irreducible loss
+term EN was important for obtaining good fits. EN conceptually represents the Bayes risk plus the minimum
+loss obtainable for a model of size N (i.e., the first two terms of Eq. (8)). Second, only interpolated points
+were reliable; we only compute Bcrit for loss values where all points are between, or very near to, curve fitting
+points. Third, each power law should have at least 3 points for fitting, in order to capture the concavity
+of the scaling in D. Finally, we sample our B values logarithmically and, as in McCandlish et al. (2018),
+perform our fits to Eq. (5) in log space.
+Fig. 9 illustrates all the fit scaling laws for the Bcrit experiments. Notice that beyond the fitting points, the
+curves may not predict behavior well. In particular, we would expect all curves to eventually converge as D
+increases. Because loss targets beyond the fitting points are unreliable, we only compute Bcrit at loss targets
+where all the data sizes can be estimated through interpolation.
+   4 Note we do not plot the initial coefficients c
+                                                    t,0 here, but they are equal across the scales for a given τ , unlike the non-initial
+coefficients, which reduce by 10× as the number of steps increases by 10×. So a constant τ means both the same contribution
+across the data, and the same bias (dependence on initial weights).
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                  27
+                                Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+                  3.4
+                                                       B                                           3.4                                  B
+                  3.2                            192       1536                                                                   192       1536
+                                                                                                   3.2                            384       3072
+                                                 384       3072
+                  3.0                            768       6144                                                                   768       6144
+                                                                                                   3.0
+
+
+
+
+                                                                                 Validation loss
+Validation loss
+
+
+
+
+                  2.8                                                                              2.8
+                  2.6                                                                              2.6
+
+                  2.4                                                                              2.4
+
+                  2.2                                                                              2.2
+                              Observed data                                                                    Observed data
+                  2.0                                                                              2.0
+                        109       1010         1011           1012                                       109     1010          1011         1012
+                              D (total training tokens)                                                        D (total training tokens)
+                               (a) 111M scale                                                                   (b) 266M scale
+
+                  3.4                                  B                                           3.4                                B
+                                                 504        4032                                                                 504        4032
+                  3.2                            1008       8064                                   3.2                           1008       8064
+                                                 2016                                                                            2016
+                  3.0                                                                              3.0
+Validation loss
+
+
+
+
+                                                                                 Validation loss
+                  2.8                                                                              2.8
+
+                  2.6                                                                              2.6
+
+                  2.4                                                                              2.4
+
+                  2.2                                                                              2.2
+                              Observed data                                                                    Observed data
+                  2.0                                                                              2.0
+                        109      1010         1011           1012                                        109     1010          1011         1012
+                               D (total training tokens)                                                       D (total training tokens)
+                                (c) 610M scale                                                                  (d) 1.7B scale
+
+Figure 9: Scaling laws in D for computing Bcrit : Full set of B-specific power laws, for 111M to 1.7B
+scales, fitted after training models with different batch sizes, B, and dataset sizes, D, at each scale (empirical
+data from real training runs indicated by points). From these power laws, we can compute the amount of
+data needed to reach any target loss, as illustrated in main paper Fig. 3.
+
+
+Fig. 10 shows the specific fits of Eq. (5) at particular loss targets. While Eq. (5) reflects the data trend
+well over the given B values, we consistently find that points with very small B do not approach Dmin . We
+discussed this observation further in Appendix B.
+Finally, for clarity, we provide Algorithm 2, which gives the detailed approach to generating the Bcrit power
+law in procedural form.
+
+F.3                 Estimating Bcrit for the 3.3B model
+
+To obtain an estimate of Bcrit for the 3.3B model (shown in Fig. 1, right), it was not feasible to apply our
+full Bcrit fitting procedure at this scale (i.e., fitting B-specific loss power-laws, etc.). Instead, we estimated
+Bcrit based on two B, Dmin pairs. That is, (based on an initial estimate of Bcrit ) we trained a 3.3B model to
+23TPP with B=2016 and got a loss of 2.1688, and a separate model to 30TPP with B=4032, obtaining a loss
+of 2.1695. Given these losses are very close, these two models should have the same Bcrit and thus same Dmin .
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                    28
+                                                     Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+ D, total number of examples (sequences)
+
+
+
+
+                                                                                                            D, total number of examples (sequences)
+                                                                         S             D                                                                                         S             D
+                                           108                        ( Smin − 1) = ( Dmin − 1)−1                                                                             ( Smin − 1) = ( Dmin − 1)−1
+                                                                      Smin                                                                                                    Smin
+                                                                      Dmin                                                                                                    Dmin
+                                                                      B ∗ = 1475.2                                                                    108                     B ∗ = 2358.0
+
+                                                    6144
+
+                                                                                                                                                             6144
+                                                      3072
+                                           107                                                                                                                 3072
+                                                            1536
+                                                                                                                                                                       1536
+                                                                    768
+                                                                            384    192                                                                                         768
+                                                                                                                                                                                          384     192
+                                                                                                                                                      107
+
+                                                                      104                                                                                            104                                105
+                                                            S, total number of steps                                                                                S, total number of steps
+                                                       (a) 111M, loss=2.872                                                                                   (b) 266M, loss=2.600
+ D, total number of examples (sequences)
+
+
+
+
+                                                                                                            D, total number of examples (sequences)
+                                                                         S             D                                                                                         S             D
+                                                                      ( Smin − 1) = ( Dmin − 1)−1                                                                             ( Smin − 1) = ( Dmin − 1)−1
+                                                                      Smin                                                                                                    Smin
+                                                                      Dmin                                                                                                    Dmin
+                                                                      B ∗ = 4258.6                                                                                            B ∗ = 4111.9
+
+                                                                                                                                                      108
+                                                8
+                                           10
+                                                      8064                                                                                                   8064
+
+                                                                                                                                                                     4032
+                                                             4032
+                                                                     2016                                                                                                   2016
+                                                                            1008     504                                                                                           1008
+                                                                                                                                                                                            504
+
+
+
+                                                           104                             105                                                                       104                                105
+                                                            S, total number of steps                                                                                S, total number of steps
+                                                    (c) 610M scale, loss=2.437                                                                              (d) 1.7B scale, loss=2.295
+
+Figure 10: Example fits of trade-off Eq. (5) plotting Smin and Dmin : The empirical data has a good fit
+with Eq. (5) across model scales and loss targets. These estimates of Bcrit are used in fitting the Bcrit -scaling
+power law (Fig. 1 right).
+
+
+We solve for this Bcrit as follows. Let B2 = 4032 and B1 = 2016. By Eq. (6):
+
+                                                                                       D2 = Dmin (1 + B2 /Bcrit ), and
+                                                                                       D1 = Dmin (1 + B1 /Bcrit )
+
+Let r = D2 /D1 (i.e., 30/23 in this case). If we divide the above equations, and solve for Bcrit , we find:
+
+                                                                                                       B2 − rB1
+                                                                                             Bcrit =
+                                                                                                        r−1
+
+Plugging in our values of r, B1 , and B2 , we obtain an estimated Bcrit of 4610, corresponding to a Dmin of
+approximately 16 TPP.
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                                                      29
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Algorithm 2 Generating the Bcrit power law
+  Initialize bcrit_scaling_law_fitting_points = [ ]
+  for N in model_scales do
+    ▷ Fit B-specific (and N -specific) scaling laws, LB (D):
+    for B in batch_sizes[N ] do
+       Reset scaling_law_fitting_points = [ ]
+       for D in 10N, 20N, 80N, 320N, ... do
+          Train LLM (N, D, B), get validation loss L′
+          scaling_law_fitting_points.add(⟨D, L′ ⟩)
+       end for
+       Fit EN , Dconst , β for LB (D) = EN + Dconst D−β on scaling_law_fitting_points
+    end for
+    ▷ Use LB (D) to estimate Bcrit at various loss values:
+    for L̂ in lossT argets[N ] do
+       Reset tradeoff _fitting_points = [ ]
+       for B in batch_sizes[N ] do
+                                               β1
+          Get DB = L−1
+                    B (L̂) =
+                                      Dconst
+                                      L̂−EN
+         tradeoff _fitting_points.add(⟨DB , S=DB/B ⟩)
+       end for
+       Fit Dmin , Smin for Eq. (5) on tradeoff _fitting_points
+       Bcrit = Dmin/Smin
+       bcrit_scaling_law_fitting_points.add(⟨Dmin , Bcrit ⟩)
+    end for
+  end for
+  Fit c, m for Bcrit = c(Dmin )m on bcrit_scaling_law_fitting_points
+
+
+F.4    Bcrit scaling in loss
+
+Fig. 5 (middle) shows that Bcrit is clearly not a power law in loss, as proposed in prior work (McCandlish
+et al., 2018; Kaplan et al., 2020; Li et al., 2024). However, if we only consider points with the same TPP,
+there does appear to be somewhat of a power-law relationship. In fact, this is implied by Bcrit being a power
+law in D, along with the (standard) assumption that loss scales similarly in N and D.
+Specifically, let r̂ = D/N be the fixed TPP ratio. Therefore, N = D/r̂. Assuming loss follows Eq. (8), we
+have:
+                                       L(N, D) = E + Nconst N −α + Dconst D−β
+                                                             −α
+                                                              D
+                                               = E + Nconst         + Dconst D−β
+                                                              r̂
+                                                      = E + Nconst r̂α D−α + Dconst D−β
+Now, if α ≈ β, as is commonly accepted (Hoffmann et al., 2022; Besiroglu et al., 2024; Krajewski et al., 2024;
+Porian et al., 2024; Gadre et al., 2024), we have:
+                                               L(D) = E + (Nconst r̂α + Dconst )D−α
+                                                      = E + Kconst D−α
+where Kconst = Nconst r̂α + Dconst is a constant. In other words, at a fixed TPP, loss is a power law in data.
+Given Bcrit is also fundamentally a power law in data, then by the transitivity of power law relationships,
+Bcrit is also a power law in loss in this context. This relationship can also be derived by expressing the D in
+Eq. (7) as a power law in Bcrit , and substituting into E + KD−α .
+
+F.5    Weight decay affects B scaling laws
+
+Weight decay affects scaling of Bopt . Table 5 illustrates how fixing λ at different values alters the fitted
+Bopt power law. Larger λ systematically yields larger Bopt and poorer fit quality (lower R2 ). When λ is
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.                 30
+                 Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training
+
+Table 5: Different λ settings systematically affect fitted power laws for Bopt , and result in poorer fit quality
+(lower R2 ). Fitted parameters change with λ and consequently projected Bopt values (in sequences) for
+different token budgets D.
+
+                  Weight decay       Scaling law             R2      D=1e10     D=1e11      D=1e12
+                                                    0.607
+                  0.4                Bopt = 0.0006D          0.706   587        2377        9615
+                  0.2                Bopt = 0.0012D0.543     0.926   323        1128        3937
+                  0.1                Bopt = 0.0123D0.429     0.972   240        644         1729
+                  0.05               Bopt = 0.384D0.270      0.689   192        358         667
+                  0.025              Bopt = 10.3D0.120       0.161   163        215         284
+                  Tuned              Bopt = 0.0306D0.383     0.984   207        500         1207
+
+
+fixed, the batch size that minimizes loss is only a conditional optimum (we denote it as Bopt|λ ) because it
+compensates for suboptimal timescales τ rather than representing the globally tuned Bopt obtained when λ
+is optimized jointly.
+The degraded R2 values arise because a fixed λ forces B to balance two partially competing goals: (1) main-
+taining a good τ value, and (2) remaining below Bcrit to avoid gradient redundancy. A simple power law
+cannot capture this coupled behavior.
+From the relation τ = B/(ηλD) and the empirical scaling τopt ∝ (D/N )m (Eq. (3)), one can derive that, for
+constant η, λ, and N , the batch size preserving τopt should scale as B ∝ Dm+1 (with m + 1 ≈ 0.47 for our
+data). The exponents in Table 5, however, deviate from 0.47. For small D and large λ, the B that preserves
+τopt lies near or above Bcrit , yielding worse loss due to gradient redundancy. This means Bopt|λ is artificially
+lower for small D values. Since Bopt|λ is affected differently for different D, the scaling law slope is distorted
+(in this case, increased). Analogous issues disrupt Bopt|λ for small λ. These distortions reduce R2 and impair
+generalization to large-scale training. When λ is tuned, this confound is removed, and the resulting Bopt law
+aligns cleanly with the expected D0.4 scaling.
+
+Weight decay affects scaling of Bcrit . A similar confound arises for Bcrit . Fixing λ causes deviations
+from τopt to mingle with true gradient-redundancy effects. At 111M scale and a target loss of 3.03, e.g.,
+larger batches perform worse solely because τ drifts from its optimal value, reducing the fitted Bcrit from 867
+(tuned λ) to 707 (fixed λ=0.1). At other loss targets, Bcrit is less affected. Since the estimated Bcrit is affected
+differently at different scales, the slope of the Bcrit scaling law is again artificially distorted. Bcrit will appear
+to increase faster than D0.5 , and projections to larger scales will be inaccurate. In contrast, tuning λ isolates
+gradient-redundancy effects, yielding a stable D0.5 relation that generalizes across scales.
+
+
+
+
+© 2025 Cerebras Systems Inc. All Rights Reserved.           31
+

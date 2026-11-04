@@ -1,0 +1,134 @@
+---
+title: "Marin mid-training and post-training: concrete experiments"
+subtitle: "Long-context data stores, matched continuation runs, chat SFT and RL probes"
+date: 2026-11-04
+---
+
+## Track the experiment, not just a stage name
+
+Marin uses several model families and experiment branches. The older dense Marin-32B cooldown, the June 67B-A2B Grug context-extension/SFT work, Delphi dense runs and later Snowball RL experiments are not one uninterrupted public recipe. This guide follows individual code/data/checkpoint lineages. The [data build guide](../data/marin-artifact-lineage.qmd) and [evaluation guide](../evaluation/marin-evaluation.qmd) provide their input and measurement contracts.
+
+All PR merge states below were retrieved on **2026-11-04**. [The evidence bundle](../../references/marin/2026-marin-code-data-evaluation-evidence/README.md) saves metadata, selected head files, experiment-issue discussions and HF cards. A PR head records reviewable source; an issue's **runtime source SHA** records what its author says was launched. They need not match. No continuation, SFT or RL run has been executed here.
+
+## 1. Long-context mid-training begins with a different data inventory
+
+[PR #8637](https://github.com/marin-community/marin/pull/8637), unmerged, head `c2fb62b759c3257e4fcb673922431f76ee84acfc`, builds a **separate length-partitioned store**, rather than rewriting the canonical source DAG. Its [saved builder](../../references/marin/2026-marin-code-data-evaluation-evidence/pr-heads/8637/experiments/datakit/store/run_length_partitioned_store.py) partitions retained documents within domain × quality cells at **65,536 tokenizer tokens**.
+
+| Author-reported output | Short: ≤65,536 tokens | Long: >65,536 tokens |
+|---|---:|---:|
+| Documents | 11,722,087,779 | 6,470,523 |
+| Tokens | 8,554,200,622,073 | 1,818,143,081,980 |
+| Populated cells | 200 | 191 |
+
+The PR reports 114 source components, 391 populated child cells and per-cell count conservation. The store URI is `gs://marin-us-central2/datakit/store/june-67b-a2b-length64k/2026.08.24`. The **counts are reported in the PR**, not obtained by our own scan, and the URI's existence in code is not proof of public read access. Long-context training cannot be reproduced from the public mixture-results parquet alone.
+
+The intervention preserves outer topic/quality weights. Let $w_b$ be the original weight of cell $b$, $U_{b,S}$ and $U_{b,L}$ its available short/long tokens, and $s$ the long-document skew. Then
+
+$$
+w_{b,L}=w_b\frac{sU_{b,L}}{U_{b,S}+sU_{b,L}},\qquad
+w_{b,S}=w_b\frac{U_{b,S}}{U_{b,S}+sU_{b,L}}.
+$$
+
+Thus $w_{b,L}+w_{b,S}=w_b$. The aggregate long share is $\sum_b w_{b,L}$, **not** the corpus-wide long-token fraction. The reported weighted shares are about **14.943% at 1×**, **22.586% at 2×**, and **43.405% at 8×**. Increasing $s$ by eight does not multiply the final global long share by eight. [PR #8637](https://github.com/marin-community/marin/pull/8637), [8× experiment #8813](https://github.com/marin-community/marin/issues/8813).
+
+### The sampler changes the realized treatment
+
+A review of [PR #8656](https://github.com/marin-community/marin/pull/8656) identified a naive flattened-child implementation: flooring weights on a 49,152-slot mixture lattice zeroed 79 positive cells and changed nominal long-token share from 22.5856% to 22.4365%, assigning the leftover slots to a large short cell. The retrieved head's [mixture code](../../references/marin/2026-marin-code-data-evaluation-evidence/pr-heads/8656/experiments/grug/moe/long_context_datakit_moe_mix.py) instead composes short/long children with repetition inside the fixed outer cells. The review is evidence of a **historical issue and revised implementation**, not a claim that the retrieved head still uses the criticized flattening.
+
+Replication gate: inspect realized sampler frequencies, zero-probability cells, child lengths and complete-cycle token counts. A mathematically normalized vector is insufficient if discrete sampling changes it. For cyber logs/repositories, preserve document boundaries and measure actual document-length supply before applying this treatment.
+
+## 2. Matched 65K→262K continuation runs
+
+[PR #8656](https://github.com/marin-community/marin/pull/8656), unmerged, head `03890a0c6497075ae570bf7dc57fe6aa5419e967`, provides pinned context-extension launchers, with later [4× PR #8791](https://github.com/marin-community/marin/pull/8791) and [8× PR #8815](https://github.com/marin-community/marin/pull/8815), also unmerged. The treatment is a data change from the same continuation checkpoint, rather than training unrelated models from scratch.
+
+The [8× experiment contract](https://github.com/marin-community/marin/issues/8813) records:
+
+| Controlled quantity | Configuration |
+|---|---|
+| Initial model | June 67B-A2B Grug cooldown, native `step-156000` checkpoint |
+| Continuation | 1,000 updates, ending at step 157000; context 65,536→262,144 |
+| Global sequence batch | 256; **67,108,864 tokens/update** |
+| Total continuation exposure | **67,108,864,000 tokens**, calculated as batch × context × updates |
+| Attention setting | QK multiplier 1.75 |
+| Optimizer/schedule | MuonH; linear LR from 0.000264 to 0.0000528 |
+| Mesh | replica 1, data 256, context 4, expert 1, model 1 |
+| Data offset | `resume_data_offset=7,296,000` |
+| Evaluation/permanent checkpoint interval | Every 250 updates |
+| Experimental axis | Only the within-cell long-document repetition/skew |
+
+Its initial checkpoint URI is recorded in the issue; the manifest describes a ~1.079TB native checkpoint. This is a TPU v4-2048 experiment contract, not a directly runnable 96-H100 configuration. Reproduce the scientific controls on qualified hardware, or budget and qualify the exact stack separately.
+
+### What was launched, and what completed?
+
+| Treatment | PR / experiment | Runtime SHA reported in discussion | Evidence retrieved |
+|---|---|---|---|
+| 2× | [#8656](https://github.com/marin-community/marin/pull/8656) / [#8734](https://github.com/marin-community/marin/issues/8734) | `1691d0a9afbfe849538e180186bec7759574cf2c` | Launch, scheduler trouble/recovery, then [completion at step 157000](https://github.com/marin-community/marin/issues/8734#issuecomment-5482519122) with final checkpoint metadata reported present |
+| 4× | [#8791](https://github.com/marin-community/marin/pull/8791) / [#8790](https://github.com/marin-community/marin/issues/8790) | `3c82e92a3d4c0d6b286038811dc7c330a2253017` | [Completion at step 157000](https://github.com/marin-community/marin/issues/8790#issuecomment-5482519627) with final checkpoint metadata reported present |
+| 8× | [#8815](https://github.com/marin-community/marin/pull/8815) / [#8813](https://github.com/marin-community/marin/issues/8813) | `92514c5358e9cd99c89bdd4a6600ac7bbeddc147` | [Launch verified](https://github.com/marin-community/marin/issues/8813#issuecomment-5481810328), workers allocated and W&B initialized; no final scored comparison established by the retrieved comments |
+
+A closed experiment issue or successful launch is not a quantitative result. We have not retrieved a complete paired, per-length MRCR/RULER result table establishing which skew won. The supplied evidence justifies replicating this **controlled experiment**, not choosing 8× as empirically optimal. For the 2× completion, checkpoint presence is author-reported; our collector did not access that cloud object.
+
+The operational record also matters: the 2× job initially could not form its worker gang because the slice had inconsistent worker IDs. Record unstarted time separately from training throughput. Otherwise wall-clock comparisons can penalize a data recipe for infrastructure trouble.
+
+## 3. A separate 4K→16K hero handoff
+
+[PR #9639](https://github.com/marin-community/marin/pull/9639), unmerged, head `7e1a48c4e6544c9f60adaabc8ab63b87a1f3948b`, addresses a different hero run. It holds **4,194,304 tokens per rack per update** constant as context changes; at 16K on 11 racks that becomes 2,816 sequences. Step count remains 390,251 with LR/decay/router settings preserved.
+
+Its most consequential data detail is shuffling fixed **$2^{20}$-token blocks**, rather than fixed sequence-count blocks. The PR estimates that retaining the old sequence-based convention after the switch would reread **2.85T tokens**. The main-mixture boundary shifts from step108000 to108096 and requires explicit acceptance. Canonical evaluation stays at 4K, with separate longer-context diagnostics and cumulative-FLOP continuity.
+
+The PR explicitly says the live run is unchanged and a GPU rehearsal is still required. [PR #10711](https://github.com/marin-community/marin/pull/10711) later proposes multiple validation contexts; its verification is CPU-only. For our project, the actionable checklist is: restore optimizer and sampler state, preserve token-level exposure accounting, check actual shuffle continuity, record context/QK/RoPE changes and evaluate at both the old fixed context and the new context. A context-length flag alone does not specify a sound continuation.
+
+## 4. Chat SFT: data preparation and weights-only initialization
+
+[PR #7231](https://github.com/marin-community/marin/pull/7231), merged, head `16e86616bc49551d9f194190f94eb33d9a7c38db`, introduces `SFTSpec` and an ArtifactStep pipeline:
+
+```{mermaid}
+flowchart LR
+    D["HF dataset + pinned revision"] --> C["ShareGPT/OpenAI to canonical messages"]
+    C --> T["Chosen chat template + assistant-only loss mask"]
+    T --> P["Tokenize, pack, count scored/training tokens"]
+    M["HF or native prepared model source"] --> S["Weights-only initialization, fresh SFT optimizer"]
+    P --> S
+    S --> H["Native checkpoint, HF export, capability evaluation"]
+```
+
+A generic smoke in that PR reached train-step tracing but was **not fully green** due to tied-embedding μP optimizer-state vocabulary padding. Merge status is not a completed end-to-end smoke. [PR #7280](https://github.com/marin-community/marin/pull/7280), merged, prepares Delphi's reserved think/tool token rows and corresponding embeddings/head before SFT.
+
+### Concrete two-stage MoE recipe
+
+[PR #7250](https://github.com/marin-community/marin/pull/7250), merged, head `9f527141435cc3606511b331326d09b1f92d696b`, adapts the generic interface to Grug's native model tree. The [baseline source](https://github.com/marin-community/marin/blob/1d274b52c636b6f2a9177b1d4c14b2f74795a8a6/experiments/june_tpu_67b_a2b/moe/sft_67b_a2b_2stage.py) records:
+
+| Stage | Input / revision in code | Initialization / horizon |
+|---|---|---|
+| Plain chat | `nyu-dice-lab/wildchat50m-rewild-sft-385700`, `46a5bb5` | Weights-only from the native step42150 base; one packed epoch |
+| Science reasoning | `laion/llama-nemotron-science-reasoning-on-canonical-think-full`, `bae881d` | Stage1 output; one packed epoch |
+
+These are short revision pins in the source; resolve and save full HF commits before our launch. Canonicalize conversation columns, preserve assistant-only masks and chain actual Stage1 output into Stage2. Packed epoch count comes from the resulting token cache, not the unprocessed number of conversations. The code's ~538.9M WildChat-token estimate gives about257 steps at sequence32768/batch64; it is a configuration comment, not our measured token census.
+
+The implementation uses **64 H100 GPUs**, EP8, sequence32768, global batch64 and model-axis1. It uses **AdamH**, rather than blindly retaining the base run's Muon configuration: the PR explains a replicated ~21GiB Newton–Schulz workspace causing OOM at the considered geometry. The code sets both matrix and auxiliary Adam LRs to `5e-5`, betas `(0.9,0.95)`, epsilon `1e-8`, clipping1, weight decay0, warmup3%, cosine schedule and minimum ratio0.1. These are **first-pass recipe values**, not a demonstrated hyperparameter optimum.
+
+The PR reports a completed **eight-step smoke**, loss0.712, checkpoint saved and ~68GiB/device memory. That verifies a particular systems path, not final instruction-following or reasoning quality. Run the evaluation suite after training; do not promote the smoke loss into a capability result. [PR #7250](https://github.com/marin-community/marin/pull/7250).
+
+### Dense Delphi is a separate recipe
+
+The [Delphi SFT config](https://github.com/marin-community/marin/blob/1d274b52c636b6f2a9177b1d4c14b2f74795a8a6/experiments/sft/configs/delphi_1e22.py) uses a Magpie/science warmup mixture and a prepared HF model, with its own optimizer/schedule. We saved the exact base HF revision `56cc5aaf65cd59d6632962cee636a0423abfbf66`. Some dataset refs in that config remain `main`/TODO and must be pinned. Do not substitute this recipe into the native MoE launcher without testing the model source, tokenizer and chat template.
+
+## 5. RL probes and synthetic curriculum evaluation
+
+[PR #6325](https://github.com/marin-community/marin/pull/6325), closed **unmerged**, head `4c2ac5da0d5e5137a88d206b647afd6b348a6204`, defines a 100-step MATH500 RL probe over a grid of mid-trained Delphi checkpoints: three mixtures × nine budgets, plus reference cold starts. It specifies RLOO/math-answer formatting. The launcher is useful evidence of the proposed comparison design; it does not establish that all those RL runs completed. We pinned and saved one [public Magpie cold-start model's card/config](https://huggingface.co/laion/delphi-9e19-p33m67-coldstart-magpie_lr1e5/tree/8be0758421b6ec928bd4d7a8fab0e8035430abb6), without downloading weights.
+
+[PR #10623](https://github.com/marin-community/marin/pull/10623), unmerged, head `cb5a332a5b7f137fcee0eaccbfc36503a0037328`, gives a more developed evaluation account for recursive synthetic improvement. It compares a pool-only control with a pool-plus-synthesized treatment, evaluates held-out pool tasks and probes of synthesized/held-out families, and reports paired bootstrap intervals over tasks with four attempts per task.
+
+The Snowball example's synthesized-family probe gain coexists with a Smartie validation decline; Qwen seed1's held-out-family probe gain coexists with an approximately unchanged Smartie score. This is concrete evidence that specializing training can improve a targeted distribution without improving general held-out tasks. The [evaluation guide](../evaluation/marin-evaluation.qmd#post-training-evaluate-behavior-and-generalization) lists exact numbers and limits. Our saved README includes additional seeds and caveats; we have not independently re-scored its per-attempt traces.
+
+For our cyber extension, keep source-document adaptation, chat SFT and verifier-driven agent RL as separate experiments. First validate representations/formatting and export parity, then compare equal-budget base/control/treatment policies on independent tasks and general guardrails. A cyber verifier must record environment failures separately from incorrect behavior. Those are proposed replication controls, not results already established for our intended model.
+
+## 6. What to reproduce next
+
+1. **Data:** build and inspect one versioned short/long store with conserved cell counts and known realized sampler shares.
+2. **Continuation:** qualify a shorter-context checkpoint restore, optimizer/sampler continuity and native/exported loss before attempting262K sequences.
+3. **Evaluation:** freeze fixed-context BPB, long-context likelihood and generated-answer retrieval as separate cohorts; archive per-item scores and coverage.
+4. **SFT:** reproduce a small canonical-message → packed-cache → assistant-mask → weights-only SFT → export path; expand to the chosen native model only after it passes.
+5. **RL:** reproduce one verified task/environment/control comparison and its uncertainty calculation before scaling the curriculum.
+
+These steps are an executable research order once datasets/checkpoints and the intended hardware environment are available. The branch-specific source and reported runs tell us exactly what to inspect; access to their private or unverified cloud artifacts remains an explicit dependency.

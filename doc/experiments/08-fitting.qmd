@@ -1,0 +1,44 @@
+---
+title: "Fitting loss surfaces and diagnosing extrapolation"
+---
+
+> **Reading note.** This is an explanatory reconstruction of Jiaxuan Zou’s literature synthesis. Published experiments belong to the cited teams. Numbered protocols and illustrative matrices are our planning synthesis unless explicitly attributed.
+
+The blog's §8 turns measured runs into a model of loss. First verify tuning completeness, warmup conventions, and compute accounting. A sophisticated regression cannot repair a run matrix that confounds size with horizon or changes recipes between points.
+
+## Candidate models
+
+A baseline is the Chinchilla-style additive surface
+
+$$\widehat L(N,D)=E+A N^{-\alpha}+B D^{-\beta},$$
+
+with positive $A,B,\alpha,\beta$ and an estimated irreducible floor $E$. A coupled alternative discussed by the blog is
+
+$$\widehat L(N,D)=E+\left(A N^{-\alpha}+B D^{-\beta}\right)^k,$$
+
+where $k>0$ and $k=1$ recovers the additive model. More parameters improve flexibility but can worsen identifiability. Compare models on development scales in the intended extrapolation direction, not solely on training error. For MoE, a fit using active parameters alone is conditional on fixed sparsity and expert structure.
+
+## Estimation protocol
+
+1. Freeze a table of independent runs, endpoint conventions, trajectory clusters, and fit/development/holdout assignments.
+2. Declare whether residuals use loss, log loss, or another transformation. State weights, bounds, and treatment of $E$.
+3. Fit positive parameters in log coordinates using multiple initializations. Record the objective and converged solutions.
+4. Inspect signed residuals against size, tokens, TPP, compute, and recipe. Coherent curvature suggests model mismatch.
+5. Resample independent runs or shared-prefix clusters, refit the complete procedure, and recompute the engineering decision for every bootstrap replicate.
+6. Compare predicted loss, allocation, and candidate ranking on untouched holdouts.
+
+Under $C=6ND$, minimizing the additive model gives
+
+$$N_*(C)=\left(\frac{\alpha A}{\beta B}\right)^{1/(\alpha+\beta)}\left(\frac C6\right)^{\beta/(\alpha+\beta)},\qquad D_*=\frac C{6N_*}.$$
+
+The coupled model has the same minimizer under these assumptions because a positive outer power is monotone. This statement need not survive a change to architecture-dependent FLOPs or added constraints.
+
+## Trajectory fitting
+
+When fitting intermediate losses, include schedule state and annealing explicitly. Many checkpoints on one trajectory are correlated measurements, not additional independent runs. A narrow interval obtained by treating them independently is misleading.
+
+**Deliverable:** fit specification, residual plots, alternative-form comparison, bootstrap decision intervals, and a record of any failed extrapolation.
+
+**Sources:** [blog §8](../reading/scientific-scaling-ladder.md#8-loss-scaling-law-fitting); [Chinchilla, 2022](https://arxiv.org/abs/2203.15556); [Skaling, 2026](https://arxiv.org/abs/2608.07222); [Besiroglu et al., 2024](https://arxiv.org/abs/2404.10102); [Tissue et al., 2024](https://arxiv.org/abs/2408.11029).
+
+[Blog/notes crosswalk](../reading/jiaxuan-reading-guide.qmd) · [Detailed companion](../deep-dives/loss-and-allocation.qmd)

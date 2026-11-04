@@ -1,0 +1,33 @@
+\section{Experiments \& Results}
+
+\paragraph{Models \& Inference setup} We select 17 long-context LLMs, including 15 open-source models and two closed-source model (Gemini-1.5-Pro and GPT-4 ), covering diverse model sizes (7B to 8x22B with MoE architecture) and claimed context lengths (32K to 1M). Complete information about these models is included in Appendix~\ref{models}. We evaluate all models using vLLM~\citep{vllm}, an LLM serving system with efficient KV cache memory management. For all models, we run the inference in BFloat16 on 8 NVIDIA A100 GPUs with greedy decoding.
+% \vspace{-0.93em}
+\paragraph{Task configurations} We test all models on 13 tasks ranging diverse complexities from the four categories of \ruler.
+The test configurations have been selected (shown in Appendix~\ref{task_configurations}) based on a task correlational study described in Appendix~\ref{task_correlation}. We select these tasks as most models perform decently at short context size of 4K tokens. Our main goal is to see whether models can maintain such good performance with the scaling of context length.
+For each task, we evaluate each model with 500 examples generated for each length from the series (4K, 8K, 16K, 32K, 64K, 128K), while complying with each model's necessary chat template.\footnote{See Appendix~\ref{prompt_templates} for model and tasks templates details.}
+To prevent the model from refusing to answer a query or generating explanations, we append the task input with an answer prefix and check the presence of the target output with recall-based accuracy.
+
+% \vspace{-0.5em}
+\paragraph{Effective Context Size} 
+% Good context-modeling capability should be achieved irrespective of context sizes, nevertheless 
+We notice large performance degradation in all models as we increase input length in \ruler. To determine the maximum context size a model can \emph{effectively} handle, we grade each model with a fixed threshold, passing which indicates satisfactory performance at the length of evaluation. We use the performance of Llama2-7b model at the 4K context length as the threshold.
+% \footnote{Future iterations of \ruler~will update the threshold according to the latest open-source efforts.} 
+We report in Table~\ref{tab:main_result} the maximum length exceeding the threshold as the ``effective length'' along with the ``claimed length''. 
+% \vspace{-0.5em}
+\paragraph{Model Ranking Criteria}  While the threshold-based grading reveals the discrepancy between claimed and effective length, it lacks details for fine-grained model comparisons. As such, we use a weighted average score to aggregate model performance across various context sizes. We rank models under two weighting schemes: \textbf{wAvg. (inc)} and \textbf{wAvg. (dec)} where the weight linearly increases and decreases with sequence length respectively. Ideally, the weight for each length should be determined by the length distribution of model usage, here we choose the two schemes to simulate the scenarios where longer sequences (inc) or shorter sequences (dec) dominate the distribution. 
+
+% \input{Table/res_main}
+% \input{Table/res_mainv2}
+\input{Table/res_mainv3}
+
+\paragraph{Main Results}
+We include the results of 17 long-context LMs in comparison with the Llama2-7B baseline in Table~\ref{tab:main_result}.\footnote{Performance of base models and breakdown by task categories can be found in Appendix~\ref{additional_results}.} 
+The performance at a certain length is the average of all 13 tasks in \ruler.
+The closed-source model Gemini-1.5-Pro outperforms the rest of the models by a large margin, with the effective length greater than the maximum length we have tested on. Pressure testing this model with harder version of RULER can be interesting to follow up in the future. For the rest of the models, while they achieve nearly perfect performance on the passkey retrieval and the vanilla NIAH task (shown in Appendix~\ref{perfect_results}), all of them exhibit large degradation in RULER as sequence length increases and they fail to maintain performance above the Llama2-7B baseline at their claimed length.
+The top-ranked open-source models (Llama3.1, Qwen2 and Command-R-plus) share common configurations, such as having larger model sizes and using larger base frequencies in RoPE~\citep{abf}. Large training context window is not always necessary for good long context performance -- top-ranked open-source models contain both brute-force context scaling (Llama3.1 trained on 128K context length) and inference-time length extrapolation (Qwen2 trained on 32K context length). The less performant models also include those trained on much larger context size (e.g., LWM and GradientAI/Llama3 both on 1M context length). Although LWM achieves a higher rank than Mistral-v0.2 when longer sequences receive larger weight (wAvg. inc) and shows less degradation as the context size increases, it performs worse than Llama2-7B even at 4K. This result suggests a trade-off in evaluation between absolute performance on short sequences and the relative degradation with the scaling of context size. We provide more analysis on the model size and maximum training length in section~\ref{sec:mdl_analysis}.
+
+% The maximum training context size impacts less than the aformentioned two factors -- top-ranked open-source models contain both brute-force context scaling (Llama3.1 trained on 128K length) and inference-time length extension (Qwen2 trained on 32K context length and augmented with techniques such as YARN~\citep{yarn} and Dual Chunk Attention~\citep{pmlr-v235-an24b} at inference time).}
+% Despite having been trained with context size of 1M, the LWM performs worse than Llama2-7B even at 4K. However, it shows smaller degradation with the increase of context size, therefore achieves higher rank than Mistral-v0.2 when longer sequences receive larger weight (wAvg. inc). 
+
+% During training, they do brute-force continue pre-training on high-quality lengthy data and fine-tuning using a mix of real short-context and synthetic long-context data. 
+% Most importantly, they carefully balance short and long-context capabilities. 

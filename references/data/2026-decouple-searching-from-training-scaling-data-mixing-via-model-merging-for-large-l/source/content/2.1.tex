@@ -1,0 +1,72 @@
+\subsection{Model Merging as Proxy}
+We first briefly explain why model merging can be used to construct proxy models instead of training new proxy models for each sampled data mixture.
+
+Building upon the former sections, let $\Theta_{\text{base}} \in \mathbb{R}^d$ denote the parameter vector of a pre-trained base model. Consider a collection of $N$ candidate datasets $\{D_1, D_2, \dots, D_N\}$, we define a training operator $\mathcal{T}: \mathcal{D} \times \mathbb{R}^d \to \mathbb{R}^d$, where $\mathcal{T}(D, \Theta_{\text{base}})$ results in the model parameters after training on dataset distribution $D$ initialized from $\Theta_{\text{base}}$.
+For any dataset $D_i$, the \textit{parameter update vector} (or weight delta) can be defined as~\citep{yang2024model}:
+\begin{equation}
+    \Delta(D_i) \triangleq \mathcal{T}(D_i, \Theta_{\text{base}}) - \Theta_{\text{base}}.
+\end{equation}
+Consequently, the individually trained component model corresponds to parameters $\Theta_i = \Theta_{\text{base}} + \Delta(D_i)$.
+
+The objective of data mixing is to identify an optimal mixture distribution~\citep{xie2023doremi}:
+\begin{equation}
+    \mathcal{D}_{\text{mix}} = \sum_{i=1}^N \alpha_i D_i, \quad \text{with } \alpha_i \ge 0 \text{ and } \sum_{i=1}^N \alpha_i = 1,
+\end{equation}
+so that the resulting model parameters:
+\begin{equation}
+    \Theta_{\text{mix}} = \mathcal{T}(\mathcal{D}_{\text{mix}}, \Theta_{\text{base}}).
+\end{equation}
+achieve the best performance across the target benchmarks.  
+
+
+To formalize the connection between data mixing and model merging, we first state the relevant constraints.  
+
+In practice, the magnitude of parameter updates $\Delta(D)$ remains relatively small compared to the initialization scale~\citep{gueta-etal-2023-knowledge, wu2025shadow}. Formally, for any dataset $D$ in our context, we define~\citep{wu2025shadow}:
+\begin{equation}
+\label{eqa:delta}
+\delta=\frac{\sum|\mathcal{T}(D, \Theta_{\text{base}}) - \Theta_{\text{base}}|} {\sum|\mathcal{T}(D, \Theta_{\text{base}})| + \sum|\Theta_{\text{base}}|}\ll 1.
+\end{equation}
+
+In our experiments, $\delta$ is approximately 10\%, which satisfies this small-update assumption. Empirical studies have shown that as long as $\delta \ll 1$, the arithmetic sum of weight deltas from models trained on separate datasets closely approximates the weight delta obtained by training on their union~\citep{qin-etal-2022-exploring, wu2025shadow, lin2025efficient}:
+\begin{equation}
+\label{equ:satisfy}
+    \Delta(D_i \cup D_j) \approx \Delta(D_i) + \Delta(D_j),
+\end{equation}
+
+% By extension, this additivity implies \textit{Homogeneity}:
+% \begin{equation}
+%     \Delta\left(\bigcup_{i=1}^N D_i\right) \approx \sum_{i=1}^N \Delta(D_i).
+% \end{equation}
+% and
+% \begin{equation}
+%     \Delta(\alpha D) \approx \alpha\Delta(D).
+% \end{equation}
+
+which indicates that the model parameters trained on a weighted mixture of datasets $\mathcal{D}_{\text{mix}} = \sum \alpha_i D_i$ can be approximated by the weighted average of parameters $\sum_{i=1}^N \alpha_i \Theta_i$ trained on separate datasets. We further validate the effectiveness of this approximation in our setting through an additional experiment, reported in Appendix~\ref{appd:merge_verification}.
+% \begin{equation}
+% \begin{aligned}
+%     \Delta_{\text{mix}} &= \Delta\left(\bigcup_{i=1}^N \alpha_i D_i\right) \approx \sum_{i=1}^N \Delta(\alpha_i D_i)  \approx \sum_{i=1}^N \alpha_i \Delta(D_i).
+% \end{aligned}
+% \end{equation}
+
+% Substituting the definition of the individual update vectors $\Delta(D_i) = \Theta_i - \Theta_{\text{base}}$ into the approximation:
+
+% \begin{equation}
+% \begin{aligned}
+%     \Theta_{\text{mix}} &= \Theta_{\text{base}} + \Delta_{\text{mix}} \\
+%     &\approx \Theta_{\text{base}} + \sum_{i=1}^N \alpha_i (\Theta_i - \Theta_{\text{base}})\\
+%     &\approx \sum_{i=1}^N \alpha_i \Theta_i + \left(1 - \sum_{i=1}^N \alpha_i\right)\Theta_{\text{base}}\\
+%     &\approx \sum_{i=1}^N \alpha_i \Theta_i.
+% \end{aligned}
+% \end{equation}
+
+% We acknowledge that the non-linearity of training dynamics make this derivation an approximation rather than an exact identity; however, our experiments (see Table \ref{table:exp1}) demonstrates that the ranking consistency between the merged proxy and actual training remains robust, which makes the proxy sufficiently valid.
+
+Based on this proposition, merging the component models $\{\Theta_i\}$ at a specific ratio $\{\alpha_i\}$ can obtain a proxy model for any real $\Theta_{\text{mix}}$ trained on $\{\alpha_i D_i\}$. 
+% If candidate datasets are mixed with general data, to preserve equality, we will adjust the actual weights accordingly.
+The merged model $M_\text{{mix}}^j$ is calculated as:
+\begin{equation}
+\label{merge_equation}
+    M_\text{mix}^j=\sum_{i=1}^N \alpha_i^j \Theta_i,
+\end{equation}
+where $\Theta_i$ represents the component model of the corresponding candidate dataset $D_i$.

@@ -1,0 +1,98 @@
+---
+title: "Nemotron pretraining: Nano, Super, Ultra, and Nemotron-CC"
+---
+
+Nemotron provides concrete examples of jointly designing architecture, data curriculum, optimizer schedule, precision, and serving efficiency. Its released Nano, Super, and Ultra models are **different production recipes**, not a controlled experiment that identifies one width/depth scaling law. This case study uses the Nemotron **3 text** family; earlier Nemotron-4 reports remain in the reference library.
+
+## Retrieved sources and their roles
+
+| Source | What it supports | Local copy |
+|---|---|---|
+| Nemotron 3 Nano, arXiv:2512.20848 | Smaller hybrid MoE architecture and 25T-token training recipe | [PDF](../../references/model-reports/2025-nemotron-3-nano/paper.pdf) |
+| Nemotron 3 Super, arXiv:2604.12374 | LatentMoE, MTP, NVFP4, data and 25T-token pretraining | [PDF](../../references/model-reports/2026-nemotron-3-super/paper.pdf) |
+| Nemotron 3 Ultra, arXiv:2606.15007 | Larger hybrid model, 20T tokens, stability interventions | [PDF](../../references/model-reports/2026-nemotron-3-ultra/paper.pdf) |
+| Nemotron-CC, arXiv:2412.02595v2 | Controlled corpus comparisons, quality/yield trade-off and synthetic rephrasing | [PDF](../../references/data/2024-nemotron-cc/paper.pdf) |
+
+The corresponding reference folders retain LaTeX sources and discovered code. Official public `pretrain.md` recipes are additionally mirrored under each model's `release-recipes/` directory. [NVIDIA's public Nano recipe](https://github.com/NVIDIA-NeMo/Nemotron/blob/main/docs/nemotron/nano3/pretrain.md) explicitly uses a subset of released data and warns that its results will differ from the full report. A runnable public recipe is not necessarily the exact released-model reproduction.
+
+## What is the pretraining task?
+
+The primary learning task is autoregressive next-token prediction over a blend of text, code, math, and other domains. In generic notation,
+
+$$\mathcal L_{\mathrm{NTP}}=-\frac{1}{D}\sum_{t\in\mathcal I}\log p_\theta(x_t\mid x_{<t}),$$
+
+where $\mathcal I$ indexes loss-bearing positions and $D=|\mathcal I|$. Data packing, document boundaries and loss masks must be reproduced from the implementation. Mamba changes how the prefix is represented; MoE changes which parameters participate. Neither changes next-token prediction into an RL task.
+
+Super and Ultra additionally use multi-token-prediction heads. Their reports describe two weight-sharing MTP heads built from attention and MoE components, with an auxiliary objective used to support native speculative decoding. Log the main NTP loss and auxiliary MTP losses separately for a scaling fit; do not equate an improvement in a combined training objective with an improvement in main next-token loss. Nano's configuration should be taken from its own report rather than inheriting Super's MTP settings. [Super §§2.1.2 and 2.4](https://arxiv.org/pdf/2604.12374); [Ultra §§2.1 and 2.4](https://arxiv.org/pdf/2606.15007).
+
+SFT-style text in the pretraining blend is a **data source**. The reports subsequently perform dedicated SFT and RL stages. Base-model evaluations and post-trained agentic scores answer different questions; post-trained scores cannot isolate pretraining architecture quality.
+
+## Reported architecture choices
+
+| Configuration | Nano | Super | Ultra |
+|---|---:|---:|---:|
+| Marketed parameter class | 30B-A3B | 120B-A12B | 550B-A55B |
+| Total hybrid layers | 52 | 88 | 108 |
+| Model width | 2,688 | 4,096 | 8,192 |
+| Attention query heads | 32 | 32 | 64 |
+| Attention KV heads | 2 | 2 | 2 |
+| Attention head dimension | 128 | 128 | 128 |
+| Routable experts per MoE layer | 128 | 512 | 512 |
+| Active routed experts | 6 | 22 | 22 |
+| MoE latent size | Conventional granular MoE | 1,024 | 2,048 |
+
+Source: each report's **Table 1**. Parameter-class names are approximate branding, not an aligned counting convention: Nano's introduction reports 31.6B total, 3.2B active excluding embeddings and 3.6B including them. Keep that distinction when comparing it to another model. [Nano §1/Table 1](https://arxiv.org/pdf/2512.20848); [Super Table 1](https://arxiv.org/pdf/2604.12374); [Ultra Table 1](https://arxiv.org/pdf/2606.15007).
+
+**Two architectural details:** query-head count times head dimension need not equal model width; Nano uses 32×128 attention projection dimensions despite width 2,688. Also, the hybrid layer count includes a sequence of Mamba, attention and MoE modules, not AI2-style complete Transformer blocks. Its raw depth values therefore are not directly comparable to the AI2 table.
+
+Super→Ultra doubles width and latent width, increases layers 88→108, keeps 512/22 expert routing, and changes training horizon 25T→20T. Nano→Super additionally changes expert design to LatentMoE. These are useful practiced choices, but their co-variation prevents attributing outcomes to width, depth, or sparsity individually.
+
+## Data curriculum and learning-rate schedule are different axes
+
+| Model | Main pretraining tokens | Reported data-mixture transition | LR schedule facts |
+|---|---:|---|---|
+| Nano | 25T | Quality-focused mixture starts at **94%**, approximately 23.5T | WSD; warmup 8.4B tokens; peak $10^{-3}$; decay during final 5T to $10^{-5}$ |
+| Super | 25T | Transition at **80%**, 20T | Warmup 200B tokens; peak $4.5\times10^{-4}$; final 5T minus-sqrt decay to $4.5\times10^{-6}$ |
+| Ultra | 20T | Transition around **75%**, 15T | Warmup 200B tokens; peak $2.5\times10^{-4}$; final 5T minus-sqrt decay to $2.5\times10^{-6}$ |
+
+Sources: [Nano §§2.3–2.4](https://arxiv.org/pdf/2512.20848), [Super §§2.3.7–2.4](https://arxiv.org/pdf/2604.12374), [Ultra §§2.3.6–2.4](https://arxiv.org/pdf/2606.15007). The percentages are report-specific. In particular, Nano's mixture transition at 94% does not coincide with the start of its LR decay at about 80%.
+
+Nano reports AdamW with decay 0.1, $\beta_1=0.9$, $\beta_2=0.95$, context 8,192 and 3,072 sequences per batch, giving **25,165,824 tokens per update**. Its routing uses both bias-based balancing and an auxiliary loss. Copying only the headline “aux-loss-free” description would miss part of the recipe. [Nano §2.4](https://arxiv.org/pdf/2512.20848).
+
+Long-context extension is a later continued-pretraining stage, not evidence that the whole 20T/25T run used a 1M-token context. The reports separately describe that extension and subsequent post-training. [Nano §2.5](https://arxiv.org/pdf/2512.20848); [Ultra §2.6](https://arxiv.org/pdf/2606.15007).
+
+## Nemotron-CC: which empirical comparison is controlled?
+
+The original Nemotron-CC report constructs **6.3T tokens**, consisting of **4.4T globally deduplicated original tokens** and **1.9T synthetically derived tokens**. The synthetic component must not be interpreted as 1.9T independent new original observations. Quality filtering, classifier ensembling, extraction choices and rephrasing trade data yield against quality. [Su et al., v2, §2/Table 4](https://arxiv.org/pdf/2412.02595v2).
+
+Its Table 5 compares **8B models trained for 1T tokens**. The blend is **73% tested English crawl corpus and 27% the same fixed non-crawl data**. Thus the experiment changes the crawl portion while retaining a large controlled portion of the mixture:
+
+| Crawl component | MMLU | Ten-task average |
+|---|---:|---:|
+| DCLM | 53.4 | 57.0 |
+| Full Nemotron-CC | 53.0 | 57.8 |
+| Nemotron-CC-HQ | 59.0 | 60.1 |
+
+These reported values support the high-quality subset's benefit in this **1T-token, 8B, fixed-blend setting**. They do not prove that the most aggressively filtered corpus is best for a 25T-token run. The full corpus targets longer horizons and lower repetition. [Nemotron-CC Table 5 and §3.2](https://arxiv.org/pdf/2412.02595v2).
+
+Table 6 additionally compares an 8B model trained for **15T tokens**, of which **7.2T** are drawn from the paper's dataset, against Llama 3.1 8B. Its reported MMLU is 70.3 versus 65.3 under the authors' evaluation setup. This is an end-to-end comparison and does not hold all model/data/training choices fixed. Treat it as long-horizon feasibility evidence, not an isolated causal effect of CC. [Nemotron-CC Table 6](https://arxiv.org/pdf/2412.02595v2).
+
+Nemotron 3's later CC-v2/CC-v2.1, CC-Math and code datasets have their own versions and mixtures. The original 6.3T-token accounting is not the inventory of every later Nemotron training corpus.
+
+## Concrete pretraining ablations worth learning from
+
+**Data injection on a late Nano checkpoint.** Ultra's legal-data section tests a legal-specific addition by continuing Nano for 100B tokens with a phase-2 blend; mean LegalBench accuracy increases from 64.6 to 74.7. This measures late-stage domain value. It does not by itself determine the best legal weight for a full 20T-token training run. [Ultra §2.3.5](https://arxiv.org/pdf/2606.15007).
+
+**Numerical precision at scale.** Ultra reports a first divergence around 8T tokens after changing local output-layer gradient accumulation from FP32 to BF16. Rolling back and restoring the FP32 reduction recipe re-stabilizes that segment. A later divergence around 16T is addressed by rolling back to 15T and starting annealing. The report also states that changing all tensors to BF16 did not resolve the broader divergence. This is concrete evidence to preserve production precision and long horizons in ladder validation. [Ultra §§2.2 and 2.7](https://arxiv.org/pdf/2606.15007).
+
+**Checkpoint averaging as an evaluation tool.** Super evaluates 125B, 250B and 500B-token merge windows and reports a best-of-three checkpoint merge outperforming the unmerged checkpoint by 2–4 points on a 12-benchmark average. Because it selects the best window, the evaluation includes that selection policy. A ladder should compare the same endpoint/merge policy for both candidates. [Super §2.4 and Fig. 11](https://arxiv.org/pdf/2604.12374).
+
+## What to reproduce in a small experiment
+
+1. Fix the exact hybrid module pattern, projection dimensions, routed/shared experts, latent dimensions, precision and loss decomposition.
+2. Compare a baseline and one architectural intervention with matched accounting; independently check their hyperparameter sensitivity.
+3. Preserve data-mixture phases and per-bucket exposure. Measure source quality at a common token horizon and evaluation mixture.
+4. Match the intended LR decay, checkpoint-merging policy and context-extension stage in larger confirmations.
+5. Evaluate base-model loss/capabilities before using post-trained agentic results. Log MTP loss, router imbalance and residual norms alongside primary NTP loss.
+
+This is the Nemotron branch of the [architecture decision flow](../architecture/architecture-evidence.qmd#architecture-decision-flow). The next useful controlled experiment would isolate one of its coupled choices—such as latent width or expert granularity—rather than copying the full Nano→Super→Ultra trajectory as a width law.

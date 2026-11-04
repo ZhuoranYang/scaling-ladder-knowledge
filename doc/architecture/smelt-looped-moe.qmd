@@ -1,0 +1,52 @@
+---
+title: "SMELT v3: what two-pass MoE looping actually establishes"
+---
+
+The paper is [SMELT: Scaling Laws for Compute-Matched MoE Looped Transformers, arXiv:2609.01343v3](https://arxiv.org/html/2609.01343v3). The downloaded [PDF](../../references/architecture/2026-smelt-compute-matched-looped-moe/paper.pdf) and [LaTeX source](../../references/architecture/2026-smelt-compute-matched-looped-moe/source/paper.tex) are in the reference library. This guide distinguishes reported results from the proposed [128-H100 candidate](../plans/hero-h100-candidate.qmd).
+
+## The recipe is not full-stack looping
+
+SMELT repeats the **middle half of physical layers twice in total**. A 32-layer implementation with this layout executes layers 1–8 once, 9–24 twice, and 25–32 once: 48 layer executions. It does not execute the whole 32-layer model twice or make three visits to the middle. The recurrence is inside each forward/backward pass from the start of pretraining, not a second traversal of the corpus after training.
+
+The repeated block shares attention, expert, router and normalization parameters. Each residual sublayer update inside that span is multiplied by $1/2$ on both visits. The identity stream is not halved. The MoE sees the input after the scaled attention update:
+
+$$x'=x+\tfrac12\operatorname{Attn}(\operatorname{Norm}(x)),\qquad
+x''=x'+\tfrac12\operatorname{MoE}(\operatorname{Norm}(x')).$$
+
+The two visits can route a token to different experts. Their gradient contributions must accumulate into the same stored parameters, with one optimizer update. Distinct visits need distinct generation-cache entries even though their weights are shared. [SMELT §3.1 and §6.2](https://arxiv.org/html/2609.01343v3#S3.SS1).
+
+## What the ablations measured
+
+At the paper's 200M active-compute label, physical depth 12 and approximately 85% compute-equivalent sparsity:
+
+| Controlled design question | Reported validation loss | Interpretation |
+|---|---|---|
+| No looping | 1.9445 | Reference |
+| Middle half, twice | 1.9257 | Selected on validation loss |
+| Entire stack, twice | 1.9322 | Worse than the middle-half choice |
+| Middle half, three visits | 1.9385 | Worse after budget rematching |
+| Middle half, four visits | 1.9360 | Worse after budget rematching |
+
+The models are rematched as loop span/count changes. These comparisons do not mean extra looping is harmful at unlimited compute; more visits force compensating changes elsewhere. The paper selects the middle-half span on loss even though downstream rankings are not identical. Its cited evaluation-seed errors do not measure training-seed uncertainty: each ablation configuration is trained once. [SMELT Tables 3–5](https://arxiv.org/html/2609.01343v3#S3.SS3).
+
+## Three budgets must be tracked
+
+Increasing executed depth without changing width increases training FLOPs and KV cache. SMELT narrows width to compensate, adds experts to recover stored capacity, and adjusts attention geometry for cache parity. For one reported pair, width changes 1,280→1,056 and experts 192→288; training FLOPs/token change $1.33\times10^9\to1.37\times10^9$, non-embedding parameters $3.87\mathrm{B}\to3.89\mathrm{B}$, and KV cache differs by about 3%. [SMELT §3.2/Table 10](https://arxiv.org/html/2609.01343v3#S3.SS2).
+
+The appendix's “active parameters” count covers one physical traversal, not every repeated execution. The compute counter must count all visits. Its sparsity is defined using a fully active reference's FLOP/parameter ratio, not simply $1-k/E$.
+
+## Training and scaling scope
+
+The paper uses top-8 routing, 4,096-token packed sequences with segment attention masks, AdamW, and WSD. Stable runs reach roughly 205B tokens; six branches add 10B-token cosine decays at different points, with the longest endpoint around 215B. Matched architecture pairs see identical token sequences. Four scales and four sparsity levels produce 16 architecture pairs, up to about 54B non-embedding stored parameters. [SMELT §3.1 and Appendix A](https://arxiv.org/html/2609.01343v3#S3.SS1).
+
+It fits separate surfaces
+
+$$L(F,S,D)=E_0+A(1-S)^b/F^a+K/D^c$$
+
+for the baseline and SMELT, where $F$ is training FLOPs/token including contextual attention. Reported frontier compute savings are 6.8–18.0% over the studied range. These are not guaranteed wall-clock savings or a guarantee at a 4.5T-token horizon. [SMELT §4](https://arxiv.org/html/2609.01343v3#S4).
+
+## What is unavailable, and how we adapt it
+
+Appendix A explicitly states that the proprietary architecture and training stack cannot be fully released; the corpus is internal. Publicly reported dimensions do not specify every expert/attention implementation detail. Our adaptation therefore declares its own complete dimensions, tokenizer, data, normalization and trainer, then revalidates the comparison.
+
+The actionable evidence is to test a **budget-matched two-visit middle block**, not to assume the paper certifies any arbitrary looped MoE. The [candidate plan](../plans/hero-h100-candidate.qmd) adds a stored-size/overtraining constraint, explicit data sources, H100 runtime qualification, and high-TPP tests. That is a new experiment informed by SMELT.

@@ -1,0 +1,109 @@
+---
+title: "Adding high-quality cyber data to a Marin-style corpus"
+subtitle: "A controlled data extension with provenance, factual checks and held-out domain evaluation"
+date: 2026-11-02
+---
+
+## Objective and experimental boundary
+
+Our proposed goal is to improve security knowledge, code/configuration understanding and grounded defensive reasoning while retaining general language, math and code capability. This is a **new data hypothesis**, not a claim that a cyber-labelled document is automatically high quality.
+
+First reproduce a Marin baseline on a declared accessible corpus. Then add cyber sources through the same [normalization, global cleanup and attribute/store contracts](marin-code-walkthrough.qmd). Keep architecture, optimizer, total training exposures, schedule and evaluator fixed for the initial domain-data ablation. Recurrence and optimizer substitutions belong in later experiments.
+
+## Sources to inventory before choosing token weights
+
+| Candidate input | Primary source | What it contributes and what must be checked |
+|---|---|---|
+| Official CVE records | [CVE List V5](https://github.com/CVEProject/cvelistV5) | Vulnerability IDs/descriptions/affected products; preserve updates, rejected status and references; short structured records are not a trillion-token corpus |
+| Ecosystem advisories | [GitHub Advisory Database](https://github.com/github/advisory-database) | Package/version impact and references; overlapping CVE/GHSA records must share a lineage family |
+| Technique/tactic descriptions | [MITRE ATT&CK STIX data](https://github.com/mitre-attack/attack-stix-data) | Structured technique/relationship context; retain STIX object versions and narrative references |
+| Vendor/project advisories and remediation docs | Publisher-specific release/tag | Grounded affected/fixed-version explanations and mitigation context; source access and document provenance must be recorded |
+| Security fixes and tests | Linked upstream commit plus parent revision | Before/after code, regression tests and issue explanation; verify that a cited patch actually corresponds to the advisory |
+| Our original cyber documents or synthetic explanations | Team-owned source manifest | Targeted coverage; preserve parent documents, generator/checker versions and factual validation |
+
+These are candidates, not a declaration that all sources have been downloaded or measured in tokens. We verified the three linked public repository descriptions; record per-source terms/access in the registry and pin actual revisions before ingestion. The CISA catalogue web page returned 403 during this audit, so no fetched contents or token inventory from it are claimed.
+
+## Separate relevance, intrinsic quality and verification
+
+Keep at least these orthogonal attributes:
+
+- **Cyber relevance:** broad topic/subtopic and intended skill (advisory comprehension, secure configuration, patch reasoning, incident analysis, protocol/OS foundations).
+- **Intrinsic quality:** completeness, coherence, information density and usefulness **within its content type**, following Marin's source-blind principle.
+- **Factual support:** supported by a cited source, machine-checked where applicable, uncertain, or contradicted.
+- **Lineage:** original versus transformed/synthetic, parent advisory/commit/family IDs, source revision and timestamps.
+
+A high-quality networking textbook may have low narrow cyber relevance but useful foundational value. A keyword-heavy CVE mirror may have high relevance and low information density. A confident synthetic explanation can be fluent and factually wrong. A generic prose scorer may mis-rank a concise patch or structured log, so calibrate on these types rather than assuming the general quality bands are sufficient.
+
+A proposed domain rubric scores 1–5 on: source traceability; technical correctness; evidence/explanation alignment; completeness/context; and information density. Keep these sub-scores before combining them. Hide source-brand labels from the grader where possible, and use independent review for a stratified validation set. Any combined threshold or weighting is a hypothesis to validate, not a learned Marin rule.
+
+## Preserve a neutral canonical record
+
+The [extension specification](../../configs/industry/cyber-extension.json) defines a planning schema. A representative record could be:
+
+```json
+{
+  "text": "An advisory explanation grounded in the referenced patch...",
+  "upstream_record_id": "source-specific ID",
+  "source_uri": "publisher URL",
+  "source_revision": "commit or snapshot digest",
+  "published_at": "source-provided date",
+  "family_ids": ["CVE-example", "GHSA-example", "patch-commit"],
+  "parent_document_ids": [],
+  "cyber_topics": ["dependency-security", "patch-reasoning"],
+  "content_type": "prose",
+  "verification": {"status": "pending", "checker_revision": null},
+  "synthetic": false
+}
+```
+
+These IDs are placeholders, not real vulnerability evidence. Datakit normalization creates its own content hash `id`; preserve upstream and family IDs as metadata. Avoid defining `source_id` in a way that collides with Marin's upstream-record field. Use a separate registry component name.
+
+## Processing and correctness checks
+
+1. **Snapshot and parse:** preserve raw structured data and referenced text; render deterministic narratives that retain affected/fixed versions and provenance. Strip navigation and exact repeated templates without erasing meaningful differences.
+2. **Family-aware dedup:** link CVE/GHSA/vendor mirrors and patch explanations. Run global content exact/fuzzy dedup against the broad corpus. Keep lineage beyond fuzzy text similarity: a synthetic rewrite may evade MinHash while repeating the same underlying case.
+3. **Domain-specific review:** inspect high-similarity pairs differing only in version bounds, configuration flags or changed code. Do not automatically apply Marin's existing fuzzy exemptions to cyber; test the false-positive/false-negative tradeoff.
+4. **Benchmark exclusion and split:** remove known eval-derived material, then partition by vulnerability/project/patch family. Add time and repository holdouts for generalization. A random paragraph split can put the same advisory in both train and test.
+5. **Quality and support labels:** reuse general quality as a baseline, add relevance and verification, then audit precision on short advisories, code, logs, long documents and synthetic examples separately.
+6. **Tokenize and inventory:** count retained unique tokens in each cyber type/quality bucket under the same frozen tokenizer as the base release. Preserve source/family metadata for sampler audits.
+7. **Store and sample:** add cyber as explicit named components or attributes without renumbering unrelated topic IDs. If retraining global centroids, version the taxonomy and refit weights rather than treating old `cNNqM` names as equivalent.
+
+For patch-derived examples, a checker can validate parsing/build/test results in a controlled project environment and verify that prose references the actual changed symbols. Passing tests supports only the tested behavior; it does not certify every explanatory claim.
+
+## Synthetic data should be grounded transformations
+
+Generate from pinned source documents or patch/test pairs, not unsupported model recall. Candidate transformations include a concise supported explanation, structured affected/fixed-version extraction, an explanation of a regression test, or a comparison of a configuration before/after remediation. Preserve the prompt/template, generator revision, parent sources, verifier results and rejection reason.
+
+Count accepted output tokens and distinct parent families separately. Ten explanations of one advisory are ten training exposures/representations, not ten independent vulnerabilities. Reserve entire parent families for evaluation and do not generate training examples from those families. Compare source-only and source-plus-synthetic variants at matched total exposure.
+
+## Proposed first mixture experiments
+
+Keep the broad mixture as control and fund cyber exposure by transferring mass from a declared donor bucket, not by silently increasing total tokens. Initial proposals:
+
+| Variant | Cyber share in main phase | Cyber share in final 20% | Purpose |
+|---|---:|---:|---|
+| Control | 0% | 0% | Reproduced broad baseline |
+| Uniform low | 1% | 1% | Small steady inclusion |
+| Uniform moderate | 3% | 3% | Dose response |
+| Late moderate | 0% | 5% | Concentrated final-stage intervention |
+| Mixed | 1% | 5% | Foundations plus a stronger final stage |
+
+These values are experiment hypotheses. For $D=2.8$T, uniform 1% consumes 28B cyber tokens; late 5% over the final 20% also consumes 28B but has a different temporal distribution. At a hypothetical repetition cap of four, either needs at least **7B retained unique cyber tokens**, which the listed structured sources have **not** been shown to supply. If the inventory is smaller, lower the share, lower repetition or add real diverse sources; do not inflate a small advisory pool by assuming synthetic outputs are independent data.
+
+For phases $p$, cyber fraction $c_p$, phase duration $D_p$ and retained unique cyber pool $U_c$,
+
+$$
+D_c=\sum_p c_pD_p,\qquad e_c=D_c/U_c.
+$$
+
+Apply caps per meaningful bucket and parent family, not only the aggregate. Match proxy pool sizes and exposures to preserve these ratios. Branch final-phase variants from the same prefix for efficiency, and run fresh full-training finalists because a branch-only win is conditional on that prefix.
+
+## Evaluation that distinguishes learning from memorization
+
+Freeze target tasks before the mixture screen: advisory/version reasoning, patch/test comprehension, secure configuration and relevant foundational knowledge. Use unseen vulnerability families, held-out repositories and later timestamps; preserve task and answer provenance. Include independent general-language/code/math guardrails and fixed-domain NLL/BPB. Match prompts, context, answer parsing and decode settings across checkpoints.
+
+Select on a predeclared target/guardrail objective, not the model's own-mixture training loss. Report item- and run-level uncertainty; use fresh seeds for finalists. Inspect memorization and source copying when a tiny pool is repeated many times. A higher cyber benchmark score accompanied by duplicate-family leakage is not evidence of successful domain generalization.
+
+## Deliverables before full-scale inclusion
+
+The team should produce: a source/revision/lineage inventory; stratified quality/support audit; retained-token and family counts; duplicate/decontamination reports; a compatible token/store release; normalized mixture manifests with cumulative repetition; exposure-matched proxy results; and a fresh held-out transfer check. No cyber corpus, quality scorer or synthetic generation pipeline has been run here; this document defines how to build and test that extension without confusing it with the Marin baseline.

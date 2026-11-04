@@ -1,0 +1,1332 @@
+                                           Decouple Searching from Training: Scaling Data Mixing via Model Merging
+                                                            for Large Language Model Pre-training
+
+
+                                         Shengrui Li 1 Fei Zhao 1 Kaiyan Zhao 1 2 Jieying Ye 1 Haifeng Liu 1 Fangcheng Shi 1 Zheyong Xie 1 Yao Hu 1
+                                                                                      Shaosheng Cao 1 3
+
+
+                                                                   Abstract                                                       0.9
+
+
+
+
+                                                                                                          Proxy Accuracy (Spearman's )
+arXiv:2602.00747v3 [cs.CL] 29 May 2026
+
+
+
+
+                                              Determining an effective data mixture is a key fac-                                 0.8
+
+
+
+
+                                                                                                                                                                    y
+                                              tor in Large Language Model (LLM) pre-training,
+
+
+
+
+                                                                                                                                                                  nc
+                                                                                                                                                           nsi ost
+                                                                                                                                                              ste
+                                                                                                                                                         Co C
+                                                                                                                                  0.7
+
+
+
+
+                                                                                                                                                       er er
+                                              where models must balance general competence
+
+
+
+
+                                                                                                                                                     gh ow
+                                                                                                                                                   Hi L
+                                              with proficiency on hard tasks such as math and
+                                                                                                                                  0.6
+                                              code. However, identifying an optimal mixture re-
+                                              mains an open challenge, as existing approaches                                     0.5
+                                              either rely on unreliable tiny-scale proxy exper-
+                                              iments or require prohibitively expensive large-                                    0.4
+                                              scale exploration. To address this, we propose                                                          RegMix / CLIMB (112 Proxies)
+                                              Decouple Searching from Training Mix (DeMix),                                       0.3                 DeMix (7 Components, Unlimited Proxies)
+                                              a novel framework that leverages model merg-                                               0   200    400      600        800   1000   1200   1400   1600
+                                              ing to predict optimal data ratios. Instead of                                                        Training Token Budget (B)
+                                              training proxy models for every sampled mixture,
+                                                                                                               Figure 1. Methods such as RegMix and CLIMB require extensive
+                                              DeMix trains component models on candidate                       proxies. Scaling each proxy leads to unaffordable overall budget.
+                                              datasets at scale and derives data mixture prox-                 While our DeMix only require a few component models to merge
+                                              ies via weighted model merging. This paradigm                    unlimited training-free proxies.
+                                              decouples search from training costs, enabling
+                                              evaluation of unlimited sampled mixtures with-
+                                              out extra training burden and thus facilitating bet-
+                                              ter mixture discovery through more search trials.                 Guo et al., 2025; Kimi Team et al., 2025; Bai et al., 2025),
+                                              Extensive experiments demonstrate that DeMix                      largely driven by the massive pre-training (Gemini Team
+                                              breaks the trade-off between sufficiency, accuracy                et al., 2023; Achiam et al., 2023). Beyond scale alone, the
+                                              and efficiency, obtaining the optimal mixture with                composition of the pre-training corpus plays a critical role in
+                                              higher benchmark performance at lower search                      shaping model capabilities (Feng et al., 2024; Basant et al.,
+                                              cost. Additionally, we release the DeMix Cor-                     2025; Blakeman et al., 2025).
+                                              pora, a comprehensive 22T-token dataset com-
+                                              prising high-quality pre-training data with vali-                 However, optimizing the data mixture for pre-training re-
+                                              dated mixtures to facilitate open research. Our                   mains challenging, as it requires balancing general-purpose
+                                              code and DeMix Corpora is available at https:                     language abilities with strong performance on complex tasks
+                                              //github.com/Lucius-lsr/DeMix.                                    such as mathematical reasoning and code generation (Cobbe
+                                                                                                                et al., 2021a; Chen et al., 2021; Wei et al., 2022).
+                                                                                                               A commonly adopted strategy for data mixture selection
+                                         1. Introduction                                                       is to conduct limited large-scale proxy experiments, where
+                                         Large Language Models (LLMs) have achieved remarkable                 mid-sized models (e.g., 8B) are trained on sampled data mix-
+                                         success across a wide range of domains (Shao et al., 2024;            tures with substantial token budgets (e.g., 100B) (Li et al.,
+                                                                                                               2025; Nie et al., 2025; Blakeman et al., 2025). While such
+                                             1
+                                               NLP Team, Xiaohongshu Inc., Shanghai, China 2 The               proxies can provide relatively accurate signals, they remain
+                                         University of Tokyo, Tokyo, Japan 3 Tsinghua University,              computationally expensive and are insufficient for systemat-
+                                         Beijing, China.    Correspondence to:   Shaosheng Cao
+                                         <caoshaosheng@xiaohongshu.com>.                                       ically identifying optimal data mixtures. In contrast, recent
+                                                                                                               lines of work like RegMix (Liu et al., 2024) and CLIMB
+                                         Preprint. June 1, 2026.                                               (Diao et al., 2025) aim to fully automate the process of
+
+                                                                                                      1
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+searching the optimal data mixture ratios. These approaches                  of component models.
+rely on extensive tiny-scale proxy experiments with smaller
+models and reduced data budgets to train regression-based                  • We demonstrate that model-merging proxies faithfully
+predictors that map data mixture to loss or downstream per-                  preserve the performance ordering of reference mod-
+formance. However, the validity of these lightweight proxies                 els trained on real data mixtures, providing a reliable
+has been increasingly questioned (Allal et al., 2025b). Due                  signal for mixture selection.
+to the substantial capability gap between proxy and target
+models, these automated strategies often fail to generalize                • We release DeMix Corpora, a 22T high-quality, large-
+to complex tasks such as math and code.                                      scale dataset with validated mixtures that can be di-
+                                                                             rectly used for LLM pre-training.
+Moreover, despite the abundance of domain-specific pre-
+training data, there is a notable lack of benchmarked corpora
+                                                                        Conflict of Interest Disclosure. The authors declare no
+with validated data mixture ratios that can be directly reused
+                                                                        financial conflicts of interest.
+for large-scale pre-training.
+To address these challenges, we propose Decouple Search-
+                                                                        2. Method
+ing from Training Mix (DeMix), together with the pre-
+training dataset DeMix Corpora. Instead of training a large             The overall pipeline of DeMix is depicted in Figure 2 and
+number of proxy models under different data mixture ratios,             is structured into four sequential phases. In this section, we
+DeMix decouples mixture search from proxy training by                   first briefly describe how candidate datasets are obtained
+leveraging model merging: component models are merged                   through rigorous filtering. Second, we detail the preparation
+to synthesize an effectively unlimited number of proxy mod-             of component models. Third, we then present our approach
+els at virtually no additional cost. Specifically, we first train       for constructing proxy models and discuss the feasibility of
+a set of component models at scale, each corresponding to               using merged models as proxies in our setting. Finally, we
+a candidate dataset. We then construct proxy models via                 introduce an iterative mixture strategy designed to further
+weighted model merging over these trained component mod-                enhance performance.
+els, where the merging weights represent target data mixture
+ratios. To evaluate the fidelity of model-merged proxy mod-             2.1. Dataset Preprocessing
+els, we compare them with reference models that are trained
+directly on sampled data mixtures with massive tokens. We               We first collect large-scale data from a variety of sources,
+find that these model-merged proxies exhibit substantially              including general-domain corpora, mathematical datasets,
+higher ranking consistency with these reference models than             and code collections. We then apply rigorous data clean-
+proxies obtained through traditional small-scale training.              ing, which consists of deduplication, perplexity filtering,
+                                                                        FastText filtering and so on. Finally, we perform data-level
+As shown in Figure 1, DeMix achieves substantially higher               evaluation and categorize the cleaned corpus into multiple
+proxy accuracy than training-based proxy models under the               candidate datasets, each representing a distinct data source
+same limited budget, and reach comparable accuracy with                 or domain for subsequent mixture optimization. More de-
+approximately 6× less computation budget (200 v.s. 1200).               tails on data preprocessing can be found in Appendix A.
+Thus, DeMix simultaneously achieves sufficiency (unlim-
+ited proxy models), accuracy (faithful proxy performances)              2.2. Component Model Preparation
+and efficiency (fixed token budgets).
+                                                                        Given the N candidate datasets, we can construct N com-
+Based on these merged proxy models, we predict the op-                  ponent models, each trained individually on one of the N
+timal data mixture via regression-based methods and ap-                 candidate datasets. To ensure the robust performance of
+ply it to sample 50B tokens for pre-training a 1.7B model.              these component models, we implement a two-step training
+Through extensive experiments across multiple benchmarks                protocol. First, all component models are initialized from a
+covering general language understanding, mathematical rea-              shared base model trained from scratch on a general-purpose
+soning, and code generation, we observe that DeMix sig-                 dataset Dbase , which provides foundational language capa-
+nificantly outperforms other state-of-the-art data mixture              bilities (denoted as the Base Model in Figure 2). Second,
+methods such as Regmix and CLIMB while requiring less                   each component model is further trained on its correspond-
+computational budget. To summarize, our contributions are               ing domain-specific candidate dataset (e.g., mathematics or
+as follows:                                                             code), mixed with general data at a fixed ratio β. This proce-
+                                                                        dure encourages each component model to specialize in its
+   • We propose DeMix, a framework that efficiently de-                 target domain while retaining general language competence,
+     couples data mixture search from model training by                 enabling them to effectively serve as building blocks for
+     constructing proxy models through weighted merging                 subsequent model merging and data mixture optimization.
+
+                                                                    2
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+     1. Dataset Preprocessing                                                                             2. Component Model Preparation
+
+
+
+
+                                                                                                                               Base Model
+                 code                                                                                            …                                            …
+                                                                                                                               Separate training
+                                          Deduplication,                  Data-level
+                                        Perplexity filtering,          evaluation and
+       web              multilingual    FastText filtering,             categorization
+                                                 …                                                        Candidate Datasets
+                math                     Data Cleaning                Data Evaluation                                                               Component Models
+       Massive Dataset Collection
+
+
+     3. Model Merging as Proxy                                                                            4. Mixture Weight Optimization
+
+
+
+
+                                                                                           Benchmarking
+                                                                                                                                                                  Optimal Mixture
+                                                                        Proxy Models                         Performances
+     Mixture Ratio Sampling                                                                                                         Predictor Training
+                                  Weighted Model Merging
+
+
+
+                                                                Iteratively Resampling Top Mixtures
+
+
+Figure 2. Pipeline for DeMix. After (1) cleaning and categorizing massive data, (2) component models are trained on individual candidate
+datasets. Instead of large-scale training for every ratio, (3) weighted model merging serves as a computationally efficient proxy to estimate
+performance for various mixture ratios. Finally, (4) a predictor is trained on the benchmarked proxy models to regress the relationship
+between mixing ratios and performance, utilizing iterative resampling to converge on the optimal mixture.
+
+
+2.3. Model Merging as Proxy                                                                        In practice, the magnitude of parameter updates ∆(D)
+                                                                                                   remains relatively small compared to the initialization
+We first briefly explain why model merging can be used
+                                                                                                   scale (Gueta et al., 2023; Wu et al., 2025). Formally, for any
+to construct proxy models instead of training new proxy
+                                                                                                   dataset D in our context, we define (Wu et al., 2025):
+models for each sampled data mixture.                                                                               P
+                                                                                                                        |T (D, Θbase ) − Θbase |
+Building upon the former sections, let Θbase ∈ Rd denote                                                    δ=P                         P         ≪ 1.         (4)
+the parameter vector of a pre-trained base model. Consider                                                           |T (D, Θbase )| + |Θbase |
+a collection of N candidate datasets {D1 , D2 , . . . , DN },
+we define a training operator T : D × Rd → Rd , where                                              In our experiments, δ is approximately 10%, which satis-
+T (D, Θbase ) results in the model parameters after training                                       fies this small-update assumption. Empirical studies have
+on dataset distribution D initialized from Θbase . For any                                         shown that as long as δ ≪ 1, the arithmetic sum of weight
+dataset Di , the parameter update vector (or weight delta)                                         deltas from models trained on separate datasets closely ap-
+can be defined as (Yang et al., 2024):                                                             proximates the weight delta obtained by training on their
+                                                                                                   union (Qin et al., 2022; Wu et al., 2025; Lin et al., 2025b):
+                 ∆(Di ) ≜ T (Di , Θbase ) − Θbase .                                      (1)
+                                                                                                                     ∆(Di ∪ Dj ) ≈ ∆(Di ) + ∆(Dj ),                                 (5)
+Consequently, the individually trained component model
+corresponds to parameters Θi = Θbase + ∆(Di ).
+                                                                                                   which indicates that the model parametersPtrained on
+The objective of data mixing is to identify an optimal mix-                                        a weighted mixture of datasets Dmix =            αi Di can
+ture distribution (Xie et al., 2023):                                                              be
+                                                                                                   PN  approximated   by the weighted  average of  parameters
+              N                                                 N                                     i=1 αi Θi trained on separate datasets. We further vali-
+   Dmix =
+              X
+                    αi Di ,      with αi ≥ 0 and
+                                                                X
+                                                                      αi = 1,            (2)       date the effectiveness of this approximation in our setting
+              i=1                                               i=1
+                                                                                                   through an additional experiment, reported in Appendix D.
+
+so that the resulting model parameters:                                                            Based on this proposition, merging the component models
+                                                                                                   {Θi } at a specific ratio {αi } can obtain a proxy model for
+                        Θmix = T (Dmix , Θbase ).                                        (3)                                                                j
+                                                                                                   any real Θmix trained on {αi Di }. The merged model Mmix
+                                                                                                   is calculated as:
+achieve the best performance across the target benchmarks.
+                                                                                                                                             N
+To formalize the connection between data mixing and model                                                                       j
+                                                                                                                                             X
+                                                                                                                               Mmix =              αij Θi ,                         (6)
+merging, we first state the relevant constraints.                                                                                            i=1
+
+                                                                                               3
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+where Θi represents the component model of the corre-                  Table 1. GPU (H800) hour cost for training and benchmarking.
+                                                                       The cost of one benchmarking run is equivalent to training 0.013B
+sponding candidate dataset Di .                                        tokens.
+
+2.4. Mixture Weight Optimization
+                                               PN                             Budget / Proxy      Training      Benchmarking
+                                         j
+With an accurate proxy computed as Mmix      = i=1 αij Θi ,
+                                                                                    2B            46 GPUh         0.3 GPUh
+we can search for the optimal mixture through iterative
+                                                                                  0.013B          0.3 GPUh        0.3 GPUh
+optimization of the mixture weights. Note that inference on
+                              j
+any merged proxy model Mmix       can be performed directly,
+incurring no additional training cost.
+We then define the average ranking of the merged model
+across a suite of benchmarks covering general language un-             Implementation Details For the candidate dataset, we
+derstanding, mathematical reasoning, and code generation               consistently set the data mixing ratio β to 0.5 throughout
+as the gold-standard evaluation signal. Ranking-based eval-            our experiments. In training the component models, we
+uation is chosen for its robustness to scale mismatches and            employ a global batch size of 512 and a sequence length
+its direct relevance to mixture selection.                             of 8192, with an initial learning rate of 3e-4 optimized via
+                                                                       a cosine learning rate schedule that retains a minimum of
+Next, we perform the following steps for iterative prediction          20% of the initial learning rate. For the model merging pro-
+of the optimal mixture ratio:                                          cedure, we adopt a straightforward yet effective weighted
+                                                                       linear merging strategy. In the iterative prediction process,
+   • Step 1: Randomly sampling a large set of mixture                  given a proxy budget of 112, we sample 64, 32, and 16
+     weights ratios {αij } uniformly from the simplex.                 mixtures in each respective iteration, and subsequently aver-
+                                                                       age the top 128 mixtures to derive the final optimal mixture
+   • Step 2: For each sampled weight ratio {αij }, we con-             configuration. For the LightGBM model, we set the learn-
+     struct a proxy model by weighted merging of the com-              ing rate to 0.02 and the number of iterations to 300. For
+     ponent models using Equation 6 and evaluate it on the             model evaluation, we utilize the OpenCompass benchmark
+     benchmark suite to obtain its average ranking score rj .          (OpenCompass Contributors, 2023).
+
+   • Step 3: Using the collected pairs (αij , rj ), we train           3.1. Benchmark
+     a predictor f that maps mixture weights to ranking
+     scores. In practice, we follow Liu et al. (2024) and              For evaluation, we adopt ARC-E (Clark et al., 2018), Hel-
+     adopt LightGBM (Ke et al., 2017) as the regression                laSwag (Zellers et al., 2019), WinoGrande (Sakaguchi et al.,
+     model.                                                            2021), PIQA (Bisk et al., 2020), and SIQA (Sap et al., 2019)
+                                                                       as general benchmarks; HumanEval (Chen et al., 2021)
+   • Step 4: The trained predictor f is then used to score             and MBPP (Austin et al., 2021) as code benchmarks; and
+     a large number of newly sampled mixture ratios. We                GSM8K (Cobbe et al., 2021b) and MATH (Hendrycks et al.,
+     select the top ratios according to the predicted rj and it-       2021) as math benchmarks. As shown in Table 1, the cost
+     eratively execute Step 2-4 three times, thereby refining          of benchmarking is negligible compared to the training cost.
+     the predictions for the high-ranking ratios.                      To facilitate comparison, we convert the GPU hour con-
+                                                                       sumption and find that the cost of one benchmarking run is
+                                                                       equivalent to training 0.013B tokens.
+After the final iteration, we sample a large number of mix-
+ture ratios using the trained predictor and select the top-
+                                                                       3.2. Baselines
+ranked candidates. The final optimal mixture ratio is com-
+puted as the average of these candidates, which defines our            We adopt the state-of-the-art methods including RegMix
+final mixed dataset for pre-training.                                  (Liu et al., 2024) and CLIMB (Diao et al., 2025) as our
+                                                                       baselines. We modify most configurations of RegMix
+3. Experimental Settings                                               and CLIMB—including the model, data, and training bud-
+                                                                       get—to align with our setup. We use 112 proxies by default
+Models In our experiments, we use Qwen3-1.7B (Yang                     following the original setting in CLIMB (64+32+16), and
+et al., 2025) as the backbone to determine the optimal mix-            we also experiment with other proxy counts. The detailed
+ture, and further validate it on both Qwen3-1.7B and Qwen3-            settings are available in Appendix B. We exclude earlier
+8B models. To maintain fundamental capabilities, before                inferior methods, including DoReMi (Xie et al., 2023) and
+training on the candidate datasets, each component model               Rho Loss (Mindermann et al., 2022), as they depend on
+is trained from scratch on 50 billion tokens of general data.          evaluation loss instead of proxies.
+
+                                                                   4
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+Table 2. Comparison of training costs and proxy accuracy between DeMix and training-based proxies. † is the benchmarking cost derived
+from equal GPU hour. The best scores for DeMix and trained proxy are bolded.
+
+                                           Train Cost (B) ↓                                    Spearman’s ρ ↑                     Top 25% Spearman’s ρ ↑ Capability Recovery ↑
+
+
+
+
+                                                                        Budget / Proxy
+                            Total Budget
+
+
+
+
+                                                                                                                     Macro Avg.
+
+
+
+
+                                                                                                                                                             Macro Avg.
+
+
+
+
+                                                                                                                                                                                                    Macro Avg.
+                                                          No. Proxies
+             Method
+
+
+
+
+                                               Pre-Cost
+
+
+
+
+                                                                                          General
+
+
+
+
+                                                                                                                                   General
+
+
+
+
+                                                                                                                                                                           General
+                                                                                                     Code
+
+                                                                                                            Math
+
+
+
+
+                                                                                                                                              Code
+
+                                                                                                                                                      Math
+
+
+
+
+                                                                                                                                                                                      Code
+
+                                                                                                                                                                                             Math
+                           224                  -         112            2                0.12 0.60 0.85 0.53                     0.17       0.63 -0.20      0.20         0.98       0.76 0.57      0.77
+          Trained Proxy    448                  -         112           4                -0.24 0.81 0.96 0.51                     -0.27      0.67 0.73       0.38         0.98       0.80 0.63      0.80
+        (RegMix/CLIMB)     896                  -         112           8                 0.41 0.77 0.97 0.71                     0.40       0.43 0.57       0.47         0.99       0.83 0.69      0.83
+                           1344                 -         112           12                0.54 0.94 0.97 0.82                     0.03       0.70 0.97       0.57         0.99       0.89 0.74      0.87
+                             15 2×7 112 0.01†                                            0.25       0.51 0.88 0.55                -0.17      0.01    0.97    0.27         0.98       0.77 0.54      0.76
+             DeMix           71 10×7 112 0.01                                            0.13       0.74 0.95 0.60                -0.10      0.63    0.71    0.41         0.99       0.79 0.64      0.80
+             (Ours)         211 30×7 112 0.01                                            0.64       0.81 0.98 0.81                0.00       0.80    0.97    0.59         1.00       0.81 0.68      0.83
+                            351 50×7 112 0.01                                            0.66       0.76 0.97 0.80                0.20       0.37    0.93    0.50         1.01       0.82 0.73      0.85
+
+
+
+3.3. Evaluation Metrics                                                                                            bility Recovery Rate serves as a critical indicator of how
+                                                                                                                   effectively the proxy model inherits and upholds the funda-
+We conduct two kinds of experiments to evaluate DeMix:
+                                                                                                                   mental competencies of the reference model without incur-
+Proxy Consistency and Mixture Quality. Proxy Consistency
+                                                                                                                   ring additional training costs.
+consists of two metrics: proxy accuracy for validating the
+ranking consistency of the proxy against reference mod-
+                                                                                                                   3.3.2. M IXTURE Q UALITY
+els, and capability recovery indicates how effectively do
+proxy models maintain absolute performance. While Mix-                                                             Benchmark Score and Rank We evaluate the final mix-
+ture Quality assesses the downstream performance of the                                                            ture ratio by training a model on 50B tokens with this mix-
+model trained on final data mixture through benchmark                                                              ture and evaluating it on general, math, and code bench-
+score and rank.                                                                                                    marks, aiming for versatility. Since the benchmark scores
+                                                                                                                   vary substantially across different domains, we report rela-
+3.3.1. P ROXY C ONSISTENCY                                                                                         tive rankings with respect to the 96 reference models, and
+                                                                                                                   use the macro-averaged rank across general language un-
+Proxy Accuracy Proxy Accuracy is defined as the mea-
+                                                                                                                   derstanding, mathematical reasoning, and code generation
+sure of ranking consistency between the proxy models and
+                                                                                                                   benchmarks as the final rank metric.
+the ground-truth reference models. To evaluate this, we ran-
+domly sample 96 mixture ratios and train 96 corresponding
+reference models on a large-scale corpus of 50B tokens,                                                            4. Experimental Results
+serving as the performance standard. In parallel, proxy
+                                                                                                                   4.1. Proxy Consistency
+models are constructed via efficient model merging. We cal-
+culate the Spearman’s rank correlation coefficient ρ (Spear-                                                       Table 2 compares the cost-effectiveness and proxy accuracy
+man, 1961) between the benchmark scores of the proxies                                                             of DeMix against conventional training-based approaches.
+and references to quantify their alignment. Additionally,                                                          We fix the number of proxies to 112, aligning with the
+to verify the precision in identifying high-performing mix-                                                        configuration used in CLIMB. Accordingly, we arrive at the
+tures, we report the Spearman’s ρ specifically for the top                                                         following conclusion:
+25% reference models. A higher ρ indicates that the proxy
+                                                                                                                   DeMix provides accurate proxies at significantly lower
+models can accurately predict the relative performance of
+                                                                                                                   cost. The results demonstrate that DeMix produces suf-
+data mixtures, validating the effectiveness of our training-
+                                                                                                                   ficiently strong and accurate proxies, significantly outper-
+free approach.
+                                                                                                                   forming training-based baselines under the same compu-
+                                                                                                                   tational budget. Specifically, when merging component
+Capability Recovery To quantitatively assess the extent                                                            models trained on 30B tokens, DeMix achieves a macro avg.
+of performance retention in the merged models, we intro-                                                           ρ of 0.81 and top-25% ρ of 0.59, while consuming a total
+duce the Capability Recovery Rate. This metric is defined                                                          token budget of only 212B. In contrast, the training-based
+as the quotient of the average benchmark score of the proxy                                                        approach reaches only 0.53 and 0.20 under a comparable
+model to that of the corresponding reference model. By                                                             budget. To attain a similar performance level, it requires a
+directly comparing absolute performance levels, the Capa-                                                          prohibitive 1344B tokens, corresponding to a 6.4× increase
+
+                                                                                                            5
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+Table 3. Comparison of the optimal mixture performance obtained from different data mixing methods. † is the benchmarking cost derived
+from equal GPU hour. The best average rank score across all methods is marked in bold, and the best score for the optimal setting within
+each method is underlined.
+
+                               Train Cost (B) ↓                                                                          Benchmarks (%) ↑                                                               Rank ↓
+                                                                                                    General                                      Code                         Math
+
+
+
+
+                                                            Budget / Proxy
+                Total Budget
+
+
+
+
+                                                                                                                 WinoGrande
+    Method
+
+
+
+
+                                                                                                                                                                                                                     Macro Avg.
+                                             No. Proxies
+
+
+
+
+                                                                                                                                                  HumanEval
+                                                                                       HellaSwag
+                                  Pre-Cost
+
+
+
+
+                                                                                                                                                                      GSM8K
+
+
+
+
+                                                                                                                                                                                             General
+                                                                              ARC-E
+
+
+
+
+                                                                                                                                                                               MATH
+                                                                                                                                          MBPP
+                                                                                                   PIQA
+
+                                                                                                          SIQA
+
+
+
+
+                                                                                                                                                                                                       Code
+                                                                                                                                                                                                              Math
+                                                                                                                                  Avg.
+
+
+
+
+                                                                                                                                                              Avg.
+
+
+
+
+                                                                                                                                                                                      Avg.
+    Uniform        -               -           -                -            71.34 54.33 73.18 40.52 55.67 59.01 18.50 18.19 18.34 12.50 6.74                                         9.62   9 44 57 36.67
+    Heuristic      -               -           -                -            69.57 53.72 71.75 40.32 55.27 58.13 24.27 24.90 24.58 18.20 10.16 14.18 94 5 28 42.33
+                224                -         112               2             70.81 54.34 73.45 40.41 54.58 58.72 17.70 20.58 19.14 19.13 10.43 14.78 52 41 21 38.00
+    RegMix      224                -          28               8             70.58 54.62 73.21 40.36 55.77 58.91 16.92 23.78 20.35 14.89 7.91 11.40 22 29 54 35.00
+                448                -          56               8             71.43 54.55 73.54 40.76 55.63 59.18 18.33 21.85 20.09 15.30 7.96 11.63 2 32 50 28.00
+                224                -         112               2             70.75 54.44 73.41 40.37 54.93 58.78 17.47 20.32 18.90 19.21 10.65 14.93 41 42 21 34.67
+    CLIMB       224                -          28               8             71.63 54.79 73.51 40.56 55.50 59.20 15.83 24.19 20.01 13.67 7.36 10.52 2 32 56 30.00
+                448                -          56               8             70.31 54.19 73.22 40.40 55.57 58.74 19.53 22.66 21.10 20.53 11.61 16.07 47 25 11 27.67
+                211 30×7 56                                0.01†             70.37    53.43 73.21 40.52 55.29 58.56                      21.63   21.95 21.79         24.43    14.10 19.26    66 21            1 29.33
+    DeMix       211 30×7 112                               0.01              70.81    53.71 73.26 40.34 55.96 58.81                      19.73   22.56 21.15         19.75    10.13 14.94    31 25            21 25.67
+    (Ours)      212 30×7 224                               0.01              71.08    53.78 72.94 40.63 55.43 58.77                      20.70   24.29 22.49         20.98    10.55 15.76    46 12            14 24.00
+                214 30×7 448                               0.01              70.61    54.29 73.12 40.22 55.89 58.83                      22.03   23.17 22.60         15.73    8.35 12.04     31 10            42 27.67
+
+
+
+in cost relative to our method. Additionally, DeMix main-                                                                         performance improvements. Yet DeMix still outperforms
+tains a high capability recovery rate (up to 0.85), confirming                                                                    these methods with a substantially lower training budget.
+that weighted model merging serves as a highly reliable
+and efficient proxy for real data mixtures. Based on these
+                                                                                                                                  Scaling the proxy count enhances the mixture quality
+results, we select component models trained with 30B to-
+                                                                                                                                  within a certain range. For DeMix, the performance
+kens for subsequent experiments due to their efficiency and
+                                                                                                                                  shows a continuous upward trend as the proxy count is
+effectiveness.
+                                                                                                                                  scaled from 56 to 224, with the rank improving from 29.33
+                                                                                                                                  to 24.00. A similar improvement is also observed for the
+4.2. Mixture Quality                                                                                                              8B-trained proxy versions of RegMix and CLIMB when the
+We present the performance of data mixtures produced by                                                                           proxy count increases from 28 to 56. Further performance
+different methods in Table 3, with specific mixture details                                                                       gains can be reasonably anticipated, yet such gains would be
+provided in Appendix C. For the baseline methods RegMix                                                                           accompanied by substantial computational overhead. This
+and CLIMB, we evaluate their performance using both 2B                                                                            phenomenon illustrates that the proxy count plays a critical
+and 8B proxy models across a varying number of proxies.                                                                           role in determining mixture quality. Meanwhile, the rank of
+We also report results for Uniform and Heuristic strategies to                                                                    DeMix is observed to decline once the proxy count reaches
+provide essential comparisons against other tuned baselines.                                                                      448, indicating that an excessively large number of proxies
+The results demonstrate the following:                                                                                            may introduce the risk of overfitting noise.
+                                                                                                                                  Nevertheless, it is of great importance to explore a broader
+DeMix achieves superior mixture quality with lower                                                                                range of proxies. For instance, expanding the pool of candi-
+training cost. The total training budget of DeMix remains                                                                         date datasets will increase the dimensionality of the mixture
+roughly unchanged as the number of proxies increases.                                                                             ratios, which in turn increases the number of proxies re-
+Among all baseline methods, DeMix with 224 merged prox-                                                                           quired to conduct an effective search. Therefore, DeMix
+ies (the green row) achieves the top performance rank of                                                                          retains a distinct advantage in reducing the computational
+24.00. Under a comparable training budget, neither Reg-                                                                           burden associated with the search procedure.
+Mix nor CLIMB delivers comparable results. Specifically,
+neither 112 2B-trained proxies nor 28 8B-trained proxies
+                                                                                                                                  4.3. Ablation Study
+surpass DeMix. Moreover, 2B-trained proxies yield inferior
+performance relative to 8B-trained proxies under the same                                                                         We conduct ablation and validation studies to identify the
+budget, suggesting small proxy performs poorly for this type                                                                      key factors that affect DeMix and to examine its robustness
+of task. When the training budget is scaled up to 448B with                                                                       across settings. We first ablate the merging strategies and
+56 8B-trained proxies, both RegMix and CLIMB exhibit                                                                              the proportion of general data in the candidate datasets.
+
+                                                                                                                              6
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+Table 4. Comparison of different merging methods. HP-Free              data regularization technique.
+denotes hyperparameter-free. Linear merging serves as a simple
+and effective method.
+                                                                       4.3.3. VALIDITY ON L ARGER S CALE M ODELS
+   Method           HP-Free      ρ      Capability Recovery            Table 6. Comparison of the optimal mixture performance on
+   Linear              ✓       0.787           0.845                   Qwen3-8B obtained from different data mixing methods
+   Multi-SLERP         ✓       0.785           0.813
+                                                                                                      Avg. ↑                 Rank ↓
+   Breadcrumbs         ✓       0.735           0.831                      Method      Proxy
+                                                                                              Gen. Code Math Gen. Code Math Avg.
+   DARE                ✗       0.757           0.835                      Uniform       -     62.07 24.60 18.52         7   54   64   41.67
+   DELLA               ✗       0.784           0.778                      Heuristic     -     59.86 27.87 25.58        64   18   37   39.67
+   TIES                ✗       0.783           0.786                                  112×2 61.49 24.44 27.16          30   56   31   39.00
+                                                                          RegMix      28×8 61.85 24.62 22.30           15   53   56   41.33
+                                                                                      56×8 62.02 25.77 23.52           10   41   51   34.00
+Table 5. Comparison of performances with different proportion of                      112×2 60.82 23.98 29.80          51   57   17   41.67
+mixed general data in candidate dataset.                                  CLIMB       28×8 62.10 25.10 24.50            7   49   46   34.00
+                                                                                      56×8 61.78 26.96 24.25           19   25   46   30.00
+   General Data Proportion       ρ      Capability Recovery                            56     60.32   27.61    34.14   63   21   10   31.33
+                                                                          DeMix        112    60.81   27.80    28.94   51   18   20   29.67
+             50%               0.787           0.845                      (Ours)       224    60.83   27.36    29.68   49   21   17   29.00
+             25%               0.667           0.796                                   448    61.19   30.60    25.02   36    4   43   27.67
+              0%               0.652           0.795
+                                                                       To further evaluate the scalability of DeMix, we conduct
+                                                                       experiments on Qwen3-8B using the same mixture ratios
+For these experiments, we report the mean macro-average                as those reported in Table 3. As shown in Table 6, the
+ρ and capability recovery rate across 96 different mixture             mixture ratios produced by DeMix achieve a better average
+ratios, using component models trained on 30B, 40B, and                rank compared with alternative ratios. This observation is
+50B tokens. We further evaluate the optimized mixture                  consistent with the results on Qwen3-1.7B, suggesting that
+ratios on Qwen3-8B and study a finer-grained partition of              the effectiveness of DeMix is not limited to smaller models
+the training data, aiming to test whether DeMix transfers              and can transfer to larger-scale models.
+to larger-scale models and remains reliable under different
+partition granularities.                                               4.3.4. F INER PARTITIONING OF T RAINING DATA
+
+4.3.1. M ERGING M ETHODS                                               We further examine a finer data partition with 15 categories,
+                                                                       compared to the 7-category partition used in the main exper-
+We compare different merging methods by evaluating the ac-             iments in Table 2. The overall findings remain consistent.
+curacy of their corresponding proxies in Table 4. Results are          As shown in Table 7, the proxy accuracy of DeMix under
+shown for Linear (Wortsman et al., 2022a), Multi-SLERP                 the finer partition follows the same trend as that reported
+(Goddard et al., 2024), DARE (Yu et al., 2024), Bread-                 in Table 2. In particular, DeMix with 30B/50B component
+crumbs (Davari & Belilovsky, 2024), DELLA (Deep et al.,                models achieves Spearman correlations comparable to those
+2024), and TIES (Yadav et al., 2023). Among others, Linear             of the 12B-trained proxy, with significantly lower training
+is an intuitive, simple, and hyperparameter-free (HP-free)             costs. This suggests that the proxy remains reliable un-
+method that achieves the best capability recovery rate and             der finer partitions and that the main conclusions are not
+macro-average ρ.                                                       sensitive to the choice of partition granularity.
+                                                                       Nevertheless, finer partitioning also comes with important
+4.3.2. P ROPORTION OF C ANDIDATE DATASETS
+                                                                       trade-offs. While it enlarges the exploration space and may
+Prior to training the component model, we incorporate gen-             potentially yield better mixing ratios, the search space grows
+eral data into the candidate data at a specific ratio. Table 5         rapidly as the number of categories increases. Compared
+presents the impact of different mixing ratios on the final            with coarser partitions, finer partitions benefit less from the
+proxy accuracy. When the ratio is reduced to 25%, the proxy            prior information provided by merging similar datasets, and
+accuracy drops significantly to a ρ value of 0.667, with a             therefore may perform worse under the same search budget.
+capacity recovery rate of 0.796. The performance further               They also incur higher computational cost, requiring more
+declines when the ratio decreases to 0%. These results illus-          component models in DeMix or more proxy training runs in
+trate that the absence or insufficient proportion of general           methods such as RegMix and CLIMB. Moreover, finer parti-
+data results in a sharp reduction in both ρ and the capacity           tions often result in many categories with very small mixing
+recovery rate. This validates the necessity of employing this          proportions, for which it is difficult to reliably estimate how
+
+                                                                   7
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+ Table 7. Comparison of training costs and proxy accuracy between DeMix and training-based proxies with finer 15 dataset partitions.
+
+                                           Train Cost (B) ↓                                    Spearman’s ρ ↑                         Top 25% Spearman’s ρ ↑ Capability Recovery ↑
+
+
+
+
+                                                                        Budget / Proxy
+                            Total Budget
+
+
+
+
+                                                                                                                         Macro Avg.
+
+
+
+
+                                                                                                                                                                         Macro Avg.
+
+
+
+
+                                                                                                                                                                                                                        Macro Avg.
+                                                          No. Proxies
+              Method
+
+
+
+
+                                               Pre-Cost
+
+
+
+
+                                                                                          General
+
+
+
+
+                                                                                                                                       General
+
+
+
+
+                                                                                                                                                                                       General
+                                                                                                     Code
+
+                                                                                                            Math
+
+
+
+
+                                                                                                                                                  Code
+
+                                                                                                                                                              Math
+
+
+
+
+                                                                                                                                                                                                       Code
+
+                                                                                                                                                                                                                Math
+                        224                     -         112           2                0.61       0.46 0.92 0.66                    0.23       0.74 0.26              0.41          0.98            0.81    0.53     0.77
+          Trained Proxy 448                     -         112           4                0.66       0.82 0.95 0.81                    0.00       0.74 0.49              0.41          0.98            0.83    0.61     0.81
+        (RegMix/CLIMB) 896                      -         112           8                0.66       0.84 0.94 0.81                    0.31       0.63 0.51              0.48          0.99            0.86    0.68     0.84
+                        1344                    -         112           12               0.63       0.94 0.96 0.84                    0.17       0.89 0.69              0.58          0.99            0.88    0.74     0.87
+                            31 2×15 112 0.01†                                            -0.08 0.49 0.93 0.45                         -0.03 0.46 0.36                   0.26          0.98            0.81    0.55     0.78
+              DeMix        151 10×15 112 0.01                                             0.69 0.79 0.91 0.80                         -0.03 0.89 0.50                   0.45          0.99            0.82    0.67     0.83
+              (Ours)       451 30×15 112 0.01                                             0.73 0.82 0.93 0.83                          0.29 0.91 0.56                   0.59          1.00            0.86    0.71     0.86
+                           751 50×15 112 0.01                                             0.70 0.84 0.97 0.84                          0.34 0.91 0.44                   0.56          1.01            0.86    0.73     0.87
+
+
+
+changes in their proportions affect final model performance.                                                                                                            General Benchmark
+As a result, the optimized ratios of such small categories                                                                     60
+may be less meaningful. For these reasons, practical pre-                                                                      55
+training recipe design typically avoids overly fine-grained
+partitions (Feng et al., 2024; Blakeman et al., 2025).
+                                                                                                                    Avg. Score 50
+                                                                                                                               45
+5. DeMix Corpora                                                                                                                                                                                              DeMix Corpora (HQ)
+                                                                                                                               40                                                                             ClimbMix
+                                                                                                                                                                                                              DCLM-Baseline
+Table 8. Comparison of public high-quality pre-training datasets.                                                              35                                                                             Fineweb-Edu
+                                                                                                                                                                                                              DOLMA (Web)
+                                                                                                                                                                                                              Nemotron-Pretrain (HQ)
+                                                          Math& Validated                                                      30
+    Dataset               Multilingual
+                                                          Code  Mixture                                                                0                 10              20                      30             40                   50
+                                                                                                                                                                        Trained Tokens (B)
+    DCLM-baseline                          ✗                      ✗                       ✗
+    FineWeb-Edu                            ✗                      ✗                       ✗                        Figure 3. General performance of high-quality general datasets.
+    ClimbMix                               ✗                      ✗                       ✗
+    DOLMA-v1.7                             ✗                      ✓                       ✗
+    SmolLM-Corpus                          ✓                      ✓                       ✗
+                                                                                                                   Table 9. Multi-Domain performance of mixed datasets after mid-
+    Nemotron-Pretrain                      ✓                      ✓                       ✗
+                                                                                                                   training 50B tokens.
+    DeMix Corpora                          ✓                      ✓                       ✓
+                                                                                                                            Dataset                                  General          Code             Math        Avg. Rank↓
+Public pre-training corpora can be categorized into sev-                                                                    SmolLM-Corpus                             59.13           21.01 9.14                       31.33
+eral types. Web-derived general English corpora include                                                                     Nemotron-Pretrain                         57.67           28.35 16.12                      36.00
+FineWeb-Edu (Penedo et al., 2024), DCLM-baseline (Li                                                                        DeMix Corpora                             58.77           22.49 15.76                      24.00
+et al., 2024), and ClimbMix (Diao et al., 2025); composite
+corpora include SmolLM-Corpus (Ben Allal et al., 2024),
+DOLMA (Soldaini et al., 2024), and Nemotron-Pretrain                                                               prehensive data cleaning pipeline (see Appendix A). As
+(Basant et al., 2025). In addition, multilingual (Messmer                                                          shown in Figure 3, when training a Qwen3-1.7B model
+et al., 2025; De Gibert et al., 2024), code (Li et al., 2023),                                                     from scratch and evaluating on general benchmarks, the
+and mathematics (Allal et al., 2025a) corpora are not di-                                                          high-quality (HQ) general data subset of the DeMix Cor-
+rectly applicable for pre-training. As shown in Table 8, there                                                     pora outperforms all other general datasets.
+remains a scarcity of high-quality corpora with validated
+                                                                                                                   In addition, DeMix Corpora not only features large and high-
+mixture. In contrast, our proposed DeMix Corpora (15T
+                                                                                                                   quality general corpus subset, but also adopts a validated
+original tokens and 22T mixture tokens) serves as a com-
+                                                                                                                   optimal data mixture that best balances multi-domain capa-
+prehensive, high-quality, large-scale, and carefully mixed
+                                                                                                                   bilities of pre-training. The final mixtures are illustrated in
+resource that can be directly employed for pre-training.
+                                                                                                                   Figure 4. We compare DeMix Corpora with existing mixed
+To ensure high data quality, we curate the corpora from                                                            datasets. The results presented in Table 9 demonstrate that
+heterogeneous open-source sources, followed by a com-                                                              DeMix Corpora achieves a superior balance between general
+
+                                                                                                            8
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+                                                                          6.2. Model Merging
+                                                                          Model merging has emerged as a promising training-free
+                                                                          approach that combines multiple LLMs with identical struc-
+                                                                          tures into a new LLM using a series of arithmetic operations.
+                                                                          (Goddard et al., 2024; Wortsman et al., 2022a; Ilharco et al.,
+                                                                          2022; Yadav et al., 2023; Davari & Belilovsky, 2024). This
+                                                                          technique can be used to regularize models (Luo et al., 2025;
+                                                                          Wortsman et al., 2022b), improve generalization (Izmailov
+                                                                          et al., 2018; Yang et al., 2024), mitigate catastrophic forget-
+                                                                          ting (Xiao et al., 2024), or even replace fine-tuning entirely
+                                                                          (Ahmadian et al., 2024). Recent works have been exploring
+            General       Multilingual    Math        Code
+                                                                          model merging in data selection. For instance, Merge-to-
+                                                                          Mix (Tao et al., 2025) employs unweighted model averaging
+Figure 4. The data mixture constructed using our DeMix frame-             to enumerate all binary subset choices to discard datasets
+work. The three hierarchical levels from the inside out are domain,       during fine-tuning. In contrast, optimizing pre-training data
+data category, and data origin.                                           mixtures is substantially more challenging: mixing weights
+                                                                          are continuous-valued and the feasible space is unbounded.
+                                                                          Recently, several studies have shown that merging weight
+                                                                          deltas from models sharing the same base but trained on
+                                                                          different datasets is a highly effective alternative to directly
+                                                                          merging their training processes, provided that parameter
+and domain-specific capabilities, yielding the best average               updates remain relatively small (Wu et al., 2025; Lin et al.,
+rank of 24.00. In contrast, Nemotron-Pretrain exhibits poor               2025b). The concurrent work MergeMix (Wang et al., 2026)
+general capability due to an insufficient volume of general-              uses a similar approach for mid-training. Our work sig-
+domain training data. SmolLM-Corpus features high-quality                 nificantly extend this line of work by leveraging weighted
+general data with a large proportion, but its math capability             model merging as a proxy for real data mixture during pre-
+is severely deficient.                                                    training. By ensuring that a single proxy is adequately
+                                                                          accurate, we eliminate the overhead of training, thereby
+                                                                          enabling extensive sampling to search for the optimal ratio.
+6. Related Works
+6.1. Data Mixture                                                         7. Conclusion
+Data mixture plays a critical role in successful LLM pre-                 In this work, we introduce DeMix, a pre-training data
+training (Chen et al., 2023; Shen et al., 2023; Ye et al., 2024;          mixture optimization framework that decouples mixture
+Xie et al., 2023). Many LLM teams conduct large-scale                     search from costly proxy training by leveraging weighted
+proxy experiments using mid-sized models with a sufficient                model merging. DeMix simultaneously achieves sufficiency
+token budget (Li et al., 2025; Nie et al., 2025; Blakeman                 (unlimited proxy models), accuracy (faithful proxy perfor-
+et al., 2025). While such approaches can yield accurate                   mances) and efficiency (fixed token budgets). Across com-
+estimates given massive computational resources, their cost               prehensive evaluations, DeMix yields the best data mix-
+makes them impractical for many research institutes. Re-                  ture that balances the diverse capability demands of LLM
+cently, researchers have begun to propose automated meth-                 pre-training across general language understanding, mathe-
+ods for data mixture optimization. RegMix (Liu et al., 2024)              matical reasoning, and code generation. To further support
+samples a large number of data ratios for tiny-scale proxy                reproducible research and practical pre-training, we release
+experiments and generates optimal predictions based on the                DeMix Corpora, a 22T-token high-quality dataset accompa-
+results of a regression predictor. CLIMB (Diao et al., 2025)              nied by validated mixture ratios, providing a resource for
+iteratively samples and calibrates sample points with higher              large-scale LLM pre-training development.
+predicted scores, thereby improving the prediction accuracy
+for high-performing samples. However, such automated
+methods are only validated to optimize simple general ca-                 Acknowledgements
+pabilities. When jointly optimizing more challenging tasks                We thank the reviewers for their positive feedback and con-
+such as math and code (Kimi Team et al., 2025; Feng et al.,               structive comments, which helped improve the quality of
+2024; Basant et al., 2025), tiny-scale proxy experiments                  this paper. We are also grateful to the co-authors who con-
+tend to become inaccurate due to insufficient training (Allal             tributed to the development and maintenance of the dataset
+et al., 2025b; Li et al., 2025).
+
+                                                                      9
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+construction pipeline, which provided important support for           Ben Allal, L., Lozhkov, A., Penedo, G., Wolf, T.,
+this work.                                                              and von Werra, L. Smollm-corpus, 2024. URL
+                                                                        https://huggingface.co/datasets/
+Impact Statement                                                        HuggingFaceTB/smollm-corpus.
+
+This paper presents research aimed at advancing the devel-            Bisk, Y., Zellers, R., Gao, J., Choi, Y., et al. Piqa: Reasoning
+opment of large language models. The proposed method                    about physical commonsense in natural language. In Pro-
+is designed to facilitate data mixture optimization for large           ceedings of the AAAI conference on artificial intelligence,
+language model pre-training. The dataset in this work is                volume 34, pp. 7432–7439, 2020.
+constructed by filtering and merging multiple datasets held           Blakeman, A., Grattafiori, A., Basant, A., Gupta, A.,
+under valid and appropriate licenses, with no associated                Khattar, A., Renduchintala, A., Vavre, A., Shukla,
+legal or ethical risks identified.                                      A., Bercovich, A., Ficek, A., et al. Nemotron 3
+                                                                        nano: Open, efficient mixture-of-experts hybrid mamba-
+References                                                              transformer model for agentic reasoning. arXiv preprint
+                                                                        arXiv:2512.20848, 2025.
+Achiam, J., Adler, S., Agarwal, S., Ahmad, L., Akkaya, I.,
+  Aleman, F. L., Almeida, D., Altenschmidt, J., Altman, S.,           Chen, M., Tworek, J., Jun, H., Yuan, Q., de Oliveira Pinto,
+  Anadkat, S., et al. Gpt-4 technical report. arXiv preprint            H. P., Kaplan, J., Edwards, H., Burda, Y., Joseph, N.,
+  arXiv:2303.08774, 2023.                                               Brockman, G., Ray, A., Puri, R., Krueger, G., Petrov,
+                                                                        M., Khlaaf, H., Sastry, G., Mishkin, P., Chan, B., Gray,
+Ahmadian, A., Goldfarb-Tarrant, S., Ermis, B., Fadaee,                  S., Ryder, N., Pavlov, M., Power, A., Kaiser, L., Bavar-
+  M., Hooker, S., et al. Mix data or merge models? op-                  ian, M., Winter, C., Tillet, P., Such, F. P., Cummings, D.,
+  timizing for diverse multi-task learning. arXiv preprint              Plappert, M., Chantzis, F., Barnes, E., Herbert-Voss, A.,
+  arXiv:2410.10801, 2024.                                               Guss, W. H., Nichol, A., Paino, A., Tezak, N., Tang,
+                                                                        J., Babuschkin, I., Balaji, S., Jain, S., Saunders, W.,
+Allal, L. B., Lozhkov, A., Bakouch, E., Blázquez, G. M.,               Hesse, C., Carr, A. N., Leike, J., Achiam, J., Misra,
+  Penedo, G., Tunstall, L., Marafioti, A., Kydlı́ček, H.,              V., Morikawa, E., Radford, A., Knight, M., Brundage,
+  Lajarı́n, A. P., Srivastav, V., et al. Smollm2: When smol             M., Murati, M., Mayer, K., Welinder, P., McGrew, B.,
+  goes big–data-centric training of a small language model.             Amodei, D., McCandlish, S., Sutskever, I., and Zaremba,
+  arXiv preprint arXiv:2502.02737, 2025a.                               W. Evaluating large language models trained on code,
+                                                                        2021.
+Allal, L. B., Tunstall, L., Tazi, N., Bakouch, E., Beeching,
+  E., Patiño, C. M., Fourrier, C., Frere, T., Lozhkov, A.,           Chen, M., Roberts, N., Bhatia, K., Wang, J., Zhang, C., Sala,
+  Raffel, C., von Werra, L., and Wolf, T. The smol train-               F., and Ré, C. Skill-it! a data-driven skills framework for
+  ing playbook: The secrets to building world-class llms,               understanding and training language models. Advances
+  2025b.                                                                in Neural Information Processing Systems, 36:36000–
+                                                                        36040, 2023.
+Austin, J., Odena, A., Nye, M., Bosma, M., Michalewski,
+  H., Dohan, D., Jiang, E., Cai, C., Terry, M., Le, Q., et al.        Clark, P., Cowhey, I., Etzioni, O., Khot, T., Sabharwal, A.,
+  Program synthesis with large language models. arXiv                   Schoenick, C., and Tafjord, O. Think you have solved
+  preprint arXiv:2108.07732, 2021.                                      question answering? try arc, the ai2 reasoning challenge.
+                                                                        arXiv preprint arXiv:1803.05457, 2018.
+Bai, S., Chen, K., Liu, X., Wang, J., Ge, W., Song, S., Dang,
+                                                                      Cobbe, K., Kosaraju, V., Bavarian, M., Chen, M., Jun, H.,
+  K., Wang, P., Wang, S., Tang, J., et al. Qwen2. 5-vl
+                                                                        Kaiser, L., Plappert, M., Tworek, J., Hilton, J., Nakano,
+  technical report. arXiv preprint arXiv:2502.13923, 2025.
+                                                                        R., Hesse, C., and Schulman, J. Training verifiers to solve
+                                                                        math word problems. arXiv preprint arXiv:2110.14168,
+Bansal, P. and Sanghavi, S. Context-free synthetic data
+                                                                        2021a.
+  mitigates forgetting. arXiv preprint arXiv:2505.13811,
+  2025.                                                               Cobbe, K., Kosaraju, V., Bavarian, M., Chen, M., Jun, H.,
+                                                                        Kaiser, L., Plappert, M., Tworek, J., Hilton, J., Nakano,
+Basant, A., Khairnar, A., Paithankar, A., Khattar, A., Ren-             R., et al. Training verifiers to solve math word problems.
+  duchintala, A., Malte, A., Bercovich, A., Hazare, A.,                 arXiv preprint arXiv:2110.14168, 2021b.
+  Rico, A., Ficek, A., et al. Nvidia nemotron nano 2: An ac-
+  curate and efficient hybrid mamba-transformer reasoning             Comanici, G., Bieber, E., Schaekermann, M., Pasupat, I.,
+  model. arXiv preprint arXiv:2508.14444, 2025.                         Sachdeva, N., Dhillon, I., Blistein, M., Ram, O., Zhang,
+
+                                                                 10
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+  D., Rosen, E., et al. Gemini 2.5: Pushing the frontier                for Computational Linguistics. doi: 10.18653/v1/2023.
+  with advanced reasoning, multimodality, long context,                 findings-emnlp.95. URL https://aclanthology.
+  and next generation agentic capabilities. arXiv preprint              org/2023.findings-emnlp.95/.
+  arXiv:2507.06261, 2025.
+                                                                      Guo, D., Yang, D., Zhang, H., Song, J., Zhang, R., Xu, R.,
+Davari, M. and Belilovsky, E. Model breadcrumbs: Scal-                  Zhu, Q., Ma, S., Wang, P., Bi, X., et al. Deepseek-r1: In-
+  ing multi-task model merging with sparse masks. In                    centivizing reasoning capability in llms via reinforcement
+  European Conference on Computer Vision, pp. 270–287.                  learning. arXiv preprint arXiv:2501.12948, 2025.
+  Springer, 2024.
+                                                                      Hendrycks, D., Burns, C., Kadavath, S., Arora, A., Basart,
+De Gibert, O., Nail, G., Arefyev, N., Bañón, M., Van                  S., Tang, E., Song, D., and Steinhardt, J. Measuring math-
+  Der Linde, J., Ji, S., Zaragoza-Bernabeu, J., Aulamo,                 ematical problem solving with the math dataset. arXiv
+  M., Ramı́rez-Sánchez, G., Kutuzov, A., et al. A new mas-             preprint arXiv:2103.03874, 2021.
+  sive multilingual dataset for high-performance language
+  technologies. arXiv preprint arXiv:2403.14009, 2024.                Huang, S., Cheng, T., Liu, J. K., Xu, W., Hao, J., Song, L.,
+                                                                       Xu, Y., Yang, J., Liu, J., Zhang, C., et al. Opencoder: The
+Deep, P. T., Bhardwaj, R., and Poria, S. Della-merging: Re-             open cookbook for top-tier code large language models.
+  ducing interference in model merging through magnitude-               In Proceedings of the 63rd Annual Meeting of the Asso-
+  based sampling. arXiv preprint arXiv:2406.11617, 2024.                ciation for Computational Linguistics (Volume 1: Long
+                                                                       Papers), pp. 33167–33193, 2025.
+Diao, S., Yang, Y., Fu, Y., Dong, X., Su, D., Kliegl,
+  M., Chen, Z., Belcak, P., Suhara, Y., Yin, H., et al.               Ilharco, G., Ribeiro, M. T., Wortsman, M., Gururangan, S.,
+  Climb: Clustering-based iterative data mixture bootstrap-              Schmidt, L., Hajishirzi, H., and Farhadi, A. Editing mod-
+  ping for language model pre-training. arXiv preprint                   els with task arithmetic. arXiv preprint arXiv:2212.04089,
+  arXiv:2504.13161, 2025.                                                2022.
+Fan, A., Jernite, Y., Perez, E., Grangier, D., Weston, J., and        Izmailov, P., Podoprikhin, D., Garipov, T., Vetrov, D.,
+  Auli, M. Eli5: Long form question answering. arXiv                    and Wilson, A. G.       Averaging weights leads to
+  preprint arXiv:1907.09190, 2019.                                      wider optima and better generalization. arXiv preprint
+                                                                        arXiv:1803.05407, 2018.
+Feng, S., Prabhumoye, S., Kong, K., Su, D., Patwary, M.,
+  Shoeybi, M., and Catanzaro, B. Maximize your data’s                 Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W.,
+  potential: Enhancing llm accuracy with two-phase pre-                 Ye, Q., and Liu, T.-Y. Lightgbm: a highly efficient gradi-
+  training. arXiv preprint arXiv:2412.15285, 2024.                      ent boosting decision tree. In Proceedings of the 31st In-
+                                                                        ternational Conference on Neural Information Processing
+Fujii, K., Tajima, Y., Mizuki, S., Shimada, H., Shiotani,               Systems, NIPS’17, pp. 3149–3157, Red Hook, NY, USA,
+  T., Saito, K., Ohi, M., Kawamura, M., Nakamura, T.,                   2017. Curran Associates Inc. ISBN 9781510860964.
+  Okamoto, T., et al. Rewriting pre-training data boosts
+  llm performance in math and code. arXiv preprint                    Kimi Team, Bai, Y., Bao, Y., Chen, G., Chen, J., Chen,
+  arXiv:2505.02881, 2025.                                               N., Chen, R., Chen, Y., Chen, Y., Chen, Y., et al.
+                                                                        Kimi k2: Open agentic intelligence. arXiv preprint
+Gemini Team, Anil, R., Borgeaud, S., Alayrac, J.-B., Yu,                arXiv:2507.20534, 2025.
+  J., Soricut, R., Schalkwyk, J., Dai, A. M., Hauth, A.,
+  Millican, K., et al. Gemini: a family of highly capable             Lee, K., Ippolito, D., Nystrom, A., Zhang, C., Eck, D.,
+  multimodal models. arXiv preprint arXiv:2312.11805,                   Callison-Burch, C., and Carlini, N. Deduplicating train-
+  2023.                                                                 ing data makes language models better. In Proceedings
+                                                                        of the 60th Annual Meeting of the Association for Compu-
+Goddard, C., Siriwardhana, S., Ehghaghi, M., Meyers, L.,                tational Linguistics (Volume 1: Long Papers), pp. 8424–
+  Karpukhin, V., Benedict, B., McQuade, M., and Solawetz,               8445, 2022.
+ J. Arcee’s mergekit: A toolkit for merging large language
+  models. arXiv preprint arXiv:2403.13257, 2024.                      Li, A., Gong, B., Yang, B., Shan, B., Liu, C., Zhu, C.,
+                                                                        Zhang, C., Guo, C., Chen, D., Li, D., et al. Minimax-01:
+Gueta, A., Venezian, E., Raffel, C., Slonim, N., Katz,                  Scaling foundation models with lightning attention. arXiv
+ Y., and Choshen, L. Knowledge is a region in weight                    preprint arXiv:2501.08313, 2025.
+  space for fine-tuned language models. In Bouamor,
+  H., Pino, J., and Bali, K. (eds.), Findings of the Asso-            Li, J., Fang, A., Smyrnis, G., Ivgi, M., Jordan, M., Gadre,
+  ciation for Computational Linguistics: EMNLP 2023,                    S. Y., Bansal, H., Guha, E., Keh, S. S., Arora, K., et al.
+  pp. 1350–1370, Singapore, December 2023. Association                  Datacomp-lm: In search of the next generation of training
+
+                                                                 11
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+  sets for language models. Advances in Neural Informa-                Penedo, G., Kydlı́ček, H., Lozhkov, A., Mitchell, M., Raffel,
+  tion Processing Systems, 37:14200–14282, 2024.                         C. A., Von Werra, L., Wolf, T., et al. The fineweb datasets:
+                                                                         Decanting the web for the finest text data at scale. Ad-
+Li, R., Allal, L. B., Zi, Y., Muennighoff, N., Kocetkov, D.,             vances in Neural Information Processing Systems, 37:
+  Mou, C., Marone, M., Akiki, C., Li, J., Chim, J., et al.               30811–30849, 2024.
+  Starcoder: may the source be with you! arXiv preprint
+  arXiv:2305.06161, 2023.                                              Penedo, G., Kydlı́ček, H., Sabolčec, V., Messmer, B.,
+                                                                         Foroutan, N., Kargaran, A. H., Raffel, C., Jaggi, M.,
+Lin, J., Wang, T., and Qian, K. Rec-r1: Bridging genera-                 Von Werra, L., and Wolf, T. Fineweb2: One pipeline to
+  tive large language models and user-centric recommenda-                scale them all–adapting pre-training data processing to
+  tion systems via reinforcement learning. arXiv preprint                every language. arXiv preprint arXiv:2506.20920, 2025.
+  arXiv:2503.24289, 2025a.
+                                                                       Qin, Y., Qian, C., Yi, J., Chen, W., Lin, Y., Han, X., Liu,
+Lin, P.-J., Balasubramanian, R., Liu, F., Kandpal, N., and               Z., Sun, M., and Zhou, J. Exploring mode connectiv-
+  Vu, T. Efficient model development through fine-tuning                 ity for pre-trained language models. In Goldberg, Y.,
+  transfer. arXiv preprint arXiv:2503.20110, 2025b.                      Kozareva, Z., and Zhang, Y. (eds.), Proceedings of the
+                                                                         2022 Conference on Empirical Methods in Natural Lan-
+Liu, Q., Zheng, X., Muennighoff, N., Zeng, G., Dou, L.,
+                                                                         guage Processing, pp. 6726–6746, Abu Dhabi, United
+  Pang, T., Jiang, J., and Lin, M. Regmix: Data mixture
+                                                                         Arab Emirates, December 2022. Association for Compu-
+  as regression for language model pre-training. arXiv
+                                                                         tational Linguistics. doi: 10.18653/v1/2022.emnlp-main.
+  preprint arXiv:2407.01492, 2024.
+                                                                         451. URL https://aclanthology.org/2022.
+Liu, Y., Jin, R., Shi, L., Yao, Z., and Xiong, D. Finemath: A            emnlp-main.451/.
+  fine-grained mathematical evaluation benchmark for chi-
+  nese large language models. ACM Transactions on Asian                Sakaguchi, K., Bras, R. L., Bhagavatula, C., and Choi, Y.
+  and Low-Resource Language Information Processing, 24                   Winogrande: An adversarial winograd schema challenge
+  (12):1–15, 2025.                                                       at scale. Communications of the ACM, 64(9):99–106,
+                                                                         2021.
+Luo, K., Sun, Z., Wen, H., Shi, X., Cui, J., Dang, C., Lyu, K.,
+  and Chen, W. How learning rate decay wastes your best                Sap, M., Rashkin, H., Chen, D., LeBras, R., and Choi, Y.
+  data in curriculum-based llm pretraining. arXiv preprint               Socialiqa: Commonsense reasoning about social interac-
+  arXiv:2511.18903, 2025.                                                tions. arXiv preprint arXiv:1904.09728, 2019.
+
+Messmer, B., Sabolčec, V., and Jaggi, M. Enhancing mul-               Shao, Z., Wang, P., Zhu, Q., Xu, R., Song, J., Bi, X., Zhang,
+ tilingual llm pretraining with model-based data selec-                  H., Zhang, M., Li, Y., Wu, Y., et al. Deepseekmath: Push-
+ tion. arXiv, 2025. URL https://arxiv.org/abs/                           ing the limits of mathematical reasoning in open language
+ 2502.10361.                                                             models. arXiv preprint arXiv:2402.03300, 2024.
+
+Mindermann, S., Brauner, J. M., Razzak, M. T., Sharma, M.,             Shen, Z., Tao, T., Ma, L., Neiswanger, W., Liu, Z., Wang,
+ Kirsch, A., Xu, W., Höltgen, B., Gomez, A. N., Morisot,                H., Tan, B., Hestness, J., Vassilieva, N., Soboleva, D.,
+ A., Farquhar, S., et al. Prioritized training on points that            et al. Slimpajama-dc: Understanding data combinations
+ are learnable, worth learning, and not yet learnt. In In-               for llm training. arXiv preprint arXiv:2309.10818, 2023.
+ ternational Conference on Machine Learning, pp. 15630–
+                                                                       Soldaini, L., Kinney, R., Bhagia, A., Schwenk, D., Atkinson,
+ 15649. PMLR, 2022.
+                                                                         D., Authur, R., Bogin, B., Chandu, K., Dumas, J., Elazar,
+Nie, S., Zhu, F., You, Z., Zhang, X., Ou, J., Hu, J., Zhou, J.,          Y., Hofmann, V., Jha, A. H., Kumar, S., Lucy, L., Lyu, X.,
+  Lin, Y., Wen, J.-R., and Li, C. Large language diffusion               Lambert, N., Magnusson, I., Morrison, J., Muennighoff,
+  models. arXiv preprint arXiv:2502.09992, 2025.                         N., Naik, A., Nam, C., Peters, M. E., Ravichander, A.,
+                                                                         Richardson, K., Shen, Z., Strubell, E., Subramani, N.,
+OpenCompass Contributors. Opencompass: A universal                       Tafjord, O., Walsh, P., Zettlemoyer, L., Smith, N. A.,
+  evaluation platform for foundation models, 2023.                       Hajishirzi, H., Beltagy, I., Groeneveld, D., Dodge, J., and
+                                                                         Lo, K. Dolma: an open corpus of three trillion tokens
+Penedo, G., Malartic, Q., Hesslow, D., Cojocaru, R., Cap-                for language model pretraining research. arXiv preprint,
+  pelli, A., Alobeidli, H., Pannier, B., Almazrouei, E., and             2024.
+  Launay, J. The refinedweb dataset for falcon llm: out-
+  performing curated corpora with web data, and web data               Spearman, C. The proof and measurement of association
+  only. arXiv preprint arXiv:2306.01116, 2023.                           between two things. 1961.
+
+                                                                  12
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+Tao, Z. S., Vinken, K., Yeh, H.-W., Cooper, A., and Boix, X.          Yadav, P., Tam, D., Choshen, L., Raffel, C. A., and Bansal,
+  Merge to mix: Mixing datasets via model merging. arXiv                M. Ties-merging: Resolving interference when merging
+  preprint arXiv:2505.16066, 2025.                                      models. Advances in Neural Information Processing
+                                                                        Systems, 36:7093–7115, 2023.
+Teknium.     Openhermes 2.5: An open dataset of
+  synthetic data for generalist llm assistants, 2023.                 Yang, A., Li, A., Yang, B., Zhang, B., Hui, B., Zheng, B.,
+  URL https://huggingface.co/datasets/                                  Yu, B., Gao, C., Huang, C., Lv, C., et al. Qwen3 technical
+  teknium/OpenHermes-2.5.                                               report. arXiv preprint arXiv:2505.09388, 2025.
+
+Wang, J., Tian, C., Chen, K., Liu, Z., Mao, J., Zhao, W. X.,          Yang, E., Shen, L., Guo, G., Wang, X., Cao, X., Zhang, J.,
+ Zhang, Z., and Zhou, J. Mergemix: Optimizing mid-                      and Tao, D. Model merging in llms, mllms, and beyond:
+ training data mixtures via learnable model merging. arXiv              Methods, theories, applications, and opportunities. ACM
+ preprint arXiv:2601.17858, 2026.                                       Computing Surveys, 2024.
+
+Wang, X., Chen, Y., and Zhu, W. A survey on curriculum                Ye, J., Liu, P., Sun, T., Zhan, J., Zhou, Y., and Qiu, X.
+ learning. IEEE transactions on pattern analysis and                    Data mixing laws: Optimizing data mixtures by pre-
+ machine intelligence, 44(9):4555–4576, 2021.                           dicting language modeling performance. arXiv preprint
+                                                                        arXiv:2403.16952, 2024.
+Wang, Y., Fu, Z., Cai, J., Tang, P., Lyu, H., Fang, Y., Zheng,
+ Z., Zhou, J., Zeng, G., Xiao, C., et al. Ultra-fineweb:              Yu, L., Yu, B., Yu, H., Huang, F., and Li, Y. Language
+ Efficient data filtering and verification for high-quality             models are super mario: Absorbing abilities from homol-
+ llm training data. arXiv preprint arXiv:2505.05427, 2025.              ogous models as a free lunch. In Forty-first International
+                                                                        Conference on Machine Learning, 2024.
+Wei, J., Tay, Y., Bommasani, R., Raffel, C., Zoph, B.,
+ Borgeaud, S., Yogatama, D., Bosma, M., Zhou, D., Met-                Zellers, R., Holtzman, A., Bisk, Y., Farhadi, A., and Choi,
+ zler, D., et al. Emergent abilities of large language models.          Y. Hellaswag: Can a machine really finish your sentence?
+ arXiv preprint arXiv:2206.07682, 2022.                                 arXiv preprint arXiv:1905.07830, 2019.
+
+                                                                      Zhou, F., Wang, Z., Ranjan, N., Cheng, Z., Tang, L., He, G.,
+Wortsman, M., Ilharco, G., Gadre, S. Y., Roelofs, R.,
+                                                                        Liu, Z., and Xing, E. P. Megamath: Pushing the limits
+ Gontijo-Lopes, R., Morcos, A. S., Namkoong, H.,
+                                                                        of open math corpora. arXiv preprint arXiv:2504.02807,
+ Farhadi, A., Carmon, Y., Kornblith, S., et al. Model
+                                                                        2025.
+ soups: averaging weights of multiple fine-tuned models
+ improves accuracy without increasing inference time. In
+ International conference on machine learning, pp. 23965–
+ 23998. PMLR, 2022a.
+
+Wortsman, M., Ilharco, G., Kim, J. W., Li, M., Kornblith,
+ S., Roelofs, R., Lopes, R. G., Hajishirzi, H., Farhadi, A.,
+ Namkoong, H., et al. Robust fine-tuning of zero-shot
+ models. In Proceedings of the IEEE/CVF conference on
+ computer vision and pattern recognition, pp. 7959–7971,
+ 2022b.
+
+Wu, T., Yang, R., Li, J., Hu, P., Wong, N., and Yang, Y.
+ Shadow-ft: Tuning instruct via base. arXiv preprint
+ arXiv:2505.12716, 2025.
+
+Xiao, S., Liu, Z., Zhang, P., and Xing, X. Lm-cocktail:
+  Resilient tuning of language models via model merging.
+  In Findings of the Association for Computational Linguis-
+  tics: ACL 2024, pp. 2474–2488, 2024.
+
+Xie, S. M., Pham, H., Dong, X., Du, N., Liu, H., Lu, Y.,
+  Liang, P. S., Le, Q. V., Ma, T., and Yu, A. W. Doremi:
+  Optimizing data mixtures speeds up language model pre-
+  training. Advances in Neural Information Processing
+  Systems, 36:69798–69818, 2023.
+
+                                                                 13
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+A. Details of DeMix Corpora
+A.1. Data Curation Pipeline
+This subsection presents a unified pipeline for building the DeMix Corpora from heterogeneous sources including general-
+domain, multilingual, mathematical, and code data. Global exact and fuzzy deduplication is scaled to enhance the corpus’s
+overall quality and eliminate redundant content; dataset-specific perplexity filtering via a lightweight scoring model further
+refines data validity and relevance. A FastText-based quality classifier, trained on well-constructed positive-negative
+data mixtures and validated through controlled pre-training, is leveraged to identify and retain semantically meaningful
+high-quality data samples. In addition, for Chinese general-domain corpora, we introduce a dedicated quality classifier to
+filter low-quality samples and upsample high-quality signals, further improving the quality distribution of the Chinese data.
+Finally, hierarchical instance-level labeling—bootstrapped from high-confidence large-model annotations and distilled into
+a lightweight labeler—is introduced to enable subsequent data analysis and targeted data selection by category, with the
+corpus quality additionally verified through small-model training experiments and benchmark comparisons.
+
+Data Collection The general-domain data we collected mainly covers well-known open-source datasets such as FineWeb-
+Edu (Penedo et al., 2024), DCLM-Baseline (Li et al., 2024), DOLMA-v1.7(Soldaini et al., 2024), Ultra-FineWeb (Wang
+et al., 2025), and the NVIDIA Nemotron corpus (Basant et al., 2025). For mathematical data, we include sources such
+as FineMath (Liu et al., 2025), MegaMath (Zhou et al., 2025), and SwallowMath (Fujii et al., 2025). For code data, we
+include sources such as OpenCoder (Huang et al., 2025) and SwallowCode (Fujii et al., 2025). In addition, we incorporated
+multilingual data and reasoning data. A complete list of our data sources is provided in Table 10.
+
+Deduplication We perform global exact deduplication and fuzzy deduplication on most datasets (Lee et al., 2022), while
+retaining the original data only for confirmed high-quality small-scale datasets. Although some works (Penedo et al.,
+2024; 2025) argue that global deduplication may remove a substantial number of high-quality samples, we still adopt it
+for large-scale web data, primarily because the greatly increased data volume mitigates the impact of this issue. For fuzzy
+deduplication, we extract 24-grams from each document, compute 260 MinHash functions per document, and partition them
+into 20 bands of 13 hashes each, targeting documents with at least 90% similarity. Any pair of documents that share an
+identical 13-MinHash signature in any band is considered duplicates.
+
+Perplexity Filtering We perform perplexity-based data filtering using the Qwen3-0.6B base model as the scoring model.
+For each dataset, we manually inspect high-perplexity samples and determine dataset-specific thresholds. Based on these
+thresholds, samples with extremely low perplexity are removed, resulting in an overall data reduction of approximately 2%.
+
+FastText Filtering We construct a binary data quality classifier based on FastText. Both the positive and negative sets
+contain over one million samples. The positive set is composed of randomly sampled data, low-perplexity data, and
+high-quality subsets from ELI5-category (Fan et al., 2019) and OpenHermes-2.5 (Teknium, 2023), while the negative set is
+partially sourced from Falcon-RefinedWeb (Penedo et al., 2023) and high-perplexity data. Since high-perplexity data is
+dominated by short samples, we apply weighted sampling to long samples to increase the likelihood of selecting low-quality
+long-form data. To determine appropriate source proportions for the positive and negative sets, we construct multiple
+candidate sample mixtures and train Qwen3-0.6B from scratch on each set separately. Experimental results show that
+the model trained on the positive set achieves a lower average evaluation loss than the model trained on the negative set,
+demonstrating a clear quality distinction between the two sets. Based on these validated samples, we subsequently train
+a FastText classifier. The resulting classifier removes approximately 3% of the English corpus and effectively identifies
+low-quality web and code data.
+
+Quality Filtering for Chinese General-Domain Corpora We propose a quality assessment and sampling framework
+for large-scale Chinese general-domain web corpora, inspired by prior work such as FineWeb-Edu(Penedo et al., 2024).
+In this framework, education-related and information-dense signals are treated as proxies for high-quality text, with the
+goal of preferentially retaining and emphasizing content with higher informational value and structural coherence during
+corpus construction. Specifically, we categorize text samples into five quality levels: undetermined (e.g., non-Chinese or
+nonsensical content), extremely low quality, low quality, high quality, and extremely high quality. The labeling criteria
+jointly consider linguistic completeness, information density, structural coherence, and the degree to which the text exhibits
+knowledge-bearing or explanatory characteristics, without restricting the data to explicitly educational contexts. To obtain
+reliable quality annotations, we first manually labeled 5,000 Chinese samples and fine-tuned a 32B-parameter language
+
+                                                             14
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+model to learn the above quality distinctions. We then used this model to automatically annotate approximately 1 million
+Chinese web documents. Based on these pseudo-labeled samples, we trained a lightweight text quality classifier, which uses
+gte-multilingual-base as the text embedding backbone followed by a classification head. During corpus construction, the
+trained classifier is applied to remove samples classified as extremely low quality or undetermined, while samples labeled as
+extremely high quality are upsampled, thereby improving the overall quality distribution and structural characteristics of
+Chinese general-domain training data.
+
+Instance-Level Data Labeling To estimate the domain distribution of our pre-training corpus, we build a three-level
+hierarchical taxonomy. We define level-1 labels following the standard graduate disciplinary classification, and derive level-2
+and level-3 labels under each parent via Gemini 2.5 Pro (Comanici et al., 2025) and GPT-4o (Achiam et al., 2023). We then
+annotate the corpus using Qwen3-235B-A22B (Yang et al., 2025) and retain 3.63M high-confidence labeled instances to
+train a 4B model, which is used to label the full pre-training dataset.
+
+Data Evaluation To validate the quality of individual datasets, we train a relatively small model (Qwen-3-1.7B) on 50B
+tokens. For general datasets, we train from scratch. For math/code datasets, we mix in 80%/60% general data and train
+from a pre-trained mid checkpoint. The benchmarks we use are widely adopted, ensuring that they can exceed random
+performance after a small amount of training and maintain stable ranking across subsequent training stages.
+
+Candidate Data Preparation DeMix is leveraged in the late stages of pre-training: for general data, we select only the
+highest-quality tier; for math and code, we discard the lowest-quality tiers, stratify the remaining corpora by both category
+and quality, and merge similar sources to reduce the dataset count. This constitutes a common engineering trade-off (Diao
+et al., 2025) and a standard practice for cross-domain data mixing (Basant et al., 2025; Feng et al., 2024). By reducing the
+dimensionality of mixture ratios, we substantially alleviate the search burden of identifying a high-performance mixture.
+While this may lower the attainable performance upper bound, it is a necessary compromise given the exorbitant cost of
+large-scale pre-training. Ultimately, we obtain seven dataset categories that require fine-grained mixing. For each candidate
+dataset, we mix it with 50% general data as a form of regularization, since an excessive proportion of domain-specific data
+can significantly degrade the model’s general capabilities during LLM pre-training (Lin et al., 2025a; Bansal & Sanghavi,
+2025; Allal et al., 2025b). Although we can only search within the subspace where non-general data accounts for less than
+50%, this constraint—that non-general data should not dominate the pre-training corpus—is consistent with the consensus
+(Basant et al., 2025; Blakeman et al., 2025; Allal et al., 2025a).
+
+Component Model Training While DeMix is adopted for the late stages, for early pre-training, the model exhibits limited
+capacity and thus cannot tackle more challenging tasks; we therefore evaluate data mixtures using general benchmarks,
+which is a single-objective optimization goal that can be cultivated during early training, making the construction of data
+mixtures relatively simple and straightforward. In practice, we find that direct upsampling/downsampling based on quality
+scores yield consistent and rational data mixtures. We train a 1.7B model from scratch using the stage-1 mixture for a
+sufficient number of tokens, which serves as the base model for component models. We then train seven component models
+{Mi } on each candidate dataset {Di } on 50B tokens, ensuring that they possess sufficient emergent capabilities to solve
+challenging math and code problems.
+
+A.2. Data Composition Across Stages
+The data mixture used in LLM pre-training is inherently dynamic rather than static (Feng et al., 2024; Basant et al., 2025;
+Blakeman et al., 2025). During the initial phases, the priority is typically given to data diversity, whereas the later stages
+shift focus toward high data quality (Wang et al., 2021). In practice, early training stages typically emphasize data diversity,
+while late stages increasingly prioritize high-quality data to refine advanced capabilities (Wang et al., 2021). Consequently,
+pre-training is often organized into multiple stages, with the proportion of high-quality math and code data significantly
+increased in the late stages (Basant et al., 2025; Allal et al., 2025a). As a result, modern pre-training pipelines are often
+organized into multiple stages, with the proportion of high-quality math and code data substantially increased in the late
+stages (Basant et al., 2025; Allal et al., 2025a).
+In practice, we partition the pre-training data into three stages, with the proportion of high-quality data such as mathematical
+and coding data gradually increasing across successive stages. In the first stage, as the model primarily acquires broad
+general knowledge during the initial phase of training, data quality exerts a less significant impact than in subsequent stages.
+Consequently, we only adjust the data mixture using basic general benchmarks, performing upsampling and downsampling
+
+                                                              15
+Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+
+
+
+           Table 10. Composition of DeMix Corpora and the mixture in each stage, measured in tokens (B).
+
+           Category       Quality           Original Source       Amount    Stage 1   Stage 2    Stage 3
+                                            FineWeb-Edu               199       740       369       107
+                                            Nemo-CC-High              385      1191       594       172
+                          High
+                                            Nemo-CC-Synth            1106      3630      1812       525
+                                            Nemo-CC-QA                546      2190      1093       317
+                                            DCLM                      505       505          0         0
+                                            DOLMA (Social)             71        71          0         0
+                                            Nemo-CC-Med-High          393       393          0         0
+           General        Medium-High       OpenCoder (Web)            38        38          0         0
+                                            Ultra-FineWeb (en)         79        79          0         0
+                                            DOLMA (Others)             54        54          0         0
+                                            Nemo-SFT (General)         67        67          0         0
+                                            DOLMA (Web)              1278       774          0         0
+                                            Web Crawl (en)           1417       330          0         0
+                          Medium
+                                            Nemo-CC-Medium           1605       965          0         0
+                                            DOLMA (Scholar)            77        77          0         0
+                                            Ultra-FineWeb (zh)        102       102        51        15
+                          High
+           Multilingual                     Nemo-CC-QA-Mul            562       562       280        81
+                          Medium            Web Crawl (zh)           3304       991          0         0
+                                            Nemo-Math Mind (4+)        69        69       199        98
+                          High              Nemo-Math (4+)             49        49       141        69
+                                            Nemo-SFT (Math)           166       166       479       235
+                          Medium-High       Reason (Math)              38        38        36          0
+           Math                             SwallowMath                31        31        29          0
+                                            MegaMath                   92        92        87        58
+                          Medium
+                                            FineMath (4+)               8         8         7         5
+                                            Nemo-Math (3)              76        76          0         0
+                          Low               FineMath (3)               20        20          0         0
+                                            Math (Others)              48        48          0         0
+                                            Nemo-SFT (Code)            45        45       150        39
+                          High
+                                            OpenCoder                   6         6        20         5
+                                            Nemo-Code-Synth           136       136       410       170
+           Code           Medium-High       MegaMath (Code)             5         5        15         6
+                          Medium            Source Code               559       559       200        83
+                                            SwallowCode                47        47        17         7
+                                            Reason (Code)              27        27        10         4
+                          Low               StarCoder                 207       207          0         0
+                                    Total                           13417     14388      5999      1996
+
+
+
+
+                                                             16
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+
+
+
+                                                 General        Multilingual    Math        Code
+
+
+Figure 5. Data mixtures for the three stages of pre-training in the DeMix Corpora, with approximately 14T, 6T, and 2T tokens, respectively.
+The three hierarchical levels from the inside out are domain, data category, and data origin.
+
+
+
+
+based on quality scores. In contrast, during Stages 2 and 3, data quality directly influences the final training performance;
+thus, we employ the DeMix framework to optimize the data mixture ratio. Furthermore, to prevent excessive repetition of
+individual samples, we reduce the threshold for the allowable number of repetitions in Stage 2, yielding a more balanced
+data distribution compared to Stage 3.
+We presents the detailed composition of DeMix Corpora in Figure 5 and Table 10, including the amount of tokens after our
+curation pipeline and the token allocation in 3 training stages after data mixing by DeMix.
+
+B. Baseline Details.
+For RegMix and CLIMB, the only differences from DeMix lie in how proxy models are obtained and how the predictor
+is trained. For RegMix, we sample a required number of mixtures and train the model from the same initialization as the
+DeMix component models, using a fixed number of tokens. We then evaluate the trained models on to obtain benchmark
+scores, and fit a LightGBM predictor using the same hyperparameters as in DeMix. Finally, we apply the trained predictor
+to the same large set of sampled candidates and select the top-ranked mixtures as the final optimal mixture. For CLIMB, the
+only difference is that it adopts iterative sampling. Consistent with our DeMix procedure, it performs three iterations: for 28
+points, we sample 16 + 8 + 4; for 56 points, 32 + 16 + 8; for 112 points, 64 + 32 + 16.
+
+C. Detailed Mixtures in Experiments.
+We extend Table 3 by listing the detailed mixture ratios in Table 11.
+
+D. Additional Verification of the Model-Merging Approximation
+The approximation in Eq. 5 is mainly motivated by prior studies on model merging and small-update regimes. To further
+provide empirical evidence for its validity in our setting, we compare the merged proxy model with a model trained directly
+on mixed data. The goal is to verify whether the merged proxy model can consistently approximate the performance of the
+corresponding mixed-data-trained model, especially when the magnitude of parameter updates is relatively small.
+Specifically, we select one math dataset as D1 and one code dataset as D2 , and consider several mixture proportions between
+them. For each mixture proportion, we compare two types of proxy models:
+
+   • Model merge: we first train two component models separately on D1 and D2 , and then merge their parameters
+     according to the target mixture ratio.
+
+   • Data mix: we directly train a model on the mixed dataset D1 + D2 with the same target mixture ratio.
+
+                                                                     17
+     Decouple Searching from Training: Scaling Data Mixing via Model Merging for Large Language Model Pre-training
+
+                                         Table 11. Detailed mixtures from different experiments.
+
+              Method             Train Cost (B) ↓        General Math-1 Math-2 Math-3 Code-1 Code-2 Code-3
+              Uniform        -       -      -       -    0.500     0.111    0.027    0.039     0.020     0.055     0.248
+              Heuristic-2    -       -      -       -    0.400     0.194    0.024    0.017     0.052     0.098     0.216
+              Heuristic-3    -       -      -       -    0.200     0.273    0.033    0.000     0.098     0.136     0.259
+                            224      -     112     2     0.426     0.336    0.020    0.012     0.030     0.074     0.092
+              RegMix        224      -      28     8     0.710     0.203    0.003    0.001     0.079     0.002     0.002
+                            448      -      56     8     0.503     0.330    0.020    0.001     0.077     0.009     0.059
+                            224      -     112     2     0.481     0.366    0.018    0.008     0.033     0.034     0.060
+              CLIMB         224      -      28     8     0.714     0.202    0.002    0.001     0.078     0.002     0.002
+                            448      -      56     8     0.417     0.422    0.027    0.011     0.079     0.008     0.035
+                            211 30×7 56          0.01†   0.017     0.187    0.406    0.017     0.135     0.217     0.022
+              DeMix         211 30×7 112         0.01    0.271     0.414    0.009    0.057     0.046     0.131     0.073
+              (Ours)        212 30×7 224         0.01    0.218     0.403    0.002    0.063     0.044     0.176     0.094
+                            214 30×7 448         0.01    0.454     0.220    0.006    0.015     0.077     0.194     0.034
+                            219 30×7 896         0.01    0.181     0.430    0.004    0.135     0.029     0.149     0.071
+                 † is the benchmarking cost derived from equal GPU-hour as in Table 1.
+
+Table 12. Comparison between merged proxy models and models trained directly on mixed data. We use one math dataset D1 and
+one code dataset D2 , and evaluate different D1 /D2 mixture ratios. δ denotes the magnitude of parameter updates as defined in Eq. 4.
+Consistency is computed as the ratio between the merged-model score and the data-mix model score, averaged across the tested mixture
+ratios.
+
+                                                                           D1 /D2 Ratio
+  Token Budget         δ           Type
+                                                   20%/80%          40%/60%           60%/40%            80%/20%           Consistency
+                                                 Math    Code     Math     Code     Math     Code      Math      Code    Math     Code
+                              Model merge        5.79    21.39    6.26     20.09    7.17     17.76     8.38      15.94
+       2B          3.10%                                                                                                   1.04   0.97
+                               Data mix          6.03    21.56    6.25     20.59    6.64     18.16     7.39      16.76
+                              Model merge        6.49    25.12    9.48     22.50    11.55    18.05     14.57     14.52
+       10B         6.90%                                                                                                   0.96   0.81
+                               Data mix          8.01    27.85    9.28     23.31    12.32    26.04     13.66     20.99
+                              Model merge        8.09    30.06    11.17    23.09    15.34    19.56     19.95     15.42
+       30B         10.10%                                                                                                  0.82   0.75
+                               Data mix          11.79   30.87    15.11    31.48    18.26    29.45     20.01     25.12
+                              Model merge        8.48    33.19    11.88    25.50    15.74    20.97     20.87     14.31
+       50B         10.50%                                                                                                  0.79   0.75
+                               Data mix          11.84   32.98    17.36    33.10    19.71    30.66     22.11     27.44
+
+
+
+We conduct this comparison under different token budgets. The parameter-update magnitude δ is computed as defined in
+Eq. 4. We define the consistency score as the ratio between the merged-model score and the data-mix model score on the
+same benchmark, averaged across all tested mixture proportions. A consistency score closer to 1 indicates that the merged
+proxy model better matches the model trained directly on the corresponding mixed data.
+The results are shown in Table 12. When δ is small, the merged proxy model exhibits high consistency with the data-mix
+model, suggesting that Eq. 5 is well satisfied in the small-update regime. As the token budget increases, δ naturally becomes
+larger, and the consistency moderately decreases. Nevertheless, even under relatively larger updates, the merged proxy
+model still preserves a reasonably high level of consistency, especially considering that it avoids training a separate model for
+every candidate mixture. These results provide additional empirical support for using merged proxy models to approximate
+mixed-data training during mixture search.
+
+
+
+
+                                                                   18
+

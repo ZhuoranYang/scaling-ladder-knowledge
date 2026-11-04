@@ -1,0 +1,116 @@
+\subsubsection{Simplified Layer Norm Improves Stability}
+
+\people{Ananya}
+Discuss the different options and ablations
+
+\begin{enumerate}
+    \item Rapid growth in scalar layer-norm parameters can lead to instability
+    \item Turning them off can help
+\end{enumerate}
+
+\subsubsection{QK Norm}
+
+\people{Ananya}
+
+\willm{No clear ablations, but outline arguments for and against and how we decided.}
+
+\section{Lion vs. AdamW}
+
+\willm{Things to look at:
+\begin{enumerate}
+    \item plot $\cos(\sgn(\delta_t), \delta_t)$ from the checkpoints
+    \item do we see ``emergent features'' in the logs?
+    \item Ablation with Lion: our decision might change if it works well with large \# of tokens.
+\end{enumerate}}
+
+\subsubsection{Epsilon}
+
+\subsubsection{Betas}
+
+\subsubsection{Gradient and Update Clipping}
+
+\section{Theoretical Analysis of LR Schedule}
+
+At each step $t$, the optimizer yields a vector $\delta_t$, which we scale by our current learning rate $\eta_t$. We use this scaled update vector to update the parameters:
+\begin{equation*}
+    \theta_{t+1} = \theta_t - \eta_t \delta_t .
+\end{equation*}
+
+So far, we have said nothing about how $\delta_t$ is computed. A couple properties of transformers are relevant here \citep{merrill2021effects}:
+
+\paragraph{Approximate Homogeneity}
+Transformers with large parameters are very close to $2$-homogeneous in their parameters $\theta_t$ \citep{merrill2021effects}, meaning that
+\begin{equation*}
+    f(x, \rho \theta_t) \approx \rho^2 f(x, \theta_t) .
+\end{equation*}
+It follows by Euler's homogeneity theorem that the gradient is $1$-homogeneous:
+\begin{equation*}
+    \nabla_{\theta_t} f(x, \theta_t) \approx \rho \nabla_{\theta_t} f(x, \theta_t) .
+\end{equation*}
+We take away from this that the gradient norm ($\delta_t$ under vanilla SGD) will be proportional to the norm of the parameters $\norm{\theta_t}$. Thus, the rate of $\norm{\theta_t}$ growth will effect the rate of gradient norm growth. If our goal is to prevent the gradient norm from exploding, we should pick a LR schedule where growth rate of the parameters is not too high (e.g., not exponential).\footnote{Another more precise goal would be: where the parameter norm grows, but slow enough that we still achieve directional convergence in parameter space \citep{ji2020directional}.}
+
+\paragraph{Gradient Alignment}
+Gradient alignment $\alpha_t = \cos(\theta_t, \delta_t)$ captures the angle between the parameters $\theta_t$ and their update $\delta_t$.
+
+The alignment is important because it affects the rate of parameter norm growth. If the parameter updates are aligned ($\alpha_t = 1$), then updates rapidly increase $\theta_t$ because they are moving away from the origin. If the parameter updates are misaligned ($\alpha_t = 0$), then the parameters are constantly moving orthogonal to origin, which does end up increasing $\theta_t$ over time, but at a more gradual rate.
+
+Theoretical work makes different predictions for feedforward networks for whether the gradients should be aligned or misaligned, depending on the details of the architecture and optimizer \citep{li2019exponential,ji2020directional}. \citet{merrill2021effects} found for transformers that the dynamics are much closer to misaligned, i.e., $\alpha_t \approx 0$. We will therefore proceed with this assumption in our analysis, although it is possible to generalize it to the aligned case (the predicted LR schedule will change).
+
+\subsection{Gradient Descent LR Schedule}
+
+Gradient descent lets $\delta_t = \nabla_{\theta_t} f(x, \theta_t)$.
+We can now solve for the LR schedule for standard gradient descent that avoid exponential blowup \citep[cf.][]{merrill2021effects}, assuming approximate homogeneity and aligned gradients:
+\begin{align*}
+    \norm{\theta_{t+1}}^2
+    &= (\theta_t - \eta_t \delta_t)^2 \\
+    &= \norm{\theta_t}^2 - 2 \eta_t \delta_t^\top \theta_t + \eta_t^2 \norm{\delta_t}^2 \\
+    &= \norm{\theta_t}^2 - 2 \eta_t \alpha_t \norm{\delta_t} \norm{\theta_t} + \eta_t^2 \norm{\delta_t}^2 .
+\end{align*}
+Using the fact that $\delta_t$ is misaligned ($\alpha_t = 0$), we get:
+\begin{equation*} \label{eq:norm2}
+    \norm{\theta_{t+1}}^2 = \norm{\theta_t}^2 + \eta_t^2 \norm{\delta_t}^2 .
+\end{equation*}
+By homogeneity, $\norm{\delta_t}$ is proportional to $\norm{\theta_t}$, so:
+\begin{equation*}
+    \norm{\theta_{t+1}}^2 = \norm{\theta_t}^2 + c\eta_t^2 \norm{\theta_t}^2 .
+\end{equation*}
+At this point, we wish to derive a non-recurrent form for $\norm{\theta_{t}}$ as a function of $t$.
+We can approximate the discrete sum with an integral to make this easier. Let $\rho = \norm{\theta}$.\footnote{We could solve this more rigorously with integration by parts.}
+\begin{align*}
+    \frac{\der}{\der t} \rho^2 = c\eta^2 \rho^2 \\
+    \frac{\der \rho^2}{\rho^2} = c \eta^2 \der t .
+\end{align*}
+Taking the integral of both sides yields:
+\begin{equation*}
+    \log \rho^2 = \int_1^t c \eta(\tau)^2 \der \tau .
+\end{equation*}
+Therefore, parameter norm $\rho(t)$ can be expressed as a function of the LR schedule $\eta(t)$ according to:
+\begin{equation*}
+    \rho(t) = \sqrt{\exp \left( \int_1^t c \eta(\tau)^2 \der \tau \right)} .
+\end{equation*}
+This equation reveals that the parameter norm (and hence gradient norm) to explode unless we set the LR schedule to decay sufficiently fast to counteract it. It turns out that this accomplished when $\eta(t) = 1/\sqrt{t}$:
+\begin{align*}
+    \int_0^t c \eta(\tau)^2 \der \tau
+    &= c \int_1^t \left(\frac{1}{\sqrt{\tau}}\right)^2 \der \tau \\
+    &= c \int_1^t \frac{\der \tau}{\tau} \\
+    &= c \log t \\
+    \therefore \rho(t) &= t^{c/2} .
+\end{align*}
+Thus, if we want to avoid exponential blow up in the parameter/gradient norm we should set the learning rate to decay proportional to $1/\sqrt{t}$.
+
+It is also potentially important that $c$ is not too large: with $c = 1$ we will get norm growth at a reasonable rate of $\sqrt{t}$, but with $c > 1$ we will get norm growth at a rate $t^{c/2}$, which is not exponential but still potentially fast. In particular, it may be important that the parameters converge in direction ($\theta_t/\norm{\theta_t}$ converges) to avoid spikes, which may not for large values of $c$. Empirically, at least for T5, it seems like this $c$ value must be near $1$ since we observe $\sqrt{t}$ growth with the $1/\sqrt{t}$ schedule \citep{merrill2021effects}. It's worth noting that T5 and PaLM used AdaFactor, not Adam.
+
+\paragraph{Sources of error} Should momentum impact this model much? Probably not. This is because momentum will be orthogonal to the parameters just like the gradient, so the overall dynamics of the parameter norm should remain about the same. Weight decay might change things slightly, but intuitively it should likely slow down the rate of grad norm/parameter norm increase.\footnote{Although in certain cases it can do the opposite \citep{li2019exponential}.} Thus, it seems like the model derived here should account for Adam pretty well.
+
+\subsection{Adafactor LR Schedule}
+
+One important property of Adafactor is that the updates are normalized:
+\begin{equation*}
+    \delta_t = \nabla_{\theta_t} f(x, \theta_t) / \norm{\nabla_{\theta_t} f(x, \theta_t)} .
+\end{equation*}
+As a result, the norm recurrence and integral above change to
+\begin{align*}
+    \norm{\theta_{t+1}}^2 &= \norm{\theta_t}^2 + c \eta_t^2 \\
+    \rho(t) &= \sqrt{\int_1^t c \eta(\tau)^2 \der \tau} .
+\end{align*}
+This means that with a $1 / \sqrt{t}$ schedule, we would expect the parameter to grow proportional to $\sqrt{\log t^c}$ and with a constant learning rate schedule, we would expect $\sqrt{ct}$. Both of these are potentially better than $t^{c/2}$ if $c > 1$.

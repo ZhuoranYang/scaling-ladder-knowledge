@@ -1,0 +1,61 @@
+\section{Analysis: Task predictability with the ladder}
+%\label{sec:analyses}
+\label{sec_variance_analysis}
+
+% \akshita{should add c4 and taskCE var analysis here; c4 will be just a single number. adding taskCE to table is trickier, so as before, we can say we show bpb as example. it will be good to have taskCE SD numbers in appendix though.}
+
+Some tasks are inherently more challenging to predict reliably with the ladder models; 
+for example, a test set with an inadequate sample size, low-quality test instances or questions that are too difficult for small models. We anticipate three sources of prediction failure: 
+%(1) high variance in task loss, (2) high variance in task accuracy; higher spread of prediction targets, (3) random-chance task accuracy in smaller ladder models due to task difficulty.
+
+\begin{itemize}[leftmargin=16pt]
+\item High variance in intermediate loss; less reliable data points for function fitting.
+\item High variance in task accuracy; higher spread of prediction targets.
+\item Random-chance task accuracy in smaller ladder models due to task difficulty.
+\end{itemize}
+
+We try to determine which tasks will exhibit high prediction errors, using task loss as the intermediate feature. We use the intermediate checkpoints of the largest ladder model (1B-1xC) to measure the noise for task loss and task accuracy. Failure due to random-chance accuracy is discussed when predicting multiple-choice tasks in \S\ref{sec:mc}.
+
+\tightparagraph{Variance analysis.}
+
+We compute the standard deviation of the last $n$ training checkpoints of 1B-10xC ($\text{SD}_n$). We also compute relative SD (also called the coefficient of variation) to compare between tasks:
+
+\begin{equation} \label{eq:cv}
+\text{Relative SD}_{n} = \frac{\text{SD (final $n$ checkpoints)}}{\text{Mean (final $n$ checkpoints)}} \times 100\%
+\end{equation}
+
+A task where ladder models exhibit a higher standard deviation across adjacent evaluated checkpoints potentially indicates a higher prediction error for the target models. To illustrate $\text{SD}_n$, we show the intermediate checkpoints for the largest ladder model on OpenBookQA and MMLU in \autoref{fig:variance_small}, where we find that $\text{SD}_{10}$ captures the apparent noise between adjacent training checkpoints. 
+
+\input{floats/variance_analysis}
+\input{floats/table_variance_analysis}
+
+We present $\text{SD}_{10}$ for the 1B-10xC model \autoref{tab:variance_analysis}, alongside prediction errors for the 7B-4T model.
+Benchmarks with low SD$_{10}$ (e.g. MMLU and HellaSwag), also have low prediction errors for the target, indicating these tasks are easier for the ladder to predict.
+We also find that Loss SD$_{10}$ is correlated with step 2 accuracy error (Pearson $r=0.821, p=0.004$ for 7B-4T and $r=0.855, p=0.002$ for 13B-5T).
+Thus, SD$_{10}$ can be reported alongside predictions to explain which benchmarks may have high error before running the target model.
+
+% \input{floats/compute_vs_error/flops_compute_vs_error}
+
+% \subsection{Compute requirements for predicting each task}
+% \label{sec:ablate_compute}
+
+% \akshita{given previous proposed rewrites, this section seems somewhat filler, can move to appendix}
+
+% We consider the impact of the scale of the model ladder on the prediction for the target model. In general, the prediction is harder if the difference of scale between the ladder and the target models is larger. We explore this trade-off using the \textbf{7B-4T} model as the target. 
+
+% In \autoref{fig:compute_vs_error_flops}, we progressively increase the compute-FLOPs used for function fitting. 
+%  The prediction error is significantly worse with fewer FLOPs. On MMLU, our full ladder (3.2\% compute of the target model) gets 1.3\% error. Reducing the number of FLOPs to 0.1\% of the target model compute increases the error to $\sim$12\% which is an order of magnitude higher. This is more observable in certain tasks. Interestingly, we see a slight improvement in errors with less compute in ARC-C and ARC-E, potentially due to the variance as seen in \S\ref{sec_variance_analysis}. The impact of each axis of the ladder models (model size $N$ and Chinchilla multiplier $xC$) on the prediction error for each task is discussed in \S\ref{flops_needed}.
+
+
+
+% We also consider the impact of each axis of the ladder models (model size $N$ and Chinchilla multiplier $xC$) on the prediction error for each task. 
+
+% \autoref{fig:compute_vs_error_N} shows the prediction errors for each step as we progressively increase the model size included in the ladder (i.e., ladder upto 760M will include 190M, 370M, 760M). We observe a downward trend in the prediction error for most tasks as the ladder size gets closer to the target model. 
+
+% \input{floats/compute_vs_error/N_compute_vs_error}
+
+% \autoref{fig:compute_vs_error_xC} similarly shows the impact of including models with longer training regimes. Interestingly, we do not see a significant reduction in the prediction error as we include the ladder models trained to higher Chinchilla multipliers\footnote{The target model 7B-4T is trained to approximately 28xC.}. There is a slight downward trend (noticeable in MMLU), but this dimension has more flexibility. 
+
+% For users of our approach, and future work, we encourage exploration in reducing the overall cost by considering both these dimensions. Concretely, given a fixed budget for the ladder models, increasing the model size $N$ is more likely to improve the prediction error, compared to training for longer.
+
+% \input{floats/compute_vs_error/xC_compute_vs_error}

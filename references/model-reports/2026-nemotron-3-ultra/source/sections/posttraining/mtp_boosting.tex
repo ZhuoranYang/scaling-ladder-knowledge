@@ -1,0 +1,64 @@
+\subsection{MTP Boosting}
+\label{subsec:mtp_boosting}
+\ourmodel ships with native speculative-decoding support via a Multi-Token Prediction (MTP) head trained throughout all stages of training, following \supermodel~\citep{nvidia2026nemotron3superopen}. The MTP head is an internal drafter that predicts multiple future tokens from the backbone's hidden states; at inference, these draft tokens are verified against the backbone (the target model), and several can be accepted in a single verification step, either through rejection sampling~\citep{specdec} or naive 1-1 token matching. As in \supermodel, we use a \emph{shared} MTP-head formulation applied recursively for several MTP steps, so the draft horizon grows without requiring additional parameters.
+
+\paragraph{Train-Inference Mismatch.}
+Even with a shared head, naive teacher-forced MTP training does not match autoregressive MTP inference. Let the input to the first MTP step be $(h_1, \ldots, h_n)$, and let the corresponding outputs be $(h^{mtp_1}_2, \ldots, h^{mtp_1}_{n+1})$. During training, the input to the second MTP step is the full shifted sequence $(h^{mtp_1}_2, \ldots, h^{mtp_1}_{n+1})$, all of which originate from the previous MTP step. At inference time, however, the conditioning structure differs: the newly produced state $h^{mtp_1}_{n+1}$ is generated while attending to the \emph{previous} backbone hidden states $(h_1, \ldots, h_n)$, so the effective input to the second MTP step becomes $(h_1, \ldots, h_n, h^{mtp_1}_{n+1})$. One step further, it becomes $(h_1, \ldots, h_n, h^{mtp_1}_{n+1}, h^{mtp_2}_{n+2})$, and as the draft length grows, later MTP steps condition on an increasingly noisy mixture of target-model and MTP-generated hidden states. This distribution differs from the teacher-forced training distribution and degrades acceptance at deeper draft positions.
+
+\paragraph{Training Procedure.}
+% \label{subsubsec:mtp_boosting}
+The goal of \emph{MTP Boosting} is to make the MTP head match the backbone's next-token distribution under the input conditions or noise it encounters at inference. To address this, we continue to train the MTP starting from the MOPD checkpoint (Section~\ref{subsec:MOPD}). The backbone is fixed for the entire training phase, and only the MTP head receives gradient updates. This ensures there is no risk of regressing backbone quality, and substantially reduces the optimizer-state and activation memory footprint of each step. At this stage, we modify the MTP forward pass such that the hidden states passed as input to the MTP at step $k$ are sampled from the set of hidden states produced at MTP steps $1,..,k-1$, rather than simply taking the previous MTP step's generated hidden states. This procedure exposes the head at training time to a similar noise it encounters at inference, and produces a drafting head that handles longer draft lengths more gracefully.
+
+\paragraph{Data.}
+We generate on-policy rollouts using the MOPD checkpoint described in Section~\ref{subsec:MOPD} by starting from seed prompts drawn from \textit{Nemotron-Post-Training-Dataset-v2}\footnote{\url{https://huggingface.co/datasets/nvidia/Nemotron-Post-Training-Dataset-v2}} and \textit{Nemotron-RL-Super-Training-Blends}\footnote{\url{https://huggingface.co/datasets/nvidia/Nemotron-RL-Super-Training-Blends} } to cover general-purpose and agentic inputs, respectively. Rollouts are sampled with $temp=1$. The MTP head was trained on these rollouts for 12K steps at a global batch size of 64, with sequences capped at 8K tokens. The loss was accumulated over the assistant response in each sample.
+
+\paragraph{Loss.}
+We use a temperature-scaled forward-KL loss against the backbone's logits. The standard cross-entropy term against the gold token is disabled, so the head matches the backbone's full distribution rather than the one-hot label. Let $\mathcal{A}$ denote the set of assistant-token positions. For each assistant token position $t\in \mathcal{A}$ and MTP generation step $k \in \{1,\ldots,N_{\mathrm{mtp}}\}$, let $z_t$ denote the backbone's logits at position $t$ and $z^{mtp_k}_{t+k}$ the MTP logits at step $k$ starting from position $t$. The boosting objective is
+\begin{equation}
+\mathcal{L}_{\mathrm{MTP}}(\theta)
+=
+\frac{T^{2}}{N_{\mathrm{mtp}}|\mathcal{A}|}
+\sum_{k=1}^{N_{\mathrm{mtp}}}
+\sum_{t \in \mathcal{A}}
+D_{\mathrm{KL}}\!\left(
+\sigma\!\left(z_{t+k}/T\right)
+\,\Big\|\,
+\sigma\!\left(z^{\mathrm{mtp}_k}_{t+k}/T\right)
+\right).
+\label{eq:mtp_kd}
+\end{equation}
+where $\sigma$ denotes the softmax operator, $T = 2$ is the distillation temperature, $N_{\mathrm{mtp}}=7$ is the number of MTP steps. The $T^{2}$ factor follows~\citep{hinton2015distilling}.% and offsets the gradient softening introduced by the temperature.
+
+\paragraph{Results.}
+We evaluate MTP accuracy using SPEED-Bench~\citep{2026speedbench}, measuring the per-sample acceptance lengths (ALs) across the categories in the \textit{qualitative} data split. Table~\ref{tab:mtp_speedbench} reports the average ALs by category. The Boosted-MTP head delivers consistent gains over the baseline at all draft positions, with the improvement most pronounced at deep draft positions where the train-inference mismatch is most visible. 
+\begin{table}[ht!]
+\centering
+\setlength{\tabcolsep}{4pt}
+% \small
+\resizebox{0.9\linewidth}{!}{
+\begin{tabular}{l|cc|cc}
+\toprule
+Category
+& \ourmodel
+& \ourmodel + MTP-Boosting
+& Qwen3.5-397B-A17B
+& DeepSeek-V4-Flash \\
+\midrule
+Coding        & 5.152 (4.739) & 5.452 (4.872) & \textbf{5.550} (\textbf{5.307}) & 2.835 (2.584) \\
+Humanities    & 3.950 (3.738) & \textbf{4.102} (3.857) & 4.095 (\textbf{3.875}) & 2.611 (2.402) \\
+Math          & 5.127 (4.661) & \textbf{5.343} (\textbf{4.733}) & 5.002 (4.646) & 2.934 (2.747) \\
+Multilingual  & 5.141 (4.937) & \textbf{5.382} (\textbf{5.179}) & 4.951 (4.836) & 2.811 (2.666) \\
+QA            & 4.251 (4.089) & \textbf{4.469} (\textbf{4.331}) & 4.371 (4.219) & 2.586 (2.419) \\
+RAG           & 5.207 (5.098) & \textbf{5.380} (\textbf{5.367}) & 5.093 (5.051) & 2.868 (2.768) \\
+Reasoning     & 4.672 (4.315) & \textbf{4.896} (\textbf{4.502}) & 4.572 (4.466) & 2.782 (2.631) \\
+Roleplay      & 2.801 (2.767) & 2.940 (2.856) & \textbf{3.972} (\textbf{3.807}) & 2.149 (2.056) \\
+STEM          & 4.258 (3.935) & \textbf{4.435} (\textbf{4.094}) & 4.323 (4.062) & 2.703 (2.462) \\
+Summarization & 4.413 (4.321) & 4.552 (4.468) & \textbf{4.787} (\textbf{4.785}) & 2.642 (2.560) \\
+Writing       & 3.285 (3.209) & 3.476 (3.385) & \textbf{3.667} (\textbf{3.605}) & 2.419 (2.201) \\
+\midrule
+Average       & 4.387 (4.165) & \textbf{4.584} (4.331) & 4.580 (\textbf{4.423}) & 2.667 (2.500) \\
+\bottomrule
+\end{tabular}}
+\captionof{table}{MTP average acceptance lengths on the SPEED-Bench \textit{qualitative} split using draft length 7. Main values are obtained with greedy decoding; values in parentheses use temperature sampling with $temp=1$. MTP-Boosting consistently increases acceptance length over the base MTP, yielding relative speculative-decoding speedup improvements from 3.15\% on summarization tasks to 5.82\% on coding tasks.}
+\label{tab:mtp_speedbench}
+\end{table}

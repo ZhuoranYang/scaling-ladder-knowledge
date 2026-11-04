@@ -1,0 +1,2044 @@
+                                             Scaling Laws for Mixture Pretraining Under
+                                             Data Constraints
+                                             Anastasiia Sedova1,2 , Skyler Seto1 , Natalie Schluter1 , Pierre Ablin1
+                                             1
+                                                 Apple, 2 ITU
+
+                                             As language models scale, the amount of data they require grows – yet many target data sources, such as low-resource
+arXiv:2605.12715v2 [cs.LG] 15 May 2026
+
+
+
+
+                                             languages or specialized domains, are inherently limited in size. A common strategy is to mix this scarce but valuable target
+                                             data with abundant generic data, which presents a fundamental trade-off: too little target data in the mixture underexposes
+                                             the model to the target domain, while too much target data repeats the same examples excessively, yielding diminishing
+                                             returns and eventual overfitting. We study this trade-off across more than 2,000 language-model training runs spanning
+                                             multiple model and target dataset sizes, as well as several data types, including multilingual, domain-specific, and quality-
+                                             filtered mixtures. Across all settings, we find that repetition is a central driver of target-domain performance, and that
+                                             mixture training tolerates much higher repetition than single-source training: scarce target corpora can be reused 15–20
+                                             times, with the optimal number of repetitions depending on the target data size, compute budget, and model scale. Next,
+                                             we introduce a repetition-aware mixture scaling law that accounts for the decreasing value of repeated target tokens and
+                                             the regularizing role of generic data. Optimizing the scaling law provides a principled way to compute effective mixture
+                                             configurations, yielding practical mixture recommendations for pretraining under data constraints.
+
+                                             Correspondence: Anastasiia Sedova: asedova@apple.com
+                                             Date: May 18, 2026
+
+
+
+
+                                         Figure 1 Repetition dynamics for 143M model, 50M German tokens mixed with English, h defining the weight of
+                                         German data in the training mix. (a) Repetition factor r grows with training tokens; beyond the repetition frontier,
+                                         loss begins to increase. (b) German validation loss vs. training tokens. Stars indicate overfitting onset.
+
+
+                                         1   Introduction
+                                         Large language models (LLMs) have demonstrated remarkable performance across a wide range of language
+                                         understanding, mathematics, science, and knowledge-intensive tasks (Luong and Lockhart, 2025; Woodruff
+                                         et al., 2026; Singh et al., 2026; Anthropic, 2026). While much of this success can be attributed to large
+                                         scale pretraining corpora exceeding trillions of tokens (Essential AI et al., 2025; Li et al., 2025), many lan-
+                                         guage model pretraining scenarios involve data that cannot be freely scaled including low-resource languages,
+                                         specialized domains, and curated datasets, which offer far less unique data. During pretraining, this data
+                                         is mixed with abundant generic data, such as pairing low-resource language text with English text, or a
+                                         domain-specific math corpus with generic web text.
+
+
+                                                                                                          1
+However, mixing introduces a new trade-off. The limited data
+must be repeated for enough of the total training to provide                           2.8          Ta
+                                                                                                       rge
+                                                                                                           t
+sufficient target-domain signal, but high repetition leads to                                                  da
+                                                                                                                  ta
+
+
+
+
+                                                                    Best achievable
+                                                                    target test loss
+                                                                                                                       wit
+memorization and eventual overfitting. Figure 1 illustrates                            2.6          Tar                   ho
+                                                                                                                               ut
+                                                                                                        g                         r
+this challenge for a 143M model with 50M German tokens                                                    et d
+                                                                                                                 ata
+                                                                                                                                      epe
+                                                                                                                                          tit
+                                                                                                                        rep                   io
+mixed with English. Higher fractions of German data start                              2.4   r = 20                           eat               ns
+                                                                                                                                  ed4
+overfitting (Figure 1b) as the number of repetitions crosses a                                    r = 19 Op
+                                                                                                           tim                            tim
+                                                                                                                       al r                    es
+frontier (Figure 1a). This raises the question: how do model                           2.2                                 epe
+                                                                                                                                titi
+scale, data size, and repetition jointly shape the outcome of                                                                          ons
+                                                                                                                                         r = 19
+mixture pretraining when target data in the mixture is con-                            2.0                                                           r = 15
+strained?                                                                                    50M    100M                                500M           1B
+                                                                                                Unique target-domain data
+Prior work has studied these two dimensions separately.
+Muennighoff et al. (2023) derive scaling laws for data-            Figure 2 Best achievable German test loss by
+constrained training, showing that up to 4 repetitions over        target data size, shown for the 539M model.
+a fixed monolithic dataset are nearly as valuable as unique
+data. However, this result, widely adopted as a practical ceiling for data repetition, applies to single-source
+training where all tokens are repeated. In mixture pretraining, only the constrained domain is repeated while
+the generic domain continues to supply fresh tokens, which is a structurally different regime. Conversely, data
+mixing laws (Ye et al., 2025; Xie et al., 2023; Shukor et al., 2025) optimize the composition of training mix-
+tures to maximize downstream performance, but assume each data source has unlimited data. Our work
+sits at the intersection: we study how to optimally mix data-constrained sources with abundant ones, jointly
+optimizing mixture weights and repetition, a setting that arises in many real-world pretraining scenarios.
+Our contributions are:
+ • A systematic empirical study of over 2000 training runs spanning model sizes from 101M to 805M pa-
+   rameters, different target data sizes, and diverse data types: multilingual (German, French, Swahili),
+   multi-domain (mathematics, scientific papers, Wikipedia), and quality-filtered subsets.
+ • Empirical findings on repetition in data mixtures: repeated tokens follow diminishing returns predictably
+   across all data types; optimal repetition scales with target dataset size and compute budget; and larger
+   models consistently extract more from limited data despite overfitting faster. Crucially, abundant generic
+   data sustains learning and unlocks far higher repetition than reported for single-source training with-
+   out performance degradation, with optimal for target task performance repetitions reaching 15-20 times
+   (Figure 2).
+ • A scaling law at the intersection of data-constrained training and mixture optimization that predicts
+   target-domain loss as a function of target data size, mixture ratio, and model size. We demonstrate that
+   this scaling law can be fitted at small scales and then extrapolates at larger scales, and that it can be
+   used to estimate accurately the optimal number of repetitions.
+We also extend our findings to the case of two scarce target domains. Together, our findings provide both
+empirical understanding of how repetition behaves in data mixtures and a predictive scaling law for training
+effectively on limited target data.
+
+
+2    Related Work
+Neural scaling laws The study of scaling laws for language models was popularized by Kaplan et al. (2020),
+who showed that loss decreases as a power law in model size, dataset size, and compute. Hoffmann et al.
+(2022) refined these findings with the Chinchilla scaling laws, establishing compute-optimal training recipes
+that balance model size and data. Relating to our work, Muennighoff et al. (2023) generalize Chinchilla to a
+single data-constrained domain, finding that repeating data up to approximately four epochs causes negligible
+degradation, with meaningful gains extending to roughly 16 epochs and ending at 40. They propose scaling
+laws that model the diminishing value of repeated tokens. Subsequent work has extended scaling laws
+to downstream task performance (Wei et al., 2022), mixture-of-experts architectures (Abnar et al., 2025;
+Krajewski et al., 2024; Wang et al., 2024), continued pretraining (Que et al., 2024; Liew and Kato, 2025;
+Seto et al., 2026), finetuning (Béthune et al., 2025; Zhang et al., 2024), and data quality (Chang et al., 2024).
+
+
+                                                       2
+Our work extends this line of research providing a predictive scaling law for data constrained mixtures, an
+under-explored regime where only one component of a data mixture is unlimited while others are severely
+constrained.
+
+Data mixing for language models  Training on a mixture of data domains has become standard, with corpora
+aggregated from multiple web sources (Gao et al., 2020; Soboleva et al., 2023; Soldaini et al., 2024) with
+varying data size per domain, and recent models are trained on carefully tuned domain mixtures (Bakouch
+et al., 2025; OLMo et al., 2025a). Prior work also focus on optimizing domain weights using distributionally
+robust optimization (Xie et al., 2023; Fan et al., 2024), or by discovering domains through clustering the
+pretraining corpus (Diao et al., 2025; Grangier et al., 2025). The domain mixture scaling law (DMSL)
+framework (Ye et al., 2025; Shukor et al., 2025) models how per-domain loss depends on mixture weights
+and total compute. Our repetition-aware scaling law builds on DMSL by incorporating the effect of data
+repetition, which becomes critical when any mixture component is data-limited. Finally, Anonymous (2026)
+compare data mixing against hyperparameter tuning (weight decay, learning rate) as competing strategies
+for data-constrained pretraining. The focus of our work is on how to set the mixture optimally once mixing
+is chosen by characterizing how the mixing ratio, repetition, and model size jointly determine target-domain
+loss, and that eliminates the need for per-configuration sweeps.
+
+Data-constrained pretraining Several works study data-constrained pretraining. Hernandez et al. (2022) pro-
+pose parametric models for the value of repeated data in multi-epoch training, and Goyal et al. (2024) compare
+repeating high-quality data against training on fresh lower-quality data, concluding that the benefit of fil-
+tering depends on the total compute budget. When high-quality data for the target domain is constrained,
+synthetic data has been used as an alternative to repetition. Gunasekar et al. (2023) pretrained on synthetic
+“textbook quality” data, and Maini et al. (2024) demonstrate that rephrasing web data offer alternatives
+to repeating data. For multi-domain settings, Seto et al. (2025) study pretraining bilingual models when
+target-language data is constrained, showing that high-quality auxiliary-language data can partially substi-
+tute for target-language data in typologically close languages, but that model scaling has diminishing returns.
+Low-resource language modeling faces similar constraints, where mixing with high-resource languages is a
+common strategy (Joshi et al., 2020). This work studies different scenarios where data is constrained in at
+least one target domain, and unconstrained in other generic data, and provides a recipe for determining the
+target domain loss. This is tangential to other approaches which aim to improve the diversity of data by
+building more target data, or incorporating more generic data.
+
+
+3     Methodology: Mixture Training and Datasets
+We consider a mixture pretraining setup with two data sources, where one target source has limited size and a
+generic source provides effectively unlimited data. Let Dtarget the target data size, i.e., the number of unique
+target-domain tokens, Dtotal the total number of training tokens (i.e., the total compute budget), h ∈ [0, 1]
+the fraction of Dtotal devoted to the target domain. The number of repetitions r is the number of time the
+unique target tokens are repeated throughout training:
+
+                                                     r = h · Dtotal /Dtarget .                              (3.1)
+
+For a fixed compute budget Dtotal and data pool Dtarget , increasing the target weight h increases the repetition
+factor r, and vice versa. The generic domain is assumed abundant enough to never repeat. We extend the
+framework to multiple constrained target domains in Section 7.
+To test whether the repetition-diversity trade-off generalizes, we study three types of data-constrained scenar-
+ios commonly encountered in practice: limited target-language data (multilingual), limited specialised-domain
+data (multi-domain), and limited high-quality data (quality filtering).
+
+           The target domain is German text from FineWeb2 (Penedo et al., 2025), artificially constrained
+Multilingual
+to 50M, 100M, 500M, or 1B tokens1 , and an unlimited (no constraint) setting. The generic domain is
+    1 Across all our experimental setups, each smaller set is a subset of a larger one.
+
+
+
+
+                                                                  3
+Figure 3 German validation loss vs. total training tokens for the 143M model across three target data budgets. Each
+curve corresponds to a different target weight h.
+
+
+
+
+Figure 4 Empirical optimal r as a function of training tokens for three data constraint sizes across model sizes. Optimal
+repetition grows steadily with the training budget.
+
+
+English web text from FineWeb (Penedo et al., 2024), treated as effectively unlimited. To verify that findings
+are not language-specific, we run 50M, 100M, and 500M data size experiments with French and Swahili as
+target languages, also derived from FineWeb2. Evaluation is done on a held-out set of FineWeb2 for the
+corresponding language.
+
+Multi-domain   The target domain is OpenWebMath (Paster et al., 2023), a collection of mathematical web
+pages, constrained to 10M, 100M, or 1B tokens. The generic domain is a subset of DCLM (Li et al., 2025),
+a large-scale curated English web corpus. We additionally run three-domain experiments using Wikipedia
+and peS2o (Soldaini and Lo, 2023), a corpus of scientific papers derived from Semantic Scholar, both sourced
+from the OLMo data mix (OLMo et al., 2025b), with dataset sizes ranging from 10M-500M and 50M-2.5B,
+respectively. As the generic domain, we use Fineweb (Penedo et al., 2024) and Nemotron-CC (Su et al.,
+2025). Evaluation is done on held-out sets from the corresponding datasets.
+
+Quality   We score DCLM (Li et al., 2025) documents using the original fasttext quality classifier2 and select
+the top {1, 5, 10, 20}% of the DCLM base corpus as the high-quality (HQ) target set, with the full DCLM
+base data as the low-quality generic set. Unlike the different domain and language experiments, exploring
+data quality allows us to explore the trade-off of amount of data from the data constrained domain, and
+closeness to the target domain. Stricter filtering yields a lower set of HQ data and thus more repetition at a
+given h, but the data is expected to be closer on average to the target set. In contrast, a lower filter percent
+will yield more data, but will be further from the target set. Evaluation is performed on the data used to
+train the original classifier.
+Experiments use GPT-2-style autoregressive decoder-only Transformer language models spanning sizes from
+101M to 805M non-embedding parameters (see Appendix B for full architecture specifications). Models are
+trained for approximately 100×N tokens, where N is the non-embedding parameter count, a sufficient horizon
+  2 https://huggingface.co/mlfoundations/fasttext-oh-eli5
+
+
+
+
+                                                            4
+to observe both the benefits and eventual degradation from data repetition. Data sources are mixed at the
+sample level: each mini-batch contains examples sampled independently from the target set with probability
+h and from the generic set with probability 1 − h.
+
+
+4    Empirical Findings
+We present results primarily through the German-English bilingual setup due to space constraints, simulating
+the low-resource scenario with German. Results for other languages and domains are consistent and discussed
+in Appendix C.
+
+Data Repetition Leads to Predictable Overfitting  Figure 3 shows target-domain loss for the 143M model across
+three target dataset sizes, with each curve corresponding to a different target weight h. When h forces high
+repetition, loss first improves then rises sharply, reflecting overfitting. Target datasets of larger size delay this
+degradation because the same h produces less repetition (Eq. 3.1). Crucially, across all settings, overfitting
+onset is governed by the repetition factor r alone: it means, the same target weight can be safe or harmful
+depending on the available dataset, but the same r consistently triggers degradation regardless of how it is
+reached. This predictability of the same threshold, which holds across data sizes, model scales, and domains,
+motivates the scaling law in Section 5.
+
+Mixture Training Unlocks High Repetition Tolerance   Figure 4 shows the optimal repetition factor (i.e., the value
+of r that minimizes target loss) as a function of training tokens. Across all settings, optimal r increases steadily
+with the training budget, reaching up to 15–20 depending on model size and dataset size, substantially ex-
+ceeding the widely used rule-of-thumb of < 4 epochs for single-source data-constrained training (Muennighoff
+et al., 2023). The difference stems from the generic domain, which provides a continuous supply of fresh to-
+kens that effectively regularizes training and allows the model to absorb far more target-domain repetition
+before degradation sets in. Since r results from the interplay of h, dataset size, and training budget (Eq. 3.1),
+the target weight needed to reach optimal r varies widely, e.g., from 9.5% (101M) to 1.9% (539M) for the
+50M dataset.
+
+                                         Figure 5
+Larger Models Overfit Faster, Yet Still Win
+shows target-domain loss across five model sizes
+at two fixed target weights (h = 9% and
+h = 20%) with 100M German tokens. Dashed
+lines show the best-loss envelope, the minimum
+achievable loss at each training step across all h
+values. At h = 9%, larger models plateau ear-
+lier while smaller models are still improving. At
+h = 20%, the larger models eventually overfit
+(increasing target loss), while the smallest mod-
+els plateau or still improve. This happens be-
+cause larger models memorize the data more eas-
+ily. Yet in every case, larger models reach lower   Figure 5 Target-domain loss across model sizes at 9% and 20%
+minima before degradation sets in, and the best-    target weights for fixed 100M German budget. Dashed lines
+loss envelope consistently favors larger models     show the best-loss envelope across all h values.
+at every training budget. Thus, we can conclude
+that scaling up remains beneficial even under tight data constraints, but the optimal operating window nar-
+rows with model size. This also remains consistent with Figure 4, where the optimal repetition decreases
+with model size.
+
+Predictable Scaling Figure 6 shows best achievable loss as a function of unique data available among all
+weights h and total training tokens, for different model sizes. We see that these curves are remarkably
+regular: scaling up model size, or the number of available target data (e.g., by collecting fresh target data)
+both have a very predictable effect on the loss.
+
+
+                                                         5
+Figure 8 Loss curves for four quality bands ranging from 25M tokens at 99th percentile to 982M at the 80th, and
+ordered by increasing dataset size. Broader filters enable higher target weights without overfitting.
+
+
+Broad Target Data Filters Can Beat More Repetitions  The preced-
+                                                                                                                                      101M
+ing experiments treat the domain dataset as fixed and study                                   2.6
+                                                                                                                                      143M
+how repetition degrades loss. In some settings, however, the                                                                          192M
+
+
+
+
+                                                                           Best achievable
+                                                                           target test loss
+dataset size is a design choice as one can choose how to classify                             2.4
+                                                                                                                                      340M
+                                                                                                                                      539M
+documents into the domain of interest. For example, using a
+quality filter at varying quality levels determines how much
+data remains, and a practitioner can trade quality for quan-                                  2.2
+tity by adjusting the threshold. We use the Quality Data
+Mixture to determine whether accepting lower quality data                                     2.0
+(that is still data constrained and closer to the target domain)                                    50M   100M               500M       1B
+                                                                                                          Unique target-domain data
+to reduce repetition yields better outcomes than repeating the
+highest quality data3 .                                                   Figure 6 Best achievable target loss by dataset
+                                                                          size across different model sizes with optimal
+To ground the experiment, we first confirm with a high quality
+                                                                    repetition.
+target dataset of the 99th percentile and show loss curves at
+three dataset sizes (26M, 132M, 264M tokens) (see Figure 22 in Appendix G). At the smallest scale, only
+h ≤ 0.1 avoids overfitting, and larger sets progressively unlock higher sustainable target weights. This
+establishes the baseline that for a fixed quality threshold, the repetition penalty imposes the same constraint
+on the target loss.
+Next, we vary the quality filter threshold while holding the data
+source fixed. We fix the data constrained set such that the top 1%
+(Q99-100) is 26M tokens, and add increasing amounts of data to
+the data constrained dataset at thresholds of 5%, 10%, and 20%
+up to 982M tokens. Results are in Figure 8. Relaxing the qual-
+ity threshold and accepting slightly lower-quality data in exchange
+for a larger set consistently outperforms repeating a narrow high-
+quality slice. At Q99-100, only h = 0.1 avoids overfitting at up to
+10B tokens of training, while Q90-99 supports weights up to h = 0.4
+and Q80-99 shows nearly all weights monotonically decreasing.
+The best quality set also depends on the training budget as we        Figure 7 Best loss by quality band.
+further observe that the best quality filter threshold changes at     Dashed line marks the crossover where
+around 5B tokens as seen in Figure 7, where the top 5% high           Q90-99 overtakes Q95-99.
+quality documents (Q95-99) performs best due to higher per-token
+quality, but the top 10% set (Q90-99) overtakes it as training progresses and the smaller dataset saturates.
+By 30B tokens, Q90-99 achieves loss 2.33 versus 2.80 for Q99-100 due to the repetition penalty. This
+demonstrates that while repetition is an important factor, when high-quality data is scarce, broadening the
+filter is preferable to over repeating data.
+   3 For many data constrained domains, selecting the amount to filter out is tunable. We study data quality as existing work
+
+gives us an already established way of easily varying the amount of data and relevance to the target domain Li et al. (2025)
+
+
+
+
+                                                             6
+5    Repetition-Aware Mixture Scaling Law
+The goal of this section is to quantify the empirical findings of Section 4. We use scaling laws (Kaplan et al.,
+2020), which, in their original forms, are simple power laws that allow to predict the train loss of a model
+from its number of parameters N and total number of tokens it has been trained on Dtotal . In our setup, both
+the target data size Dtarget and the target weight h influence the loss on the target domain. Our objective
+is to obtain a simple and predictive formula for Ltarget (N, Dtotal , Dtarget , h). We focus on the practically
+relevant regime where the target data is fully consumed at least once, i.e. r = h · Dtotal /Dtarget ≥ 1. When
+r < 1, target tokens are never repeated and mixing reduces to standard mixture selection, as explored, e.g.,
+in (Shukor et al., 2025). In the following, we write scaling laws learned parameters in blue.
+
+Effective data The core building block of our law is the effective data Deff , which accounts for the diminishing
+value of repeated tokens. Following Muennighoff et al. (2023), we define the effective contribution of the target
+domain as                                                                              
+                                                      with ρ(r) = r1 1 − e−(r−1)/r1 ,                        (5.1)
+                                              
+                       DT = Dtarget 1 + ρ(r) ,
+where r1 is a parameter that controls the effect repeated data. For small r ≪ r1 + 1, we have ρ(r) ≈ r − 1
+so that DT ≈ r · Dtarget : each pass counts fully. For large r, DT saturates at (1 + r1 ) Dtarget , reflecting the
+diminishing value of further repetitions. The total effective data is then
+
+                                            Deff = (1 − h) Dtotal + τ DT ,                                     (5.2)
+
+where the (1 − h) Dtotal term corresponds to the number of tokens seen from the generic dataset and τ
+controls the relative value of target-domain tokens compared to generic-domain tokens. This formulation
+directly encodes two observations from Section 4. The saturation of ρ(r) at r1 is the quantitative form of
+the diminishing value of repeated target tokens: for r ≫ r1 , further passes add essentially nothing to Deff .
+Conversely, the unsaturated (1 − h) Dtotal term formalises why mixture training tolerates far more repetition
+than single-source training (Figure 4): generic tokens never saturate, so they keep Deff growing even when
+the target contribution has plateaued.
+
+Scaling law formulas   We propose two loss formulas, for fixed and variable model size:
+                                          A                            C     B Nδ
+                          Lfix = E +       α + γ h,      Lsize = E +     β
+                                                                           +   α + γ h.                        (5.3)
+                                         Deff                          N     Deff
+In Lfix , the irreducible loss E is a constant baseline; the data term A/Deff     α
+                                                                                     is a Chinchilla-style power-law
+relating loss to effective data; and the weight penalty γ h is a linear cost on the target weight. Lsize additionally
+includes a Chinchilla-style capacity term C/N β and a data-size coupling N δ (δ > 0) (Hoffmann et al., 2022):
+the capacity term captures the intrinsic capability gain from scale, while the coupling means that for the
+same Deff , the data-limited loss component is amplified at larger N , encoding the fact that larger models
+yield better losses but overfit faster (Figure 5). At fixed N , Lsize reduces exactly to Lfix with A = B N δ and
+Efix = E + C/N β , ensuring consistency. Lfix has six fitted parameters (E, A, α, r1 , τ , γ); Lsize has nine (E,
+C, β, B, δ, α, r1 , τ , γ).
+
+Fitting  Given a collection of training runs indexed by i, each characterised by a total token budget Dtotal,i , a
+target weight hi , an available target dataset Dtarget,i , and optionally a model size Ni , we observe the resulting
+loss on the target domain ℓi . The parameters θ of the scaling law are estimated by minimising the reweighted
+Huber loss                               X
+                                                                                                               (5.4)
+                                                                                            
+                            θ̂ = arg min    ωi · H ℓi − Lθ (Dtotal,i , hi , Dtarget,i , Ni ) ,
+                                     θ
+                                           i
+
+where H is the Huber loss and the weights ωi = max(ri · hi , ϵ) with ϵ = 0.01 emphasise the high-repetition,
+high-fraction regime: h alone would under-weight high-repetition runs at moderate fractions, while r alone
+would under-weight high-fraction runs with large datasets (where r is low). The qualitative ranking of meth-
+ods is unchanged under alternative weights; see Appendix L. Following Shukor et al. (2025), we minimise 5.4
+using basin-hopping optimisation with 100 random restarts to avoid poor local minima in the non-convex
+loss landscape.
+
+
+                                                          7
+Table 1 Test weighted R2 . Left: fixed-size formulas, fitted independently per model size. Right: multi-size formulas,
+fitted on smaller model sizes and evaluated on the held-out largest model.
+
+                             German Maths Quality Wiki/peS2o                                                           German Maths
+    Lfix                     0.95    0.88     0.71        0.80       Lsize                                             0.65         0.73
+    Repetition-agnostic       0.78   0.78      0.14       0.72       Repetition-agnostic+N                              0.59        0.71
+    Utility decay             0.72   0.55     −0.64       0.79       Utility decay+N                                    0.56        0.69
+    Domain-agnostic          −40.7   −0.49    −2.19       −1.16      Domain-agnostic+N                                 −0.23        −0.77
+
+
+6    Scaling Law Results
+We evaluate the scaling law on experimental setups described in Section 3. For each setup, Lfix is fitted
+independently per model size, and Lsize is fitted jointly across all model sizes. To test extrapolation for Lfix ,
+we fit on the first 50% of training steps and test on second half. For Lsize , we fit on all but the largest model
+scale, and test on the held-out largest model scale.
+
+Baselines We compare against three other scaling laws formulas inspired by the literature. Repetitions-
+agnostic (Shukor et al., 2025) replaces Deff with (1 − h) Dtotal + τ h Dtotal , treating repeated tokens as
+unique. Domain-agnostic (Muennighoff et al., 2023) uses a single saturating function of total tokens without
+distinguishing domains. Utility decay (Goyal et al., 2024) models repetition through a decaying exponent on
+the data term. The formulas are detailed in Appendix J.
+
+Optimal mixture prediction
+                                                                                                              1B German tokens
+Loss prediction  Table 1 reports the weighted coefficient of de-                             15
+                                                                         Optimal repetition r *
+                                                                                                       101M       Empirical r *
+termination (wR2 ) on the held-out test split (train wR2 in Ap-                                        143M       Lfix prediction
+                                                                                             12        192M
+pendix K), where each observation is weighted by max(r·h, ϵ) to                                        340M
+emphasise the high-repetition regime. Lfix consistently achieves                              9        539M
+the best test wR2 , extrapolating beyond the fitting range.                                   6
+Repetitions-agnostic fits the training range reasonably but fails                             3
+to extrapolate to high repetitions. Domain agnostic fails com-
+                                                                                              0
+pletely: treating all tokens as interchangeable does not capture                                  2B              5B          10B          20B
+the loss dynamics. Utility decay performs honorably on several                                                 Training tokens
+datasets.
+                                                                        Figure 9 Predicted vs. empirical optimal repe-
+The primary use of the scaling law is to predict the optimal tar-       tition r∗ for the German target dataset of 1B
+get weight h∗ for a given total token budget Dtotal and available       tokens. Solid: empirical optimum; dashed:
+target domain dataset Dtarget . Once the scaling law parameters         Lfix prediction.
+are estimated, we can simply solve
+
+                                      h∗ = arg min Lfix (Dtotal , h, Dtarget )                                                             (6.1)
+                                                h∈[0,1]
+
+by grid search over h. Figure 9 shows an example of empirical vs. estimated optimal repetition.
+To quantify the practical cost of suboptimal mixture predictions,
+                                                                                                                 Median      Mean    p90
+we measure the fraction of training tokens wasted by following each
+                                                                                                  Lfix             26          34     76
+formula’s recommendation instead of the oracle (Table 2). At a                                    Rep-agn.         88          73     99
+given budget Dtotal , the formula recommends a fraction h∗pred ; we                               Util. dec.       31          41     95
+                                                                                                  Dom.-agn.        47          59     98
+interpolate the empirical loss at that fraction and find the budget
+D′ at which the run using the empirically best fraction at each step
+                                                                                        Table 2 Fraction of training tokens wasted
+first reached the same loss. The wasted fraction (Dtotal −D′ )/Dtotal                   by following each formula’s predicted op-
+directly measures how much compute could have been saved with                           timal mixture instead of the oracle.
+perfect knowledge of the optimal mixture. Detailed results are in
+Appendix K.
+
+
+
+                                                          8
+Figure 10 Multi-domain experiments (101M model, English + Wikipedia + peS2o).             (a) Best achievable average
+target loss under equal vs. proportional weighting across three set-size configurations. (b) Optimal repetitions under
+proportional weighting with 10% compute confidence band (shaded). (c) Independently optimizing r per domain
+using the bilingual scaling law outperforms the best grid-searched proportional weighting.
+
+7     Multiple Domain Experiments
+In order to test whether our findings and scaling law formula extend to settings with more than one constrained
+domain, we set up experiments with a mixture of three domains: one unconstrained generic source and two
+constrained target domains. We use two configurations: FineWeb as the generic source with peS2o and
+Wikipedia as targets, and Nemotron as the generic source with Wikipedia and peS2o as targets.4 We vary
+the dataset sizes across three configurations: 5× less, base, and 5× more data. Our primary metric is the
+average loss across both target domains, analogous to evaluating on a test set that combines text from both
+domains.
+
+Weighting Strategies  First, we compared two weighting strategies: equal weighting (hwiki = hpeS2o ) and
+proportional weighting, where fractions are set proportional to dataset size (hwiki /hpeS2o = Dwiki /DpeS2o ).
+Our experiments demonstrate (Figure 10a) that by average loss, proportional weighting outperforms equal
+weighting when data is scarce, while equal weighting is better in the data-rich regime. The two strategies
+cross near the base configuration, suggesting that proportional weighting becomes increasingly beneficial as
+repetition grows. For the rest of this section, we focus on the proportional weighting, and provide the results
+for equal weighting in Appendix I.
+
+Empirical Findings  The key findings from the bilingual experiments carry over to the multi-domain setting.
+Figure 10b shows that optimal repetition grows steadily with training tokens across all set-size configurations,
+with smaller sets requiring substantially higher repetition: the 5×less variant reaches r ≈ 30 while 5×more
+stays below r ≈ 7. This mirrors the bilingual experiments: the generic domain continues to regularize
+training even with multiple constrained domains present, enabling high repetition tolerance. Importantly,
+the choice of r need not be exact. We quantify this through a 10% compute confidence band (shaded regions
+in Figure 10b): at each checkpoint, we identify all values of r that achieve loss no worse than the best loss
+achievable with 10% less compute. The bands are wide, particularly for smaller sets, indicating that even
+rough estimates of optimal r yield near-optimal target loss.
+
+Scaling Law Generalization The similarity of these findings to the bilingual setting raises the question of
+whether the scaling law transfers directly to multi-domain mixtures. We test this by setting each domain’s
+repetition factor independently using the optimal r predicted by the bilingual scaling law for the correspond-
+ing set size (rwiki = 35, rpeS2o = 17). Figure 10c shows that this independently optimized configuration
+consistently outperforms the best proportional weighting and narrows the gap to the 2-domain oracle (the
+average loss achieved by training each domain separately with English). While a gap to the oracle remains,
+this result suggests that costly multi-domain sweeps over all possible combinations of domain weights can
+be avoided: our two-domain scaling law can independently estimate the optimal r for each constrained do-
+    4 Subplot (a) of Figure 10 uses FineWeb + peS2o + Wikipedia; subplots (b) and (c) use Nemotron + Wikipedia + peS2o.
+
+
+
+
+                                                            9
+main, and these can be combined into a single mixture, replacing an entire experimental grid with a single,
+better-performing run.
+
+
+8     Conclusion
+We studied mixture pretraining under data constraints across diverse data types: multilingual, multi-domain,
+and quality-filtered. Our experiments reveal consistent patterns across all settings: repeated target-domain
+tokens yield diminishing returns, optimal repetition scales predictably with data availability, and larger
+models extract more from limited data. Crucially, mixture training tolerates substantially higher repetition
+than single-source training, with generic data acting as an implicit regularizer. We formalized these dynamics
+in a scaling law that accurately predicts the optimal mixture across experimental setups, outperforming
+baselines that ignore either repetition or domain structure. In practice, this allows training on scarce target
+data without expensive sweeps: given only the target pool size and compute budget, the law prescribes the
+mixture ratio that maximizes target-domain performance in a single run.
+
+
+References
+Samira Abnar, Harshay Shah, Dan Busbridge, Alaaeldin El-Nouby, Joshua M Susskind, and Vimal Thilak. Parameters
+  vs flops: Scaling laws for optimal sparsity for mixture-of-experts language models. In International Conference on
+  Machine Learning, pages 204–230. PMLR, 2025.
+Anonymous. Mix, don’t tune: Bilingual pre-training outperforms hyperparameter search in data-constrained settings.
+  Submitted to NeurIPS 2026, 2026.
+Anthropic.     Introducing claude opus 4.6.    Antropic Annoucements, 2026.       URL https://www.anthropic.com/news/
+    claude-opus-4-6.
+
+Elie Bakouch, Loubna Ben Allal, Anton Lozhkov, Nouamane Tazi, Lewis Tunstall, Carlos Miguel Patiño, Edward
+  Beeching, Aymeric Roucher, Aksel Joonas Reedi, Quentin Gallouédec, Kashif Rasul, Nathan Habib, Clémentine
+  Fourrier, Hynek Kydlicek, Guilherme Penedo, Hugo Larcher, Mathieu Morlon, Vaibhav Srivastav, Joshua Lochner,
+  Xuan-Son Nguyen, Colin Raffel, Leandro von Werra, and Thomas Wolf. SmolLM3: smol, multilingual, long-context
+  reasoner. https://huggingface.co/blog/smollm3, 2025.
+Louis Béthune, David Grangier, Dan Busbridge, Eleonora Gualdoni, Marco Cuturi, and Pierre Ablin. Scaling laws for
+  forgetting during finetuning with pretraining data injection. In Forty-second International Conference on Machine
+  Learning, 2025. URL https://openreview.net/forum?id=vWMij23BmQ.
+Yonatan Bisk, Rowan Zellers, Ronan Le Bras, Jianfeng Gao, and Yejin Choi. Piqa: Reasoning about physical
+  commonsense in natural language. In Thirty-Fourth AAAI Conference on Artificial Intelligence, 2020.
+Ernie Chang, Matteo Paltenghi, Yang Li, Pin-Jie Lin, Changsheng Zhao, Patrick Huber, Zechun Liu, Rastislav
+  Rabatin, Yangyang Shi, and Vikas Chandra. Scaling parameter-constrained language models with quality data. In
+  Franck Dernoncourt, Daniel Preoţiuc-Pietro, and Anastasia Shimorina, editors, Proceedings of the 2024 Conference
+  on Empirical Methods in Natural Language Processing: Industry Track, pages 80–97, Miami, Florida, US, November
+  2024. Association for Computational Linguistics. doi: 10.18653/v1/2024.emnlp-industry.8. URL https://aclanthology.
+  org/2024.emnlp-industry.8/.
+
+Peter Clark, Isaac Cowhey, Oren Etzioni, Tushar Khot, Ashish Sabharwal, Carissa Schoenick, and Oyvind Tafjord.
+  Think you have solved question answering? try arc, the ai2 reasoning challenge. arXiv preprint arXiv:1803.05457,
+  2018.
+Shizhe Diao, Yu Yang, Yonggan Fu, Xin Dong, Dan Su, Markus Kliegl, Zijia Chen, Peter Belcak, Yoshi Suhara, Hongxu
+  Yin, Mostofa Patwary, Yingyan, Lin, Jan Kautz, and Pavlo Molchanov. Nemotron-climb: Clustering-based iterative
+  data mixture bootstrapping for language model pre-training, 2025. URL https://arxiv.org/abs/2504.13161.
+Essential AI, :, Andrew Hojel, Michael Pust, Tim Romanski, Yash Vanjani, Ritvik Kapila, Mohit Parmar, Adarsh
+  Chaluvaraju, Alok Tripathy, Anil Thomas, Ashish Tanwer, Darsh J Shah, Ishaan Shah, Karl Stratos, Khoi Nguyen,
+  Kurt Smith, Michael Callahan, Peter Rushton, Philip Monk, Platon Mazarakis, Saad Jamal, Saurabh Srivastava,
+  Somanshu Singla, and Ashish Vaswani. Essential-web v1.0: 24t tokens of organized web data, 2025. URL https:
+  //arxiv.org/abs/2506.14111.
+
+
+
+
+                                                        10
+Simin Fan, Matteo Pagliardini, and Martin Jaggi. Doge: domain reweighting with generalization estimation. In
+  Proceedings of the 41st International Conference on Machine Learning, ICML’24. JMLR.org, 2024.
+Leo Gao, Stella Biderman, Sid Black, Laurence Golding, Travis Hoppe, Charles Foster, Jason Phang, Horace He,
+  Anish Thite, Noa Nabeshima, Shawn Presser, and Connor Leahy. The Pile: An 800gb dataset of diverse text for
+  language modeling. arXiv preprint arXiv:2101.00027, 2020.
+Sachin Goyal, Pratyush Maini, Zachary C. Lipton, Aditi Raghunathan, and J. Zico Kolter. Scaling laws for data
+  filtering—data curation cannot be compute agnostic. In 2024 IEEE/CVF Conference on Computer Vision and
+  Pattern Recognition (CVPR), pages 22702–22711, 2024. doi: 10.1109/CVPR52733.2024.02142.
+David Grangier, Simin Fan, Skyler Seto, and Pierre Ablin. Task-adaptive pretrained language models via clustered-
+  importance sampling. In ICLR, 2025.
+Suriya Gunasekar, Yi Zhang, Jyoti Aneja, Caio Cesar, Teodoro Mendes, Allie Del Giorno, Sivakanth Gopi, Mojan
+  Javaheripi, Piero Kauffmann, Gustavo de Rosa, Olli Saarikivi, Adil Salim, Shital Shah, Harkirat Singh Behl, Xin
+  Wang, Sébastien Bubeck, Ronen Eldan, Adam Tauman Kalai, Yin Tat Lee, and Yuanzhi Li. Textbooks are all you
+  need, June 2023. URL https://www.microsoft.com/en-us/research/publication/textbooks-are-all-you-need/.
+Alexander Hägele, Elie Bakouch, Atli Kosson, Loubna Ben allal, Leandro Von Werra, and Martin Jaggi. Scaling laws
+  and compute-optimal training beyond fixed training durations. In The Thirty-eighth Annual Conference on Neural
+  Information Processing Systems, 2024. URL https://openreview.net/forum?id=Y13gSfTjGr.
+Danny Hernandez, Tom Brown, Tom Conerly, Nova DasSarma, Dawn Drain, Sheer El-Showk, Nelson Elhage, Zac
+  Hatfield-Dodds, Tom Henighan, Tristan Hume, Scott Johnston, Ben Mann, Chris Olah, Catherine Olsson, Dario
+  Amodei, Nicholas Joseph, Jared Kaplan, and Sam McCandlish. Scaling laws and interpretability of learning from
+  repeated data, 2022. URL https://arxiv.org/abs/2205.10487.
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford, Diego
+  de Las Casas, Lisa Anne Hendricks, Johannes Welbl, Aidan Clark, Tom Hennigan, Eric Noland, Katie Millican,
+  George van den Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karen Simonyan, Erich Elsen, Oriol
+  Vinyals, Jack W. Rae, and Laurent Sifre. Training compute-optimal large language models. In Proceedings of the
+  36th International Conference on Neural Information Processing Systems, NIPS ’22, Red Hook, NY, USA, 2022.
+  Curran Associates Inc.S. ISBN 9781713871088.
+Pratik Joshi, Sebastin Santy, Amar Budhiraja, Kalika Bali, and Monojit Choudhury. The state and fate of linguistic
+  diversity and inclusion in the NLP world. In Dan Jurafsky, Joyce Chai, Natalie Schluter, and Joel Tetreault,
+  editors, Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 6282–
+  6293, Online, July 2020. Association for Computational Linguistics. doi: 10.18653/v1/2020.acl-main.560. URL
+  https://aclanthology.org/2020.acl-main.560/.
+
+Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B Brown, Benjamin Chess, Rewon Child, Scott Gray, Alec
+  Radford, Jeffrey Wu, and Dario Amodei. Scaling laws for neural language models. arXiv preprint arXiv:2001.08361,
+  2020.
+Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. arXiv preprint arXiv:1412.6980,
+  2014.
+Jakub Krajewski, Jan Ludziejewski, Kamil Adamczewski, Maciej Pióro, Michał Krutul, Szymon Antoniak, Kamil
+  Ciebiera, Krystian Król, Tomasz Odrzygóźdź, Piotr Sankowski, Marek Cygan, and Sebastian Jaszczur. Scaling
+  laws for fine-grained mixture of experts, 2024. URL https://arxiv.org/abs/2402.07871.
+Taku Kudo and John Richardson. Sentencepiece: A simple and language independent subword tokenizer and detok-
+  enizer for neural text processing. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language
+  Processing: System Demonstrations, pages 66–71, 2018.
+Jeffrey Li, Alex Fang, Georgios Smyrnis, Maor Ivgi, Matt Jordan, Samir Gadre, Hritik Bansal, Etash Guha, Sedrick
+  Keh, Kushal Arora, Saurabh Garg, Rui Xin, Niklas Muennighoff, Reinhard Heckel, Jean Mercat, Mayee Chen,
+  Suchin Gururangan, Mitchell Wortsman, Alon Albalak, Yonatan Bitton, Marianna Nezhurina, Amro Abbas, Cheng-
+  Yu Hsieh, Dhruba Ghosh, Josh Gardner, Maciej Kilian, Hanlin Zhang, Rulin Shao, Sarah Pratt, Sunny Sanyal,
+  Gabriel Ilharco, Giannis Daras, Kalyani Marathe, Aaron Gokaslan, Jieyu Zhang, Khyathi Chandu, Thao Nguyen,
+  Igor Vasiljevic, Sham Kakade, Shuran Song, Sujay Sanghavi, Fartash Faghri, Sewoong Oh, Luke Zettlemoyer, Kyle
+  Lo, Alaaeldin El-Nouby, Hadi Pouransari, Alexander Toshev, Stephanie Wang, Dirk Groeneveld, Luca Soldaini,
+  Pang Wei Koh, Jenia Jitsev, Thomas Kollar, Alexandros G. Dimakis, Yair Carmon, Achal Dave, Ludwig Schmidt,
+
+
+
+
+                                                        11
+  and Vaishaal Shankar. Datacomp-lm: In search of the next generation of training sets for language models, 2025.
+  URL https://arxiv.org/abs/2406.11794.
+Seng Pei Liew and Takuya Kato. From acceleration to saturation: Scaling behavior of bootstrapped language model
+  pretraining. In NeurIPS 2025 Workshop on Evaluating the Evolving LLM Lifecycle: Benchmarks, Emergent Abilities,
+  and Scaling, 2025. URL https://openreview.net/forum?id=PhsneSYvWK.
+Thang Luong and Edward Lockhart. Advanced version of gemini with deep think officially achieves gold-medal
+  standard at the international mathematical olympiad. Google DeepMind Blog, 1, 2025.
+Pratyush Maini, Skyler Seto, Richard Bai, David Grangier, Yizhe Zhang, and Navdeep Jaitly. Rephrasing the web:
+  A recipe for compute and data-efficient language modeling. In Proceedings of the 62nd Annual Meeting of the
+  Association for Computational Linguistics (Volume 1: Long Papers), pages 14044–14072, 2024.
+Niklas Muennighoff, Alexander M Rush, Boaz Barak, Teven Le Scao, Nouamane Tazi, Aleksandra Piktus, Sampo
+  Pyysalo, Thomas Wolf, and Colin Raffel. Scaling data-constrained language models. In Thirty-seventh Conference
+  on Neural Information Processing Systems, 2023. URL https://openreview.net/forum?id=j5BuTrEj35.
+Team OLMo, :, Allyson Ettinger, Amanda Bertsch, Bailey Kuehl, David Graham, David Heineman, Dirk Groeneveld,
+  Faeze Brahman, Finbarr Timbers, Hamish Ivison, Jacob Morrison, Jake Poznanski, Kyle Lo, Luca Soldaini, Matt
+  Jordan, Mayee Chen, Michael Noukhovitch, Nathan Lambert, Pete Walsh, Pradeep Dasigi, Robert Berry, Saumya
+  Malik, Saurabh Shah, Scott Geng, Shane Arora, Shashank Gupta, Taira Anderson, Teng Xiao, Tyler Murray,
+  Tyler Romero, Victoria Graf, Akari Asai, Akshita Bhagia, Alexander Wettig, Alisa Liu, Aman Rangapur, Chloe
+  Anastasiades, Costa Huang, Dustin Schwenk, Harsh Trivedi, Ian Magnusson, Jaron Lochner, Jiacheng Liu, Lester
+  James V. Miranda, Maarten Sap, Malia Morgan, Michael Schmitz, Michal Guerquin, Michael Wilson, Regan Huff,
+  Ronan Le Bras, Rui Xin, Rulin Shao, Sam Skjonsberg, Shannon Zejiang Shen, Shuyue Stella Li, Tucker Wilde,
+  Valentina Pyatkin, Will Merrill, Yapei Chang, Yuling Gu, Zhiyuan Zeng, Ashish Sabharwal, Luke Zettlemoyer,
+  Pang Wei Koh, Ali Farhadi, Noah A. Smith, and Hannaneh Hajishirzi. Olmo 3, 2025a. URL https://arxiv.org/abs/2512.
+  13961.
+
+Team OLMo, Pete Walsh, Luca Soldaini, Dirk Groeneveld, Kyle Lo, Shane Arora, Akshita Bhagia, Yuling Gu, Shengyi
+  Huang, Matt Jordan, Nathan Lambert, Dustin Schwenk, Oyvind Tafjord, Taira Anderson, David Atkinson, Faeze
+  Brahman, Christopher Clark, Pradeep Dasigi, Nouha Dziri, Allyson Ettinger, Michal Guerquin, David Heineman,
+  Hamish Ivison, Pang Wei Koh, Jiacheng Liu, Saumya Malik, William Merrill, Lester James V. Miranda, Jacob
+  Morrison, Tyler Murray, Crystal Nam, Jake Poznanski, Valentina Pyatkin, Aman Rangapur, Michael Schmitz,
+  Sam Skjonsberg, David Wadden, Christopher Wilhelm, Michael Wilson, Luke Zettlemoyer, Ali Farhadi, Noah A.
+  Smith, and Hannaneh Hajishirzi. 2 olmo 2 furious, 2025b. URL https://arxiv.org/abs/2501.00656.
+Denis Paperno, Germán Kruszewski, Angeliki Lazaridou, Ngoc Quan Pham, Raffaella Bernardi, Sandro Pezzelle,
+  Marco Baroni, Gemma Boleda, and Raquel Fernández. The LAMBADA dataset: Word prediction requiring a
+  broad discourse context. In Katrin Erk and Noah A. Smith, editors, Proceedings of the 54th Annual Meeting of the
+  Association for Computational Linguistics (Volume 1: Long Papers), pages 1525–1534, Berlin, Germany, August
+  2016. Association for Computational Linguistics. doi: 10.18653/v1/P16-1144. URL https://aclanthology.org/P16-1144/.
+Keiran Paster, Marco Dos Santos, Zhangir Azerbayev, and Jimmy Ba. OpenWebMath: An open dataset of high-quality
+  mathematical web text. arXiv preprint arXiv:2310.06786, 2023.
+Guilherme Penedo, Hynek Kydlíček, Loubna Ben allal, Anton Lozhkov, Margaret Mitchell, Colin Raffel, Leandro
+ Von Werra, and Thomas Wolf. The FineWeb datasets: Decanting the web for the finest text data at scale. In
+ Advances in Neural Information Processing Systems, volume 37, 2024.
+Guilherme Penedo, Hynek Kydlíček, Vinko Sabolčec, Bettina Messmer, Negar Foroutan, Amir Hossein Kargaran,
+  Colin Raffel, Martin Jaggi, Leandro Von Werra, and Thomas Wolf. FineWeb2: One pipeline to scale them all –
+  adapting pre-training data processing to every language. arXiv preprint arXiv:2506.20920, 2025.
+Tomer Porian, Mitchell Wortsman, Jenia Jitsev, Ludwig Schmidt, and Yair Carmon. Resolving discrepancies in
+  compute-optimal scaling of language models. In The Thirty-eighth Annual Conference on Neural Information
+  Processing Systems, 2024. URL https://openreview.net/forum?id=4fSSqpk1sM.
+Haoran Que, Jiaheng Liu, Ge Zhang, Chenchen Zhang, Xingwei Qu, Yinghao Ma, Feiyu Duan, ZhiqiBai, JiakaiWang,
+  Yuanxing Zhang, Xu Tan, Jie Fu, Jiamang Wang, Lin Qu, Wenbo Su, and Bo Zheng. D-CPT law: Domain-specific
+  continual pre-training scaling law for large language models. In The Thirty-eighth Annual Conference on Neural
+  Information Processing Systems, 2024. URL https://openreview.net/forum?id=JzKFN5fWOk.
+
+
+
+
+                                                         12
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. Language models are
+  unsupervised multitask learners. OpenAI blog, 2019.
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael Matena, Yanqi Zhou, Wei Li, and
+  Peter J Liu. Exploring the limits of transfer learning with a unified text-to-text transformer. Journal of Machine
+  Learning Research, 21(140):1–67, 2020.
+Keisuke Sakaguchi, Ronan Le Bras, Chandra Bhagavatula, and Yejin Choi. Winogrande: An adversarial winograd
+  schema challenge at scale. Proceedings of AAAI, 2020.
+Skyler Seto, Maartje Ter Hoeve, Richard He Bai, Natalie Schluter, and David Grangier. Training bilingual lms with
+  data constraints in the targeted language. In Findings of the Association for Computational Linguistics: ACL 2025,
+  pages 19096–19122, 2025.
+Skyler Seto, Pierre Ablin, Anastasiia Filippova, Jiayuan Ye, Louis Bethune, Angelos Katharopoulos, and David Grang-
+  ier. Optimal splitting of language models from mixtures to specialized domains. arXiv preprint arXiv:2603.19149,
+  2026.
+Mustafa Shukor, Louis Bethune, Dan Busbridge, David Grangier, Enrico Fini, Alaaeldin El-Nouby, and Pierre Ablin.
+ Scaling laws for optimal data mixtures. In NeurIPS, 2025. URL https://arxiv.org/abs/2507.09404.
+Aaditya Singh, Adam Fry, Adam Perelman, Adam Tart, Adi Ganesh, Ahmed El-Kishky, Aidan McLaughlin, Aiden
+  Low, AJ Ostrow, Akhila Ananthram, et al. Openai gpt-5 system card. arXiv preprint arXiv:2601.03267, 2026.
+Daria Soboleva, Faisal Al-Khateeb, Robert Myers, Jacob R Steeves, Joel Hestness, and Nolan Dey.
+  SlimPajama:      A 627B token cleaned and deduplicated version of RedPajama.                       https://cerebras.ai/blog/
+  slimpajama-a-627b-token-cleaned-and-deduplicated-version-of-redpajama, 2023. URL https://huggingface.co/datasets/cerebras/
+  SlimPajama-627B.
+
+Luca Soldaini and Kyle Lo. peS2o (pretraining efficiently on S2ORC) dataset. Technical report, Allen Institute for
+  AI, 2023.
+Luca Soldaini, Rodney Kinney, Akshita Bhagia, Dustin Schwenk, David Atkinson, Russell Authur, Ben Bogin, Khyathi
+  Chandu, Jennifer Dumas, Yanai Elazar, Valentin Hofmann, Ananya Jha, Sachin Kumar, Li Lucy, Xinxi Lyu, Nathan
+  Lambert, Ian Magnusson, Jacob Morrison, Niklas Muennighoff, Aakanksha Naik, Crystal Nam, Matthew Peters,
+  Abhilasha Ravichander, Kyle Richardson, Zejiang Shen, Emma Strubell, Nishant Subramani, Oyvind Tafjord,
+  Evan Walsh, Luke Zettlemoyer, Noah Smith, Hannaneh Hajishirzi, Iz Beltagy, Dirk Groeneveld, Jesse Dodge, and
+  Kyle Lo. Dolma: an open corpus of three trillion tokens for language model pretraining research. In Lun-Wei
+  Ku, Andre Martins, and Vivek Srikumar, editors, Proceedings of the 62nd Annual Meeting of the Association
+  for Computational Linguistics (Volume 1: Long Papers), pages 15725–15788, Bangkok, Thailand, August 2024.
+  Association for Computational Linguistics. doi: 10.18653/v1/2024.acl-long.840. URL https://aclanthology.org/2024.
+  acl-long.840/.
+
+Dan Su, Kezhi Kong, Ying Lin, Joseph Jennings, Brandon Norick, Markus Kliegl, Mostofa Patwary, Mohammad
+  Shoeybi, and Bryan Catanzaro. Nemotron-CC: Transforming Common Crawl into a refined long-horizon pretraining
+  dataset. In Wanxiang Che, Joyce Nabende, Ekaterina Shutova, and Mohammad Taher Pilehvar, editors, Proceedings
+ of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages
+  2459–2475, Vienna, Austria, July 2025. Association for Computational Linguistics. ISBN 979-8-89176-251-0. doi:
+  10.18653/v1/2025.acl-long.123. URL https://aclanthology.org/2025.acl-long.123/.
+Siqi Wang, Zhengyu Chen, Bei Li, Keqing He, Min Zhang, and Jingang Wang. Scaling laws across model architectures:
+  A comparative analysis of dense and MoE models in large language models. In Yaser Al-Onaizan, Mohit Bansal,
+  and Yun-Nung Chen, editors, Proceedings of the 2024 Conference on Empirical Methods in Natural Language
+  Processing, pages 5583–5595, Miami, Florida, USA, November 2024. Association for Computational Linguistics.
+  doi: 10.18653/v1/2024.emnlp-main.319. URL https://aclanthology.org/2024.emnlp-main.319/.
+Jason Wei, Yi Tay, Rishi Bommasani, Colin Raffel, Barret Zoph, Sebastian Borgeaud, Dani Yogatama, Maarten
+  Bosma, Denny Zhou, Donald Metzler, Ed H. Chi, Tatsunori Hashimoto, Oriol Vinyals, Percy Liang, Jeff Dean, and
+  William Fedus. Emergent abilities of large language models. Transactions on Machine Learning Research, 2022.
+  ISSN 2835-8856. URL https://openreview.net/forum?id=yzkSU5zdwD. Survey Certification.
+Johannes Welbl, Nelson F. Liu, and Matt Gardner. Crowdsourcing multiple choice science questions. In Leon
+  Derczynski, Wei Xu, Alan Ritter, and Tim Baldwin, editors, Proceedings of the 3rd Workshop on Noisy User-
+  generated Text, pages 94–106, Copenhagen, Denmark, September 2017. Association for Computational Linguistics.
+  doi: 10.18653/v1/W17-4413. URL https://aclanthology.org/W17-4413/.
+
+
+
+                                                             13
+David P. Woodruff, Vincent Cohen-Addad, Lalit Jain, Jieming Mao, Song Zuo, MohammadHossein Bateni, Sim-
+  ina Branzei, Michael P. Brenner, Lin Chen, Ying Feng, Lance Fortnow, Gang Fu, Ziyi Guan, Zahra Hadizadeh,
+  Mohammad T. Hajiaghayi, Mahdi JafariRaviz, Adel Javanmard, Karthik C. S., Ken ichi Kawarabayashi, Ravi
+  Kumar, Silvio Lattanzi, Euiwoong Lee, Yi Li, Ioannis Panageas, Dimitris Paparas, Benjamin Przybocki, Bernardo
+  Subercaseaux, Ola Svensson, Shayan Taherijam, Xuan Wu, Eylon Yogev, Morteza Zadimoghaddam, Samson Zhou,
+  Yossi Matias, James Manyika, and Vahab Mirrokni. Accelerating scientific research with gemini: Case studies and
+  common techniques, 2026. URL https://arxiv.org/abs/2602.03837.
+Sang Michael Xie, Hieu Pham, Xuanyi Dong, Nan Du, Hanxiao Liu, Yifeng Lu, Percy Liang, Quoc V Le, Tengyu
+  Ma, and Adams Wei Yu. DoReMi: Optimizing data mixtures speeds up language model pretraining. Advances in
+  Neural Information Processing Systems, 36, 2023.
+Jiasheng Ye, Peiju Liu, Tianxiang Sun, Jun Zhan, Yunhua Zhou, and Xipeng Qiu. Data mixing laws: Optimizing data
+   mixtures by predicting language modeling performance. In The Thirteenth International Conference on Learning
+  Representations, 2025. URL https://openreview.net/forum?id=jjCB27TMK3.
+Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, and Yejin Choi. HellaSwag: Can a machine really finish
+  your sentence? In Anna Korhonen, David Traum, and Lluís Màrquez, editors, Proceedings of the 57th Annual
+  Meeting of the Association for Computational Linguistics, pages 4791–4800, Florence, Italy, July 2019. Association
+  for Computational Linguistics. doi: 10.18653/v1/P19-1472. URL https://aclanthology.org/P19-1472/.
+Biao Zhang, Zhongtao Liu, Colin Cherry, and Orhan Firat. When scaling meets LLM finetuning: The effect of data,
+  model and finetuning method. In The Twelfth International Conference on Learning Representations, 2024. URL
+  https://openreview.net/forum?id=5HCnKDeTws.
+
+
+Appendix
+A    Experimental Setup
+Multilingual setup For each combination of model size and pool size, we sweep h over a fine grid of 19–27
+values (see Table 4 for a summary), with denser sampling at low repetition levels where the loss landscape
+changes most rapidly. The grid spans number of repetitions from below 1 to above 30, though configurations
+where the resulting h exceeds 1 are excluded. For larger models, the feasible range of h is narrower because
+the longer training duration (100 × N tokens) produces higher repetition at the same h; for example, the
+539M model on the 50M pool covers r up to approximately 20. Evaluation is performed on 10,000 samples
+from held-out test sets of both FineWeb2 (target language) and FineWeb (English), allowing us to measure
+both target-domain and generic-domain loss at each checkpoint.
+
+Multi-domain setup   For the three-domain experiments (Section 7), we train 101M models with a total training
+budget of 30B tokens (approximately 300 × N ), increased relative to the bilingual setup to allow sufficient
+repetition of both target domains. The three pool-size configurations correspond to: 5×less (Wiki 20M,
+peS2o 100M), base (Wiki 100M, peS2o 500M), and 5×more (Wiki 500M, peS2o 2.5B). We sweep over total
+target fractions htotal = hwiki + hpeS2o ranging from 0.02 to 0.60 with step 0.02, under both equal weighting
+(hwiki = hpeS2o ) and proportional weighting (hwiki /hpeS2o = Dwiki /DpeS2o ).
+
+Math setup     For the OpenWebMath experiments, we sweep h over a linear grid whose density depends on
+pool size: 26 values for the 10M and 100M pools and 8 values for the 1B pool (60 total per model size). The
+805M model uses a denser grid (35, 35, and 20 values for the 10M, 100M, and 1B pools respectively; 90 total),
+because its longer training horizon (1M vs. 200K steps) produces higher repetition counts that require finer
+resolution. The h range is adapted to each pool size, spanning up to h = 0.078 for the 10M pool, h = 0.78 for
+the 100M pool, and h = 1.0 for the 1B pool. The maximum number of repetitions reached is approximately
+41 for the 130–630M models and 92 for 936M. The 101M–539M models are trained for 200K steps (13.1B
+tokens) and the 805M model for 1M steps (65.5B tokens), with a reduced batch size of 32 sequences. The
+resulting tokens-to-parameters ratios range from approximately 130× (101M) down to 24× (539M), with
+81× for 805M. These experiments use a SentencePiece tokenizer (Kudo and Richardson, 2018) trained on C4
+(Raffel et al., 2020) with a vocabulary of 32,000 tokens, rather than the GPT-2 BPE tokenizer used in other
+setups. Evaluation is performed on 10,240 sequences (10.5M tokens) held out from OpenWebMath.
+
+
+                                                        14
+                     Table 3 Model architectures. Parameters refer to non-embedding parameters.
+
+
+                                   Params     Layers   Hidden    FFN     Heads
+                                   101M            8      1024    4096       16
+                                   143M            9      1152    4608       18
+                                   192M           10      1280    5120       20
+                                   340M           12      1536    6144       24
+                                   539M           14      1792    7168       28
+                                   805M           16      2048    8192       32
+
+
+Quality setup For the quality filter experiments, we train 100M parameter models ranging from 1–30B tokens,
+sweeping over h ∈ {0.1, 0.2, . . . , 1.0}. We train models with varying quality pools primarily either 1%, 5%,
+and 10% with non-overlapping bins between the 1% and 5% and 10% runs to explicitly measure the impact
+of having lower quality data, but with lower repetition.
+
+
+B    Training Details
+Model architecture  All models are GPT-2-style autoregressive decoder-only Transformers with learned posi-
+tional embeddings. Models are scaled along a depth-based rule where the hidden dimension dmodel = 128 × L
+for L layers, with an FFN intermediate size of 4 × dmodel , attention head dimension of 64, and dmodel /64
+attention heads. All models use a context length of 1,024 tokens. Further details are provided in Table 3.
+
+Training   Multilingual models are trained for approximately 100 × N tokens, where N is the non-embedding
+parameter count. The three-domain experiments are trained for 300 × N , the quality experiments are trained
+for 30K steps; the details about the OpenWebMath experiments are provided above. All models are optimized
+with Adam (Kingma and Ba, 2014), a constant learning rate following a linear warmup, weight decay of 10−2 ,
+gradient clipping at 0.1, and no dropout. The multilingual and Wiki/peS2o experiments use a learning rate
+of 10−3 (selected based on initial experiments for 101M, 143M, and 192M models on English-German data),
+a warmup of 1% of training steps, a batch size of 256 sequences, and a GPT-2 BPE tokenizer (Radford
+et al., 2019) with a vocabulary of 50,257 tokens. The quality experiments use a learning rate of 3 × 10−4 , a
+warmup of 1% of training steps, a batch size of 1,024 sequences, and the same GPT-2 BPE tokenizer. The
+OpenWebMath experiments use a learning rate of 10−4 with µP,a 2,000-step warmup, a batch size of 32
+sequences, and a SentencePiece tokenizer (Kudo and Richardson, 2018) trained on C4 (Raffel et al., 2020)
+with a vocabulary of 32,000 tokens.
+
+Learning Rate   We use a constant learning rate (after warmup) rather than a cosine or linear decay schedule.
+Constant or near-constant schedules are common practice in pretraining work (Hägele et al., 2024; Porian
+et al., 2024). Our experimental design also requires it. The central object of analysis is a loss-vs-repetition
+curve read along a single training run (e.g., Figures 3, 5). A decay schedule couples the learning rate to the
+training horizon, so checkpoints at different repetition counts would not be directly comparable within a run.
+Replicating our experiments under a decay schedule would require a separate run for each evaluation point,
+multiplying compute by the number of checkpoints.
+
+Compute resources  All experiments were run on a mix of A100 and H100 GPUs. A single training run
+requires approximately 40 GPU-hours for the 101M model, 64 for 143M, 100 for 192M, 264 for 340M, 600
+for 539M, and 1200 GPU-hours for 805M.
+
+
+
+
+                                                        15
+Table 4 Experimental setup summary. Dtarget denotes the range of target data pool sizes; # h is the total number of
+target fraction configurations per model size.
+
+                          N      Dtarget   #h
+                          German
+                          101M   50M–1B    72
+                          143M   50M–1B    75                                   N        Dtarget    #h
+                          192M   50M–1B    75
+                          340M   50M–1B    77                                   Math (OpenWebMath)
+                          539M   50M–1B    82                                   101M    10M–1B     60
+                                                                                197M    10M–1B     60
+           Multilingual
+
+
+
+
+                                                                       Domain
+                          French
+                          101M 50M–500M    63                                   340M    10M–1B     60
+                          143M 50M–500M    64                                   539M    10M–1B     60
+                          192M 50M–500M    63                                   805M    10M–1B     90
+                          340M 50M–500M    55                                   Wiki + peS2o (3-domain)
+                          539M 50M–500M    57                                   101M 10M–500M 153
+                          Swahili
+
+
+
+
+                                                                       Qual.
+                                                                                Quality filtering
+                          101M 50M–500M    63                                   101M 25M–264M        10
+                          143M 50M–500M    64
+                          192M 50M–500M    63
+                          340M 50M–500M    55
+                          539M 50M–500M    57
+
+
+C    Consistency of the Findings Across Languages and Domains
+The core findings from the German–English bilingual experiments generalize across all settings tested. We
+replicate the experimental grid for French and Swahili, which differ substantially from German in morphology,
+script frequency, and available web data. We observe qualitatively identical behavior in all cases. The same
+overfitting emerges at high h with small data pools, the same dependence of optimal r on pool size holds,
+and larger models consistently achieve lower best-case loss despite earlier overfitting onset. We further verify
+these patterns on non-multilingual but domain setup (Wikipedia, peS2o, OpenWebMath mixed with generic
+English data), confirming that the repetition dynamics are a general property of mixture training under data
+constraints rather than an artifact of any particular domain or language pair.
+Below we provide results of our experiments organized as follows:
+    • Optimal repetition (Section D): French, Swahili, and OpenWebMath all exhibit the same steady
+      growth of optimal r with training budget, governed by data pool size rather than specific domain.
+    • Loss curves (Section E): Full loss-vs-tokens curves for all model sizes and languages confirm the
+      overfitting at high h with small pools and monotonic improvement with large pools.
+    • Cross-model behavior (Section F): Larger models overfit faster yet achieve lower minima across all
+      languages (confirming the pattern we observed for German).
+    • Quality experiments (Section G): The repetition–diversity trade-off extends to quality-filtered data
+      at multiple data scales.
+    • Comparison to unlimited data (Section H): When target data is unconstrained, mixture training
+      provides no benefit over single-domain training, confirming that our findings are specific to the data-
+      constrained regime.
+
+
+D    Optimal Repetition Across Languages and Domains
+Figures 11–12 show the optimal number of repetitions as a function of training tokens for French and Swahili,
+matching the German plot in the main text (Figure 4). The same steady growth of optimal r with training
+budget is observed across all languages.
+Figure 13 further extends this analysis to a non-language domain: OpenWebMath mixed with DCLM as
+the generic source. Despite the very different nature of mathematical text, the same qualitative pattern
+
+
+                                                        16
+                                 (a) 50M French tokens           (b) 100M French tokens           (c) 500M French tokens
+                           20
+   Optimal repetition
+                           15                                                                                                     Model size
+                                                                                                                                      101M
+                                                                                                                                      143M
+                           10                                                                                                         192M
+                                                                                                                                      340M
+                            5                                                                                                         539M
+
+                            0
+                                1B    2B        5B        10B   1B     2B        5B        10B   1B     2B        5B        10B
+                                                                      Training tokens
+Figure 11 Optimal repetition as a function of training tokens for three data constraint sizes across different model sizes
+(French).
+
+                                 (a) 50M Swahili tokens          (b) 100M Swahili tokens          (c) 500M Swahili tokens
+                           20
+   Optimal repetition
+
+
+
+
+                           15                                                                                                     Model size
+                                                                                                                                      101M
+                                                                                                                                      143M
+                           10                                                                                                         192M
+                                                                                                                                      340M
+                            5                                                                                                         539M
+
+                            0
+                                1B    2B        5B        10B   1B     2B        5B        10B   1B     2B        5B        10B
+                                                                      Training tokens
+Figure 12 Optimal repetition as a function of training tokens for three data constraint sizes across different model sizes
+(Swahili).
+
+
+                                     (a) 10M tokens                  (b) 100M tokens                   (c) 1B tokens
+                           15
+  Optimal repetition (r)
+
+
+
+
+                                                                                                                                  Model size
+                           10                                                                                                         101M
+                                                                                                                                      197M
+                                                                                                                                      340M
+                            5                                                                                                         539M
+                                                                                                                                      805M
+
+                            0
+                                1B    2B        5B        10B   1B     2B        5B        10B   1B     2B        5B        10B
+                                                                      Training tokens
+Figure 13 Optimal repetition as a function of training tokens for three data constraint sizes across different model sizes
+(OpenWebMath).
+
+
+holds: optimal r increases with training tokens, decreases with pool size, and smaller models tolerate higher
+repetition (since they are trained on more tokens relative to their capacity). This confirms that the repetition
+dynamics are a general property of mixture training under data constraints, independent of the specific domain
+or language.
+
+
+
+
+                                                                            17
+E          Loss Curves Across Languages, Model Sizes, and Domains
+Figures 14–16 show target-domain validation loss as a function of training tokens for all model sizes (101M–
+539M) and all three target languages (German, French, Swahili). Each column corresponds to a different
+target data pool size; each row to a different model size; each curve within a panel corresponds to a different
+target weight h (color). The same qualitative pattern(i.e., overfitting learning curves at high h with small
+pools, while monotonic improvement with large pools) holds consistently across all configurations.
+Figure 17 shows the same analysis for OpenWebMath, confirming that the loss curve dynamics extend beyond
+natural language to mathematical text.
+
+                        50M tokens                                      100M tokens                                           500M tokens                                        1B tokens
+
+       6
+101M
+
+
+
+
+                                                                                                                                                                                                                 100
+       4
+
+
+           2B          3B          5B                10B   2B         3B           5B                10B       2B            3B          5B                10B   2B         3B           5B                10B
+
+
+
+
+       6
+143M
+
+
+
+
+       4
+
+
+
+           2B      3B         5B               10B         2B      3B         5B               10B             2B       3B          5B               10B         2B      3B         5B               10B
+
+                                                                                                                                                                                                                 10−1
+
+
+       6
+192M
+
+
+
+
+                                                                                                                                                                                                                        h
+       4
+
+
+
+           2B     3B         5B          10B         20B   2B    3B          5B          10B          20B      2B       3B         5B          10B         20B   2B    3B          5B          10B         20B
+
+
+       5
+340M
+
+
+
+
+       4
+
+                                                                                                                                                                                                                 10−2
+
+       3
+
+
+           2B    3B     5B         10B         20B         2B   3B      5B         10B         20B            2B       3B     5B         10B         20B         2B   3B      5B         10B         20B
+
+
+
+       4
+539M
+
+
+
+
+       3
+
+
+           2B 3B       5B     10B        20B         50B   2B 3B      5B      10B        20B         50B      2B 3B          5B     10B        20B         50B   2B 3B      5B      10B        20B         50B
+
+                                                                                                     Training tokens
+
+
+
+                Figure 14 German target-domain loss curves across all model sizes (rows) and data pool sizes (columns).
+
+
+
+
+                                                                                                             18
+                          50M tokens                                        100M tokens                                       500M tokens
+
+       6
+101M
+
+
+
+       4                                                                                                                                                         100
+
+
+
+
+           2B         3B             5B                10B   2B         3B             5B                10B   2B         3B             5B                10B
+
+
+
+       6
+143M
+
+
+
+
+       4
+
+
+
+           2B        3B         5B               10B         2B        3B         5B               10B         2B        3B         5B               10B
+
+                                                                                                                                                                 10−1
+
+       6
+192M
+
+
+
+
+                                                                                                                                                                        h
+       4
+
+
+
+
+           2B    3B            5B          10B         20B   2B    3B            5B          10B         20B   2B    3B            5B          10B         20B
+
+       5
+
+
+       4
+340M
+
+
+
+
+                                                                                                                                                                 10−2
+       3
+
+
+           2B   3B        5B         10B         20B         2B   3B        5B         10B         20B         2B   3B        5B         10B         20B
+
+
+
+       4
+539M
+
+
+
+
+       3
+
+
+
+           2B 3B      5B        10B        20B         50B   2B 3B      5B        10B        20B         50B   2B 3B      5B        10B        20B         50B
+
+                                                                             Training tokens
+
+
+            Figure 15 French target-domain loss curves across all model sizes (rows) and data pool sizes (columns).
+
+
+
+
+                                                                                       19
+                            50M tokens                                        100M tokens                                       500M tokens
+  101M
+
+         4
+                                                                                                                                                                   100
+
+
+
+         2
+             2B         3B             5B                10B   2B         3B             5B                10B   2B         3B             5B                10B
+  143M
+
+
+
+
+         4
+
+
+
+         2
+             2B        3B         5B               10B         2B        3B         5B               10B         2B        3B         5B               10B
+
+                                                                                                                                                                   10−1
+         5
+
+         4
+  192M
+
+
+
+
+                                                                                                                                                                          h
+         3
+
+         2
+             2B    3B            5B          10B         20B   2B    3B            5B          10B         20B   2B    3B            5B          10B         20B
+
+         4
+  340M
+
+
+
+
+         3
+                                                                                                                                                                   10−2
+
+
+         2
+             2B   3B        5B         10B         20B         2B   3B        5B         10B         20B         2B   3B        5B         10B         20B
+
+
+
+       3.0
+539M
+
+
+
+
+       2.5
+
+
+       2.0
+
+             2B 3B      5B        10B        20B         50B   2B 3B      5B        10B        20B         50B   2B 3B      5B        10B        20B         50B
+
+                                                                               Training tokens
+
+
+             Figure 16 Swahili target-domain loss curves across all model sizes (rows) and data pool sizes (columns).
+
+
+
+
+                                                                                         20
+                   10M tokens                    100M tokens                        1B tokens
+       4.0
+101M
+
+
+
+       3.5
+                                                                                                             100
+       3.0
+
+
+              1B   2B      5B   10B       1B     2B            5B   10B     1B     2B        5B      10B
+
+
+
+
+          4
+   197M
+
+
+
+
+          3
+
+
+              1B   2B      5B   10B       1B     2B            5B   10B     1B     2B        5B      10B
+
+
+
+
+          4
+   340M
+
+
+
+
+                                                                                                             10−1
+
+
+
+
+                                                                                                                    h
+          3
+
+
+              1B   2B      5B   10B       1B     2B            5B   10B     1B     2B        5B      10B
+
+
+
+
+          4
+   539M
+
+
+
+
+          3
+
+
+              1B   2B      5B   10B       1B     2B            5B   10B     1B     2B        5B      10B
+
+
+
+          4
+                                                                                                             10−2
+   805M
+
+
+
+
+          3
+
+
+
+              1B   2B      5B   10B       1B     2B            5B   10B     1B     2B        5B      10B
+
+                                                  Training tokens
+
+
+Figure 17 Math (OpenWebMath) target-domain loss curves across all model sizes (rows) and data pool sizes (columns).
+
+
+
+
+                                                          21
+  F                  Cross-Model Loss Curves
+  Figure 5 shows that larger models overfit faster yet achieve lower best-case loss, demonstrated for German
+  with 100M tokens at h = 9% and 20%. Here we extend this analysis to five target fractions (5–20%) and verify
+  the pattern across all languages and domains. Figure 18 shows the full German panel, Figures 19–20 show
+  French and Swahili, and Figure 21 shows the OpenWebMath domain. In all cases, the same ordering persists:
+  larger models reach lower loss minima despite earlier overfitting onset, and the best-loss envelope (dashed)
+  consistently favors larger models at every training budget. The pattern is particularly pronounced for the
+  mathematics domain (Figure 21), where the separation between model sizes is larger and the overfitting onset
+  for larger models is sharper.
+
+                                                       101M    143M     192M      340M         539M
+                          h = 5%              h = 9%                   h = 12%                        h = 15%              h = 20%
+               2.7
+German val. loss
+
+
+
+
+               2.6
+               2.5
+               2.4
+               2.3
+                     2B      5B    10B   2B      5B      10B   2B            5B          10B    2B        5B    10B   2B       5B    10B
+                                                               Total training tokens
+
+  Figure 18 German target-domain loss across model sizes at five target fractions, for the 100M token pool. Dashed lines
+  show the best-loss envelope.
+
+
+                                                       101M    143M     192M      340M         539M
+                          h = 5%              h = 9%                   h = 12%                        h = 15%              h = 20%
+               2.7
+French val. loss
+
+
+
+
+               2.6
+               2.5
+               2.4
+               2.3
+               2.2
+                     2B      5B    10B   2B      5B      10B   2B            5B          10B    2B        5B    10B   2B       5B    10B
+                                                               Total training tokens
+
+  Figure 19 French target-domain loss across model sizes at five target fractions, for the 100M token pool. Dashed lines
+  show the best-loss envelope.
+
+
+                                                       101M    143M     192M      340M         539M
+
+               2.2
+                          h = 5%              h = 9%                   h = 12%                        h = 15%              h = 20%
+               2.1
+Swahili val. loss
+
+
+
+
+               2.0
+               1.9
+               1.8
+               1.7
+                     2B      5B    10B   2B      5B      10B   2B            5B          10B    2B        5B    10B   2B       5B    10B
+                                                               Total training tokens
+
+  Figure 20 Swahili target-domain loss across model sizes at five target fractions, for the 100M token pool. Dashed lines
+  show the best-loss envelope.
+
+
+
+
+                                                                       22
+Figure 21 OpenWebMath target loss across model sizes at different mixture fractions h, for the 100M token pool.
+Dashed lines show the best-loss envelope across all h values.
+
+
+G    Quality Experiments: Additional Target Data Scales and Overlapping Quality Pools
+To ground the experiments, we first confirm that a data constrained fixed quality level follows the same
+pattern as multilingual data. Figure 22 shows Q99–100 loss curves at three pool sizes (26M, 132M, 264M
+tokens). At the smallest scale, only h ≤ 0.1 avoids overfitting, and larger pools progressively unlock higher
+sustainable target weights. This establishes the baseline that for a fixed quality threshold, the repetition
+
+
+                                                         23
+penalty imposes the same constraint on the target loss.
+
+
+
+
+Figure 22 Loss vs. training tokens for Q99–100 at three data pool sizes. Each line corresponds to a target weight h.
+Smaller pools force lower weights to avoid overfitting from repetition.
+
+Section 4 further establishes that when training with a data-constrained high-quality domain, relaxing the
+quality filter to increase pool size consistently outperforms repeating the highest-quality slice starting from
+the 26M 99th percentile data pool. A crossover at 5B tokens shows the optimal threshold shifts from Q95–99
+to Q90–99 as training progresses. Here we present an expanded experimental suite, including additional data
+scales that support and extend these findings. We conduct three families of experiments, all using 100M-
+parameter models trained on a two-domain mixture of high-quality (HQ) filtered text and unlimited general
+DCLM. Each experiment sweeps target weight w ∈ {0.1, 0.2, . . . , 1.0}.
+
+Non-overlapping quality buckets at multiple data scales   We define non-overlapping quality bands (Q90–99, Q95–
+99, Q99–100) and train at three data scales:
+   • 1×: pools range from 26M to 982M tokens including severe data constraint, and high repetition espe-
+     cially for high quality data.
+   • 5×: pools range from 132M to 2.1B tokens. This imposes a moderate constraint where the highest
+     qualitybuckets have high repetition counts, but lower quality buckets do not.
+   • 10×: pools range from 264M to 4.2B tokens. Most quality buckets avoid significant repetition, and
+     only the highest quality bucket still overfits with too much repetition.
+
+
+
+
+                  (a) Pool sizes: Q99–100 (132M), Q95–99 (821M), Q90–99 (2.1B), Q90–95 (1.2B).
+
+
+
+
+                  (b) Pool sizes: Q99–100 (264M), Q95–99 (1.7B), Q90–99 (4.2B), Q90–95 (2.5B).
+
+Figure 23 Loss curves for four quality bands at increasing data scales. Each line corresponds to a mixture weight
+h. Broader quality filters enable higher mixture weights without overfitting, with the effect diminishing as pool size
+increases.
+
+These experiments disentangle quality from quantity by ensuring no data overlap between bands, and reveal
+how the quality–quantity tradeoff evolves with different data constrained data scales. Scaling up from the
+
+
+                                                          24
+26M target data pool to 5× and 10× the pool size confirms the main findings and reveals how the quality–
+quantity tradeoff evolves with data availability. At 5×, Q95–99 dominates for the first ∼14B tokens before
+Q90–99 overtakes it (Figure 23a). The same crossover is observed at 1× but shifted later due to the larger pool
+delaying saturation. At 10×, Q95–99 remains the best band throughout 30B tokens of training (Figure 23b):
+with data pools exceeding 1.6B tokens, no band experiences meaningful repetition at reasonable values of h,
+and higher per-token quality is the dominant factor. This demonstrates that the quality–quantity tradeoff
+is scale-dependent: at small scales, breadth wins; at large scales, quality wins; and the crossover token
+count increases predictably with pool size. We include results with Q90-95 as a control to show that simply
+increasing the amount of data but decreasing quality performs worse. The best-loss per quality over all h is
+shown in Figure 24, and confirms this quantitatively: at 1× starting from 132M target data size, a crossover
+from Q95–99 to Q90–99 occurs at ∼14B tokens (later than the ∼5B crossover at 1×), while at 10× Q95–99
+leads throughout. As pool size grows, the quality–quantity tradeoff vanishes and per-token quality is most
+important.
+
+                                                                                                               3.2
+                                                            Q90–95 (1.2B)                                                                         Q90–95 (2.5B)
+                                                            Q90–99 (2.1B)                                                                         Q90–99 (4.2B)
+                          3.0
+   Best achievable
+
+
+
+
+                                                                                            Best achievable
+   target test loss
+
+
+
+
+                                                                                                               3.0
+
+
+
+
+                                                                                            target test loss
+                                                            Q95–99 (821M)                                                                         Q95–99 (1.7B)
+                                                            Q99–100 (132M)                                                                        Q99–100 (264M)
+                          2.8                                                                                  2.8
+
+                          2.6                                                                                  2.6
+
+                          2.4                                                                                  2.4
+
+                                2B            5B     10B                  30B                                        2B           5B       10B              30B
+                                          Training tokens                                                                       Training tokens
+                                       (a) 5× data scale.                                                                   (b) 10× data scale.
+
+Figure 24 Best achievable target loss by quality band at (a) 5× and (b) 10× target data scales. Unlike the 1× setting
+(figure 7), at larger pool sizes no single quality band dominates: the curves largely overlap, confirming that the
+quality-quantity tradeoff diminishes when pools are large enough to avoid severe repetition.
+
+
+Experiments with overlapping buckets   We use the full untruncated pool at each quality threshold (Q80–100:
+5B, Q90–100: 2B, Q95–100: 954M, Q99–100: 132M) and train for 10B tokens. In this expeirment, the
+quality bands are (e.g., all contain the Q99-100 data), representing the practical approach of setting a single
+lower-bound quality threshold. The results are consistent. The 95th percentile, Q95–100, achieves the best
+loss consistent with the Q95-99 results for up to 10B tokens in Figure 25.
+
+                                (a) Q99–100                 (b) Q95–100                         (c) Q90–100                          (d) Q80–100              1
+Target test loss
+
+
+
+
+                   3.0                                                                                                                                        0.8
+
+                   2.8                                                                                                                                        0.6
+                                                                                                                                                                    h
+
+
+
+
+                                                                                                                                                              0.4
+                   2.6
+                                                                                                                                                              0.2
+                   2.4
+                                                                                                                                                              0
+                         2B          5B       10B   2B           5B         10B      2B                        5B         10B   2B         5B        10B
+                                                                          Training tokens
+
+Figure 25 Loss curves for inclusive quality thresholds (each band includes all data above the given percentile). Pool
+sizes increase from left to right as broader thresholds include more data.
+
+
+                                          We truncate each quality band (Q80–100, Q90–100, Q95–100,
+Equal-size data constrained size experiments.
+Q99–100) to approximately the same pool size (∼132–139M tokens) and train for 10B tokens. This isolates
+
+
+                                                                                   25
+  the effect of per-token quality by controlling for pool size as all bands have approximately the same number
+  of repetitions. 26 shows results when the data constrained pools are equal size. With the impact of repetition
+  equalized across quality, the ordering is strict: Q99–100 > Q95–100 > Q90–100 > Q80–100 at all training
+  steps.
+
+
+                                                                        3.50                                             Q99–100
+                                                                                                                         Q95–100
+
+
+
+
+                                                     Best achievable
+                                                     target test loss
+                                                                                                                         Q90–100
+                                                                        3.25                                             Q80–100
+
+
+                                                                        3.00
+
+                                                                        2.75
+
+                                                                        2.50
+                                                                               1B              2B                 5B            10B
+                                                                                         Training tokens
+  Figure 26 Best achievable target loss with all quality bands truncated to the same pool size. With repetition equalized,
+  higher per-token quality consistently achieves lower loss.
+
+
+  Final remarks  When pool size is equalized, quality improves validation loss. When pools vary naturally, the
+  repetition penalty from small high-quality pools outweighs the quality advantage. The non-overlapping band
+  experiments isolate the mechanism: it is the data in broader bands (Q90–99 beyond Q95–99) that helps at
+  larger training budgets, not merely reduced repetition of the top slice. The scale dependence of the crossover
+  has a practical implication that for any given training budget and data pool, there exists an optimal quality
+  threshold that balances per-token quality against repetition. Our scaling law captures this tradeoff enabling
+  practitioners to extrapolate which data pool to use and for how many repetitions.
+
+
+  H                 Comparison to Unlimited Target Data
+ To establish an upper bound on target-domain performance, we train all model sizes with a ∼60B German
+ token pool – large enough that repetition never occurs. Figure 27 shows target loss for each mixture fraction
+ h in this unlimited setting. Without data constraints, higher target fractions monotonically achieve lower
+ target loss at every training budget: there is no overfitting, no U-shaped behavior, and no quality–quantity
+ tradeoff.
+                            (a) 101M                (b) 143M                            (c) 192M                        (d) 340M                 (e) 539M        1
+              2.8
+                                                                                                                                                                 0.8
+              2.6
+Target test loss
+
+
+
+
+              2.4                                                                                                                                                0.6
+              2.2
+                                                                                                                                                                     h
+
+
+
+                                                                                                                                                                 0.4
+              2.0
+              1.8                                                                                                                                                0.2
+              1.6                                                                                                                                                0
+                    1   3    5     8   10   1   5             10         14    1    5     10    15       20   1    10      20      30   1   10   20   30    50
+                                                                                   Training tokens (B)
+
+  Figure 27 German target loss with unlimited data (∼60B pool, r < 1 throughout) for all mixture fractions h. Without
+  data constraints, higher target fractions always achieve lower target loss, and no overfitting occurs.
+
+
+  Figure 28 then compares the best achievable loss under constrained pools (50M–1B) against this unlimited
+  baseline. The gap between each constrained curve and the unlimited line quantifies the cost of the data
+  constraint. Constrained pools plateau as training progresses while the unlimited baseline continues to improve,
+  confirming that the performance ceiling is imposed by data exhaustion rather than model capacity. The gap
+
+
+                                                                                               26
+widens with training budget, underscoring the importance of optimal mixture design when target data is
+scarce.
+                                 (a) 101M                    (b) 143M                                       (c) 192M                      (d) 340M                  (e) 539M
+                   2.8
+Best achievable
+target test loss
+
+
+
+
+                   2.6                                                                                                                                                              Target dataset size
+                   2.4
+                                                                                                                                                                                          50M
+                                                                                                                                                                                          100M
+                   2.2                                                                                                                                                                    500M
+                   2.0                                                                                                                                                                    1B
+                                                                                                                                                                                          Unlimited
+                   1.8
+                   1.6
+                         1   3   5          8   10   1   5                        10       14   1     5      10     15      20   1   10      20      30   1   10   20   30     50
+                                                                                                      Training tokens (B)
+
+
+Figure 28 Best achievable German target loss vs. training tokens for each model size, comparing constrained data pools
+against an unlimited (∼60B) baseline where target data is never repeated.
+
+
+
+I                  Analysis of Three-Domain Experiments
+Section 7 presents results under proportional weighting; here we report the complementary equal-weighting
+experiments (hwiki = hpeS2o ).
+Figure 29 shows optimal repetition under equal weighting with the 10% compute confidence band. The core
+pattern from the proportional case carries over: optimal r grows steadily with training budget, and smaller
+data pools require substantially higher repetition before the optimum is reached. Under equal weighting, the
+smaller domain (Wiki) is repeated more aggressively than under proportional weighting, as equal weights
+allocate the same weight to both domains regardless of pool size, and the smaller pool exhausts its unique
+tokens earlier. For example, at 10B training tokens in the base configuration (Wiki 100M, peS2o 500M),
+equal weighting reaches r ≈ 14 while proportional weighting stays at r ≈ 6 (measured with respect to the
+Wiki pool). The confidence bands remain wide, confirming that approximate repetition estimates suffice for
+near-optimal performance under either strategy.
+                                                                                                                  Equal weights
+                                                                                  40                5×less
+                                                             Optimal repetitions (r)
+
+
+
+
+                                                                                                    Wiki 100M, peS2o 500M
+                                                                                  30                5×more
+
+
+                                                                                  20
+
+                                                                                  10
+
+                                                                                       0
+                                                                                           1B          2B                5B          10B          20B
+                                                                                                               Training tokens
+Figure 29 Optimal repetitions under equal weighting with 10% compute confidence band (shaded) in the three-domain
+setup (101M model).
+
+Additionally, we examined how the choice of weighting strategy affects each target domain individually.
+Beyond the configurations reported in the main text, we include a 10×less experiment (Wiki 10M, peS2o
+50M) to test both strategies under even more severe data constraints. Figure 30 breaks down the per-domain
+loss under both strategies across all five configurations. Proportional weighting consistently favors the larger
+pool (peS2o), achieving lower peS2o loss at the expense of Wiki. Equal weighting reverses this tradeoff: it
+assigns more relative weight to the smaller domain, improving Wiki loss but sacrificing peS2o performance.
+The effect is most pronounced when pool sizes differ substantially: in the 5×more configuration, proportional
+weighting achieves 0.12 lower peS2o loss than equal weighting, while equal weighting gains only 0.03 on Wiki.
+The swapped configuration (where Wiki becomes the larger pool) confirms this pattern: when pool sizes are
+reversed, proportional weighting now favors Wiki instead.
+
+
+                                                                                                                       27
+                                                             Wiki equal         Wiki prop.              peS2o equal     peS2o prop.
+
+
+
+
+                                 Best Domain Loss
+                                                    3.1
+
+                                                    3.0
+
+                                                    2.9
+
+                                                    2.8
+                                                            5x-more Wiki 100M, 5x-less                       10x-less     swapped
+                                                                    peS2o 500M
+
+     Figure 30 Per-domain best loss under equal vs. proportional weighting across five pool-size configurations.
+
+Figure 31 shows the best achievable per-domain loss throughout training for all four pool-size configurations.
+
+                                                                        5× more (Wiki 500M, peS2o 2.6B)
+                                                             Equal weights                                       Proportional weights
+                                                                                Wikipedia
+                                                                                                 3.75
+                           3.4                                                  peS2o            3.50
+                                                                                Average
+                   Best loss
+
+
+
+
+                           3.2                                                                   3.25
+                                                                                                 3.00
+                           3.0
+                                 0                         10            20            30               0         10             20     30
+
+                                                                       Original (Wiki 100M, peS2o 500M)
+                                                             Equal weights                                       Proportional weights
+                           3.6
+                                                                                                  3.6
+                           3.4
+                   Best loss
+
+
+
+
+                                                                                                  3.4
+                           3.2                                                                    3.2
+
+                           3.0                                                                    3.0
+                                 0                         10            20            30               0         10             20     30
+                                                                         5× less (Wiki 20M, peS2o 100M)
+                                                             Equal weights                                       Proportional weights
+                           3.8
+                                                                                                  3.8
+                           3.6                                                                    3.6
+                   Best loss
+
+
+
+
+                           3.4                                                                    3.4
+                           3.2                                                                    3.2
+
+                           3.0                                                                    3.0
+                                 0                         10            20            30               0         10             20     30
+                                                                       Swapped (Wiki 500M, peS2o 100M)
+                                                             Equal weights                                       Proportional weights
+                           3.6                                                                    3.6
+
+                           3.4                                                                    3.4
+                   Best loss
+
+
+
+
+                           3.2                                                                    3.2
+
+                           3.0                                                                    3.0
+                                 0                         10            20            30               0         10             20     30
+                                                          Training tokens (B)                                   Training tokens (B)
+
+Figure 31 Best achievable per-domain loss throughout training under equal (left) and proportional (right) weighting
+for four pool-size configurations. Blue: Wikipedia; red: peS2o; dashed purple: average.
+
+
+
+
+                                                                                            28
+J    Baseline Scaling Law Formulas
+We describe the baseline formulas used in Section 6. All formulas predict the target-domain loss as a function
+of the total tokens Dtotal , the target weight h, the number of repetitions r = h Dtotal /Dtarget , and optionally
+the model size N .
+
+Repetitions-agnostic (Shukor et al., 2025).    This baseline treats all tokens as unique regardless of repetition:
+                                         A
+                             L=E+        α + γ h,        Deff = (1 − h) Dtotal + τ h Dtotal .                     (J.1)
+                                        Deff
+
+The effective data is a weighted sum of generic and target tokens with no repetition discounting—repeated
+target tokens are valued the same as fresh ones. Parameters: E, A, α, τ , γ (5 parameters).
+
+Domain-agnostic (Muennighoff et al., 2023).       This baseline uses a single saturating function of total tokens
+without distinguishing domains:
+                                                 α
+                                                               Deff = C 1 − e−µ R ,                               (J.2)
+                                                                                 
+                                      L = E + A Deff ,
+
+where C = (1 − h) Dtotal + h Dtotal /r is the total number of unique tokens and R = Dtotal /C is the overall
+repetition ratio. Parameters: E, A, α (< 0), µ (4 parameters).
+
+Utility decay (Goyal et al., 2024).   This baseline models repetition through an exponentially decaying exponent:
+                                              beff
+                                  L = E + a Dtotal ,      beff = (1 − h) b0 + h b1 δ r−1 ,                        (J.3)
+
+where δ = 0.51/τ is a half-life parameter. As repetitions increase, the exponent on the target-domain contri-
+bution decays toward zero, reducing the data-scaling benefit. Parameters: E, a, b0 , b1 , τ (5 parameters).
+
+Multi-size extensions. Each baseline extends to variable model size by adding a capacity term C/N β (and for
+the repetitions-agnostic and domain-agnostic formulas, a data-size coupling N δ ), following the same pattern
+as Lsize (Eq. 5.3).
+
+
+K    Extended Scaling Law Results
+This section reports the full results underlying Section 6, including the train/test breakdown for the loss
+prediction tables, the per-dataset optimal-mixture prediction errors, and the size-extrapolation wasted-token
+metric.
+
+                                                      Table 5 reports train and test wR2 on all four experi-
+Loss prediction: train and test wR2 (fixed-size formula).
+mental setups for the fixed-size formula Lfix and the three baselines. Train corresponds to the first 50% of
+training steps, test to the held-out second half.
+
+Table 5 Train and test weighted R2 (wR2 ) for the fixed-size formula Lfix , fitted independently per model size (or per
+quality level / domain). Each observation is weighted by max(r · h, ϵ) to emphasise the high-repetition regime. Train:
+first 50% of steps; test: second half.
+
+                                         German             Maths           Quality           Wiki/peS2o
+                                      Train    Test    Train     Test    Train    Test       Train   Test
+                 Lfix                  0.85   0.95     0.99      0.88    0.91    0.71        0.68    0.80
+                 Rep-agnostic          0.81    0.78    0.95       0.78   0.86     0.14       0.67    0.72
+                 Utility decay         0.52    0.72    0.77       0.55   0.94    −0.64       0.69     0.79
+                 Domain-agnostic       0.03   −40.7    0.10      −0.49   0.46    −2.19       0.42    −1.16
+
+
+
+
+                                                            29
+Table 6 Size extrapolation: weighted R2 (wR2 ) for the multi-size formula Lsize , fitted on smaller model sizes and
+evaluated on the held-out largest model (539M for German, 936M for Maths). Train: wR2 on fitting sizes; Test: wR2
+on held-out size.
+
+                                                         German (539M)         Maths (936M)
+                                                         Train     Test        Train   Test
+                               Lsize                     0.95     0.65         0.97    0.73
+                               Rep-agnostic+N            0.88     0.59         0.94     0.71
+                               Utility decay+N           0.76     0.56         0.85     0.69
+                               Domain-agnostic+N         0.25     −0.23        0.46    −0.77
+
+
+Loss prediction: train and test wR2 (size extrapolation). Table 6 reports the same metric for the multi-size for-
+mula Lsize , fitted on all model sizes except the largest and evaluated on the held-out largest model.
+
+Optimal mixture prediction error.For each experiment (a specific model size and target dataset size) and each
+held-out training checkpoint Dtotal , we compare the predicted h∗ to the empirically best weight h∗emp at that
+checkpoint. Table 7 reports the median of | log10 (h∗pred ) − log10 (h∗emp )| per dataset over all such pairs on
+held-out test steps. A value of 0.1 corresponds to a ∼1.26× multiplicative error in the predicted weight.
+
+Table 7 Optimal mixture prediction on held-out test steps: median | log10 (h∗pred ) − log10 (h∗emp )| (lower is better). A
+value of 0.1 corresponds to a ∼1.26× error in the predicted fraction.
+
+                                                  Ger.     Math        Qual.   Wiki    Avg
+                                Lfix              0.07     0.13        0.47    0.10    0.19
+                                Rep-agnostic      0.60     1.01        0.61    0.50    0.68
+                                Utility decay     0.10     0.20        0.38    0.12    0.20
+                                Domain-agn.       2.57     1.99        5.30    3.07    3.23
+                                Lsize             0.15     0.18         —       —      0.17
+                                Rep-agn.+N        0.73     1.44         —       —      1.09
+                                Util. dec.+N      0.15     0.17         —       —      0.16
+                                Dom.-agn.+N       3.27     1.56         —       —      2.42
+
+
+Size extrapolation: wasted tokens. A stronger test of the multi-size formula is whether it can predict the
+behaviour of a model size never seen during fitting. We fit Lsize and all multi-size baselines on all model
+sizes except the largest and evaluate exclusively on the held-out largest model (539M for German, 936M for
+Maths). Table 8 reports the weighted median wasted token fraction on the held-out largest model for each
+setup. Lsize achieves a test wR2 of 0.65 on German and 0.73 on Maths (Table 6), demonstrating that the
+capacity and data-size coupling terms extrapolate meaningfully to larger scales. The wasted token metric is
+even more discriminating: most baselines fail catastrophically on German, producing predictions outside the
+empirical range (counted as 100%). Lsize wastes 58% on German and 24% on Maths, the only formula that
+avoids catastrophic failure on both. Results for French and Swahili are reported in Appendix K.
+
+Table 8 Size extrapolation: weighted median wasted token fraction (lower is better). Predictions outside the empirical
+weight range are counted as 100%.
+
+                                                         German (539M)         Maths (936M)
+                               Lsize                            58%                 24%
+                               Rep-agnostic+N                   100%                97%
+                               Utility decay+N                  100%                22%
+                               Domain-agnostic+N                100%                84%
+
+
+Limitations The scaling law is descriptive: it summarises observed training dynamics but does not prescribe
+an optimal allocation from first principles. Size extrapolation is encouraging on both German (wR2 = 0.65
+at 539M) and Maths (wR2 = 0.73 at 936M), though the wasted-token metric reveals that predictions remain
+imperfect at unseen scales. The quality-filtering setup is harder to predict than language/domain splits (test
+
+
+                                                            30
+wR2 = 0.71, log-error = 0.47), likely because quality tiers interact with the model in ways not fully captured
+by the effective data abstraction. Finally, our experiments span ∼100M–900M parameters; whether the fitted
+exponents extrapolate to multi-billion-parameter models remains an open question.
+
+                                    We repeat the size-extrapolation experiment of Section 6 on French and
+Size Extrapolation: French and Swahili
+Swahili. For each language, we fit the multi-size formulas on model sizes 101M–340M and evaluate on the
+held-out 539M model. Table 9 reports weighted R2 (test / train).
+On French, Lsize achieves a test wR2 of 0.93, even exceeding its train wR2 of 0.92, what indicates that
+the 539M model’s behaviour is well predicted by trends from smaller scales. On Swahili, extrapolation is
+harder: Lsize achieves 0.69 on the held-out 539M model, while the utility decay baseline reaches 0.71. The
+domain-agnostic baseline yields near-zero or negative wR2 on both languages.
+For wasted tokens, all formulas (including Lsize ) produce predictions outside the empirical weight range for
+French and Swahili at 539M, resulting in ≥94% waste. This reflects the narrower range of target fractions
+tested at this scale for these languages rather than a fundamental failure of the formula.
+
+Table 9 Size extrapolation on French and Swahili: weighted R2 (test / train) when fitting on 101M–340M and evaluating
+on 539M.
+
+                                                        French (539M)      Swahili (539M)
+                         Lsize (9p)                      0.93 / 0.92        0.69 / 0.92
+                         Rep-agnostic+N (8p)              0.87 / 0.90        0.65 / 0.90
+                         Utility decay+N (7p)            0.69 / 0.62        0.71 / 0.69
+                         Domain-agnostic+N (7p)          −0.54 / 0.08       −0.00 / 0.02
+
+
+
+L   Robustness to Weighting Scheme
+We verify that the qualitative ranking of formulas is robust to the choice of observation weights in the wR2
+metric. Table 10 reports test wR2 on the German dataset under four weighting schemes: max(r · h, ϵ) (our
+default), r only, h only, and uniform (standard R2 ). The ranking Lfix > rep-agnostic > utility decay >
+domain-agnostic is preserved across all schemes, confirming that the advantage of our formula is not an
+artifact of the weighting.
+
+ Table 10 Test wR2 on German under different weighting schemes. The formula ranking is stable across all choices.
+
+
+                                                  r · h (default)    r       h      Uniform
+                        Lfix (6p)                      0.96         0.95    0.78      0.90
+                        Rep-agnostic (5p)              0.81         0.82    0.52      0.85
+                        Utility decay (5p)             0.78         0.85    0.39      0.71
+                        Domain-agnostic (4p)           <−1          <−1     <−1       <−1
+
+
+
+M    Downstream Benchmark Evaluation
+We evaluate downstream task performance for the best-loss configurations from Figure 6 (one checkpoint per
+model size and data pool combination, selected at the training step that minimizes German test loss). We
+use seven benchmarks covering reasoning, commonsense, and language understanding: ARC-Challenge and
+ARC-Easy (Clark et al., 2018) (science question answering), HellaSwag (Zellers et al., 2019) (commonsense
+sentence completion), LAMBADA (Paperno et al., 2016) (long-range word prediction), PIQA (Bisk et al.,
+2020) (physical intuition reasoning), SciQ (Welbl et al., 2017) (science multiple-choice), and WinoGrande
+(Sakaguchi et al., 2020) (coreference resolution). Each benchmark is evaluated in both English (original) and
+German (translated), allowing us to assess both target-domain and non-target-domain capabilities from the
+same checkpoint.
+
+
+                                                         31
+Tables 11 and 12 report accuracy on all benchmarks. German benchmark performance improves consistently
+with both model size and target data pool size, confirming that the perplexity gains translate to downstream
+improvements. English performance decreases as more training budget is allocated to German (higher h),
+reflecting the expected trade-off between target and non-target domains. Larger models partially mitigate
+this cost: the 539M model retains 48.6% English average even at the highest German allocation, compared
+to 39.7% for 101M.
+
+Table 11 German downstream benchmark accuracy (%) at the best target-loss checkpoint. More target data consistently
+improves German performance across all model sizes.
+
+       Model    Dataset size    ARC-C      ARC-E      HSwag     Lambada     PIQA      SciQ    Wino    Avg
+       101M     50M               24.0       31.0      28.0       13.7       52.1     60.4    50.8     37.2
+       101M     100M              24.5       31.2      28.4       15.2       53.0     63.2    50.2     37.9
+       101M     500M              23.4       32.6      29.8       17.6       55.3     60.1    50.3     38.5
+       101M     1B                25.7       30.9      29.8       19.1       57.0     59.1    48.9     38.6
+       143M     50M               23.2       29.9      28.6       15.3       52.4     61.7    50.1     37.3
+       143M     100M              23.7       31.9      28.7       16.3       54.4     62.3    51.5     38.4
+       143M     500M              23.7       33.5      29.8       19.3       56.5     63.2    50.8     39.6
+       143M     1B                24.3       33.1      30.5       20.7       56.0     62.8    50.7     39.7
+       192M     50M               24.1       31.0      28.9       15.4       53.7     62.1    49.7     37.8
+       192M     100M              24.2       32.7      29.6       16.9       53.9     63.2    50.5     38.7
+       192M     500M              24.1       32.3      31.2       20.0       57.6     62.7    51.3     39.9
+       192M     1B                24.2       35.3      31.2       20.8       57.5     62.2    52.9     40.6
+       340M     50M               24.2       31.2      29.2       15.7       52.8     62.6    51.4     38.2
+       340M     100M              25.0       33.0      30.4       18.4       53.7     64.2    49.7     39.2
+       340M     500M              24.8       33.8      32.2       24.1       57.6     65.3    53.0     41.5
+       340M     1B                25.3       36.1      32.9       24.6       57.2     64.3    52.5     41.8
+       539M     50M               24.2       31.0      29.8       19.0       52.9     64.6    50.0    38.8
+       539M     100M              26.1       31.8      31.6       19.7       54.7     65.3    51.5    40.1
+       539M     500M              25.1       35.3      34.3       23.6       57.4     64.5    52.5    41.8
+       539M     1B                25.2       37.3      35.1       24.3       59.3     65.2    51.4    42.6
+
+
+
+
+                                                        32
+Table 12 English downstream benchmark accuracy (%) at the same checkpoints. More target data (higher h) reduces
+English performance, reflecting the trade-off between target and non-target domains.
+
+               Model        Pool         ARC-C          ARC-E           HSwag         Lambada           PIQA     SciQ   Wino   Avg
+               101M         50M            23.1            40.2           32.9            31.4            64.7   62.7   50.7   43.7
+               101M         100M           23.1            40.2           32.6            30.8            64.9   65.3   49.8   43.8
+               101M         500M           21.3            35.3           28.8            24.6            61.6   57.8   51.5   40.1
+               101M         1B             21.8            35.5           28.0            22.5            60.7   57.8   51.5   39.7
+               143M         50M            23.2            40.4           34.6            36.6            65.2   64.0   50.5   44.9
+               143M         100M           24.6            41.2           34.9            32.5            66.5   67.7   51.0   45.5
+               143M         500M           23.3            38.8           32.2            29.9            64.6   66.0   48.9   43.4
+               143M         1B             22.4            38.9           30.3            28.8            63.0   62.8   51.9   42.6
+               192M         50M            24.7            41.3           37.9            35.5            67.3   66.6   51.9   46.4
+               192M         100M           23.9            41.3           36.8            35.8            67.7   67.4   51.2   46.3
+               192M         500M           23.4            41.0           35.0            32.0            65.8   66.1   50.7   44.9
+               192M         1B             22.1            38.6           31.3            29.4            63.0   62.7   51.8   42.7
+               340M         50M            24.2            45.2           41.9            39.8            68.9   69.7   52.9   48.9
+               340M         100M           24.3            44.6           42.3            40.6            69.2   69.9   51.2   48.9
+               340M         500M           25.4            44.2           40.1            40.0            68.5   70.1   51.7   48.6
+               340M         1B             24.3            42.3           38.5            38.5            66.2   67.6   51.3   47.0
+               539M         50M            26.4            46.6           46.5            45.4            70.3   71.4   52.8   51.3
+               539M         100M           24.7            47.5           46.5            45.4            69.5   72.4   53.7   51.4
+               539M         500M           24.6            46.6           45.2            43.1            69.2   70.1   52.4   50.2
+               539M         1B             24.3            45.4           42.3            42.1            67.5   69.0   49.7   48.6
+
+
+N      Limitations
+We did not tune training hyperparameters jointly with the mixture and repetition settings, instead using
+standard values throughout. It is possible that interactions between learning rate, batch size, or schedule and
+the number of repetitions could shift the optimal operating points we report. Additionally, all experiments use
+a single architecture family (GPT-2-style decoder-only transformers); whether the observed scaling behavior
+transfers to other architectures remains an open question. We leave both explorations to future work. Our
+largest model is 939M parameters; while we observe consistent trends across model sizes suggesting the
+scaling law extrapolates, verifying this at scales of tens or hundreds of billions of parameters would require
+substantially more compute than available for this study.
+
+
+
+
+Apple and the Apple logo are trademarks of Apple Inc., registered in the U.S. and other countries and regions.
+
+
+
+                                                                                33
+

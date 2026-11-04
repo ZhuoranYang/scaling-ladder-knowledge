@@ -1,0 +1,89 @@
+\section{Training details}
+\label{app:training_details}
+
+\subsection{Architecture}
+
+All models follow the Llama~2 architecture~\citep{touvron2023llama} with multi-head attention (MHA) using Rotary Position Embeddings (RoPE), SwiGLU feed-forward networks, and RMSNorm pre-normalization. We use Flash Attention~2 and enable \texttt{torch.compile} for all runs. The vocabulary size is 32,000 tokens (Llama~2 tokenizer).
+
+\subsection{Model configurations}
+
+Table~\ref{tab:model_configs} lists the nine model sizes used in the scaling study. Table~\ref{tab:validation_models} lists four additional configurations used only for held-out validation of the fitted scaling law.
+
+\begin{table}[t]
+\centering
+\caption{Model configurations for the scaling study. Total parameters include embeddings}
+\label{tab:model_configs}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+Name & $d_\text{model}$ & Layers & Heads & $d_\text{head}$ & $d_\text{ff}$ & Total Params \\
+\midrule
+15M  & 192   & 6  & 3  & 64  & 768   & 15.87M    \\
+25M  & 256   & 8  & 4  & 64  & 1,024 & 24.83M    \\
+35M  & 320   & 9  & 5  & 64  & 1,280 & 35.30M    \\
+50M  & 384   & 10 & 6  & 64  & 1,536 & 48.25M    \\
+125M & 768   & 12 & 12 & 64  & 2,048 & 134.26M   \\
+250M & 1,024 & 14 & 16 & 64  & 2,816 & 245.60M   \\
+500M & 1,280 & 20 & 10 & 128 & 3,584 & 488.55M   \\
+750M & 1,536 & 24 & 12 & 128 & 4,096 & 778.16M   \\
+1B   & 1,792 & 26 & 14 & 128 & 4,864 & 1,128.98M \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Validation-only model configurations, used exclusively for held-out evaluation of the fitted scaling law.}
+\label{tab:validation_models}
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+Name & $d_\text{model}$ & Layers & Heads & $d_\text{head}$ & $d_\text{ff}$ & Total Params\\
+\midrule
+280M & 1,024 & 17 & 16 & 64  & 2,816 & 284.14M \\
+350M & 1,024 & 24 & 8  & 128 & 2,816 & 374.07M \\
+390M & 1,152 & 20 & 9  & 128 & 3,072 & 392.51M \\
+720M & 1,408 & 25 & 11 & 128 & 4,096 & 721.25M \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Training hyperparameters}
+
+Table~\ref{tab:hyperparams} summarizes the training hyperparameters shared across all runs. The learning rate follows a cosine schedule that decays from the peak value to 10\% of peak over the full training duration, with linear warmup over the first 1\% of steps.
+
+\begin{table}[t]
+\centering
+\caption{Training hyperparameters.}
+\label{tab:hyperparams}
+\begin{tabular}{ll}
+\toprule
+Parameter & Value \\
+\midrule
+Optimizer & AdamW \\
+Learning rate & $2 \times 10^{-4}$ \\
+$\beta_1, \beta_2$ & 0.9, 0.95 \\
+Weight decay (standard) & 0.1 \\
+Weight decay (strong) & 1.0 \\
+Gradient clipping & 1.0 (max norm) \\
+LR schedule & Cosine with linear warmup \\
+Min LR ratio & 0.1 \\
+Warmup ratio & 0.01 \\
+Sequence length & 512 \\
+Batch size & 128 \\
+Mixed precision & bf16 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Dataset}
+
+We train on FineWeb sample-10BT~\citep{penedo2024fineweb}, a 10 billion token sample of the FineWeb corpus. Documents are packed into fixed-length chunks of 512 tokens with end-of-sequence token separators.
+
+\subsection{Evaluation}
+
+We report the final validation loss computed over 6400 validation documents; no early stopping is applied.
+
+\subsection{Infrastructure}
+
+All experiments are run on NVIDIA B200 GPUs or NVIDIA A6000 GPUs, with one GPU per run.

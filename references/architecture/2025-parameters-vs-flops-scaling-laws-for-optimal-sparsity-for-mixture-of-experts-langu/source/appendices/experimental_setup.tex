@@ -1,0 +1,108 @@
+\section{Experimental Setup}
+\label{app:exp_setup}
+
+We train and evaluate auto-regressive sparse Mixture-of-Experts (MoE) language models of varying sizes and configurations on subsets of the RedPajamaV1 dataset~\cite{together2023redpajama}. 
+The key variables we explore in our experiments are total model parameters $N$, training compute budget $C$, and the \moe sparsity $S$.
+
+\paragraph{Pre-training data.} 
+Our models are pre-trained on subsets of the RedPajamaV1 dataset\footnote{GitHub repository: \url{https://github.com/togethercomputer/RedPajama-Data}}~\cite{together2023redpajama}, which attempts to  replicate the LLaMA pre-training data recipe and comprises 1.2 trillion tokens from sources such as Common Crawl, C4, GitHub, and Wikipedia. 
+In all our experiments, the effective dataset size is adjusted based on the training compute budget $C$ and the model size $N$. We tokenize the data using the GPT-NeoX tokenizer~\cite{black2022gpt}, which has a vocabulary size of $50,432$ tokens.  
+
+\paragraph{Model and tokenizer.} 
+We use auto-regressive transformer-based \moe language models in order to study compute-parameter trade-offs by varying \moe sparsity. 
+We use the Megablocks library~\cite{megablocks} to train dropless \moes in which the routing mechanism ensures that all tokens are efficiently routed without being dropped due to routing capacity constraints.
+
+\paragraph{Optimizer and scheduler.} 
+We optimize our models using the scale-free Adam optimizer\footnote{Scale-free Adam: \url{https://fabian-sp.github.io/posts/2024/02/decoupling/}} with variable learning rate, a weight decay of $1 \times 10^{-5}$, and fixed Adam-specific parameters $\beta=(0.9, 0.95)$ and $\varepsilon=1 \times 10^{-8}$. 
+We use a learning rate scheduler consisting of a linear warm-up phase followed by a cosine decay. 
+The warm-up phase increases the learning rate from $0$ to the base learning rate over a fraction of the total training steps (selected from $\{0.1, 0.05, 0.02\}$). 
+After warm-up, the learning rate decays following a cosine schedule for the remaining training steps.
+
+\paragraph{Fitting IsoFLOP surfaces.}
+Recall that in~\Cref{sec:n_s_d_interaction}, we fit isoFLOP surfaces to predict pretraining loss $L$ as a polynomial function of model size $N$ and \moe sparsity $S$ for a fixed training budget $C$.
+The polynomial function takes the form
+\begin{equation}
+    \label{eq:isoFLOP_surface}
+    L(N, S) = \sum^{\alpha_1}_{i=1} a_i \hat{N}^{i} + \sum^{\alpha_2}_{i=1} b_i \hat{S}^{i} + \sum^{\alpha_3}_{i=1} c_i (\hat{N} \cdot \hat{S})^{i} + d
+\end{equation}
+where $\hat{N} = \log N$ and $\hat{S} = -\log(1-S)$---we find that applying log transformations improves the fit of the resulting IsoFLOP surface.
+Through a grid search over the polynomial coefficients $\alpha_1, \alpha_2, \alpha_3 \in \{0, 1, 2, 3, 4\}$, we found that the best fit was obtained for $\alpha = \beta = \gamma = 2$, i.e., a quadratic polynomial over $\hat{N}$ and $\hat{S}$.
+We evaluate the fitted IsoFLOP surfaces in~\Cref{fig:iso_surface} by (a) re-running the fitting procedure $k=100$ times on randomly subsampled data and (b) evaluating the Pearson correlation between the true and predicted pretraining loss values on a set of held-out data points.
+
+\paragraph{Hyperparameters.} 
+We followed established best practices to train MoEs that included carefully searching over important hyperparameters like learning rate, weight decay, warm up schedule. Furthermore, we used a load balancing loss, router-Z loss to stabilize training and QK-normalization to stabilize training.
+We fix a subset of hyperparameters for which changing values in preliminary experiments  (a) did not significantly improve pre-training loss, (b) the optimal value remained the same across several model configurations, or (c) in order to reduce the search space (i.e., limited compute resources). 
+Specifically, we first opted to use $z$-router loss \cite{zoph2022st} and $qk$-normalization \cite{wortsman2023small} in order to stabilize training for large \moes. 
+Second, we fixed \moe router jitter noise to $0$, as it did not improve performance. 
+We also fixed our batch size to $1024$ for all model sizes.
+
+We swept over hyperparameters that, when adjusted, (a) significantly improved pre-training loss and (b) the optimal values varied across different model configurations. We increase the \moe sparsity by decreasing the number of active experts and/or increasing the number of total experts. We also varied the \moe granularity~\cite{ludziejewski2024scaling}, \moe load balancing regularizer, Adam learning rate, and linear warm-up steps (fraction) in order to improve pre-training loss. The table below summarizes our hyperparameter sweeps:
+
+\begin{table}[H]
+    \centering
+    \caption{Hyperparameter configurations and search spaces}
+    \renewcommand{\arraystretch}{1.1}
+    \begin{tabular}{
+        >{\raggedright\arraybackslash}p{4.5cm}
+        >{\centering\arraybackslash}p{3cm}
+        >{\raggedleft\arraybackslash}p{6cm}
+    }
+        \toprule
+        \rowcolor[gray]{0.95}
+        \textbf{Hyperparameter} & \textbf{Configuration} & \textbf{Search Space} \\
+        \midrule
+        Sparsity Level          & Tuned        & $\{0, 25, 50, 75, 90, 95, 98\}\%$              \\
+        Number of Total Experts       & Tuned      & Adjusted depending on sparsity  \\
+        Number of Active Experts       & Tuned      & Adjusted depending on sparsity  \\
+        Granularity             & Tuned        & $\{1, 2\}$               \\
+        Learning Rate           & Tuned     & $[0.003, 0.002, 0.001]$  \\
+        Load Balancing Factor   & Tuned     & $\{0.02, 0.05\}$         \\
+        Warm-up Steps           & Tuned      & $\{2, 5, 10\}\%$    \\
+        Batch Size              & Constant     & 1024                   \\
+        Jitter Noise            & Constant     & 0                      \\
+        z-Loss                  & Constant     & 0                      \\
+        z-Router Loss           & Constant     & 0.001                  \\
+        QK Norm                 & Constant     & Applied                \\
+        \bottomrule
+    \end{tabular}
+    \label{tab:hyperparameters}
+\end{table}
+
+
+ It is also noteworthy that, in this paper, we have prioritized training compute-optimal models, in contrast to many published results on large language models (LLMs), which often rely on over-trained models. As a result, the performance of the models we use for the analysis in this paper is not directly comparable to those of other studies, where they overtrain smaller language models, to reduce the cost of inference relative to training.  
+\begin{comment}
+We train autoregressive sparse mixture of expert (MoE) language models of varying sizes and sparsity levels on subsets of the RedPajamaV1 dataset. The key variables explored include sparsity level, model size, and the training compute budget.
+
+\paragraph{MoE Architecture and Implementation} We utilize the Megablocks dropless MoE framework as described by \citet{megablocks}, which allows for efficient scaling across different levels of model sparsity and size.
+
+\paragraph{Hyperparameters: Fixed and Swept}
+Our experiments span sparsity levels in the range of $[0, 98]$. As sparsity increases, we scale the number of experts and adjust the top-k parameter to maintain the target sparsity.
+
+
+\begin{table}[h]
+    \centering
+    \caption{Hyperparameter values and ranges explored}
+    \begin{tabular}{|l|c|c|}
+        \hline
+        \textbf{Hyperparameter} & \textbf{Value} & \textbf{Range Explored} \\
+        \hline
+        Sparsity Level          & Varies        & $[0, 98]$              \\
+        Number of Experts       & Varies        & Adjusted with sparsity  \\
+        Granularity             & Varies        & \{1, 2\}   \\
+        Learning Rate           & Fixed         & [0.003 0.002, 0.001]     \\
+        Warm-up Steps           & Fixed         & \{0.1 , 0.05, 0.02\}      \\
+        Batch Size              & Fixed         &  2048     \\
+        Load Balancing Factor   & Fixed         &  {0.02, 0.05}     \\
+        Jitter Noise            & Fixed         & 0      \\
+        z-Loss                  & Fixed         & 0      \\
+        z-Router Loss           & Fixed         & 0.001   \\
+        QK Norm                 & Fixed         & Applied \\
+        \hline
+    \end{tabular}
+    \label{tab:hyperparameters}
+\end{table}
+
+
+\end{comment}
+
+\newpage

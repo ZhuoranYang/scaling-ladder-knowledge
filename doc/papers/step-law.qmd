@@ -1,0 +1,84 @@
+---
+title: "StepFun Part I: Step Law, experiment by experiment"
+subtitle: "What was tuned, how optima were fitted, which quantities transfer, and how to reproduce the study"
+date: 2026-11-02
+---
+
+## Question and position in the workflow
+
+[Li et al., Step Law v3](https://arxiv.org/abs/2503.04715v3) asks how **optimal learning rate and batch size** depend on model size and token horizon. It is a hyperparameter study, not a loss-allocation law. [Part II, Farseer](farseer.qmd) uses standardized HP choices when fitting a loss surface. [Marin's tuning code](../optimizers/marin-hyperparameter-search.qmd) offers an independent example of tuning a recipe before forecasting with it.
+
+Local primary files: [PDF](../../references/optimization/2025-step-law-hyperparameter-scaling/paper.pdf), [metadata/LaTeX availability](../../references/optimization/2025-step-law-hyperparameter-scaling/metadata.json), and [released-table audit](../../references/optimization/2025-step-law-hyperparameter-scaling/released-table-audit.json). Official fitting artifacts come from [step-law/steplaw](https://github.com/step-law/steplaw), pinned in the local archive. Distinguish released tabular observations from all experiments counted in the paper.
+
+## Fix the scientific object before reading the coefficients
+
+The study's conditional objective is
+
+$$
+(\eta_\star,B_\star)=\arg\min_{\eta,B}L(\mathcal A,\mathcal D,N,D,\eta,B),
+$$
+
+where $\mathcal A$ is the architecture family, $\mathcal D$ the data recipe, $N$ its declared parameter count, $D$ training tokens, $\eta$ peak LR and $B$ token batch. The paper's §1.1 distinguishes parameter conventions and Table 5 reports total and active MoE counts. Our stored/active/executed counters must not be substituted interchangeably. In the released CSVs, `N` and `Na` are separate columns; inspect the counting code and exact family before evaluating the predictor.
+
+Reported setup (§3.2): BPE vocabulary 65,536; context 2,048; RMSNorm/SwiGLU; principally ALiBi; AdamW $\beta_1=0.9,\beta_2=0.95$, $\epsilon=10^{-8}$, decay 0.1 and clip 1; 2,000 warmup updates; cosine decay to an **absolute** final LR $10^{-5}$. This final-LR convention is part of the experiment: fixing a peak/final ratio instead can shift the optimum.
+
+## 1. Search the LR/batch surface
+
+The LR grid uses powers of two with half-exponent spacing from $2^{-10.5}$ through $2^{-7}$. The batch grid spans 32,768–4,194,304 **tokens**, doubling between values. Figure 1 describes a 120-run LR/batch comparison for a 1B/100B-token model; other figures examine different sizes/horizons.
+
+The practical observation is a bowl/plateau in the tested two-dimensional HP landscape. This is empirical local structure, not a theorem that every optimizer/model has a globally convex loss surface. A grid point can be unstable or boundary-limited. Fit only supported local minima; retain the raw contour and failed runs.
+
+Figure 3 compares smoothed training loss with held-out loss in a controlled setting. Their optimal settings coincide in the shown comparison. This supports smoothed loss as a cheap proxy **there**, not comparing training losses from different data mixtures. Our mixture experiments need one fixed held-out target distribution.
+
+## 2. Check schedule dependence
+
+The paper compares an absolute final LR against a final LR tied to peak. When peak changes, a ratio-based endpoint changes too; the search is no longer varying only the early/mid-training rate. A reproduction must preserve both warmup and annealing semantics. Compare final annealed losses, not a snapshot at different schedule phases.
+
+This connects to Marin's constant-versus-decaying LR follow-up, where the useful multiplier bracket changes. A transfer law is conditional on its schedule and optimizer groups.
+
+## 3. Fit a law in size and horizon
+
+The reported fitted form (Eq.1/Table 2) is
+
+$$
+\eta_\star=1.79N^{-0.713}D^{0.307},\qquad
+B_\star=0.58D^{0.571}.
+$$
+
+Here the published numerical coefficients expect raw parameter/token units and return token batches. They are not valid after changing $N$ from parameters to billions without converting the intercept.
+
+The fitting uses log-linear regressions,
+
+$$
+\log\eta_\star=\log c+\alpha\log N+\beta\log D,\qquad
+\log B_\star=\log d+\gamma\log D,
+$$
+
+with 1,000 bootstrap fits. The experiment description spans seven model scales and multiple token horizons and reserves larger-size/horizon settings for checks. This variation is what distinguishes an HP surface from a fixed-TPP ray.
+
+Under the published equation, doubling $N$ at fixed $D$ multiplies peak LR by about 0.61. Increasing $D$ fourfold while co-selecting batch multiplies LR by about 1.53 and batch by about 2.21. These are mathematical consequences of this fit, not new measured results. A positive joint-optimum horizon exponent does not imply that LR rises with horizon when batch and schedule are held fixed under another recipe.
+
+## 4. Test architecture and data transfer
+
+Table 4 includes width 960/depth7, width 1280/depth10 and width 2048/depth16. Thus the paper itself does not require power-of-two widths or fixed depth. Table 5 covers sparse models with differing top-k/active counts; Table 6 varies code/math proportions and includes English/Chinese data.
+
+The reported transfer results justify testing whether a law survives moderate changes, not declaring every new mixture requires a complete search. They also do not certify a recurrent MoE at trillions of tokens. Our target's attention, tokenizer, optimizer, router, horizon and expert geometry differ.
+
+## What is actually in the public fitting archive?
+
+At the inspected official-code revision, we counted **1,911 dense rows**, **708 MoE rows** and **1,000 bootstrap coefficient rows**. The paper's headline describes roughly 3,700 trained models; those are different scopes. The release is not evidence that we possess every original training log/checkpoint.
+
+`dense_lr_bs_loss.csv` stores shape, LR, `bs`, updates, smooth loss, $N,D$ and TPP. `moe_lr_bs_loss.csv` also stores sequence length, routing/expert details, active count, compute and runtime fields. **CSV `bs` is sequences**; multiply by context length (2,048 for the studied release) before comparing it with Eq.1's token batch. A descriptive $(N,D)$ grouping can still mix shapes/recipes; use full configuration keys when fitting a causal comparison.
+
+`code/fit_tool.py` provides `pred-opt-lr-bs N D seq_len`. It is useful for independent numerical checks and suggested search centers. Do not promote its output to a trainer config without confirming count conventions, schedule and group-wise LR definitions.
+
+## A minimal replication protocol for our team
+
+1. Freeze one standard architecture/data/tokenizer/optimizer/schedule and an independent fixed validation set.
+2. Recreate two or three released LR/batch cells with their actual settings, including absolute final LR and sequence/token batch conversion. Check contour shape and metric agreement.
+3. Fit local optima with interior minima, distinguish observed from interpolated losses and retain censored/unstable cells.
+4. Expand to independently varying widths and horizons; fit the log-linear law and compare a simpler batch-only-in-$D$ law against a size-dependent alternative.
+5. Evaluate unseen size and longer-horizon cells with local brackets. For our heavy-overtraining goal, include 200+ **stored** TPP checks and report the corresponding active TPP.
+6. Run a small cyber-mixture transfer check before refitting everything. A new optimizer, router or loop architecture requires separate qualification.
+
+The [heavy tuning plan](../optimizers/marin-hyperparameter-search.qmd) sets the concrete grid/BO stages and explains how to fund them. No published coefficient is treated as an empirically selected setting for our hero run.

@@ -1,0 +1,39 @@
+---
+title: "Learning-rate schedules, batch size, and optimizer memory"
+---
+
+This companion expands notes §§6.3–6.9 and blog §§6.3–6.9. Width transfer, token-horizon tuning and schedule choice are different interventions. Check each under stated conditions.
+
+## Start with units and parameter groups {#units}
+
+Token batch is $B=b\ell$ for $b$ fully populated sequences of length $\ell$; with masks, distinguish processed and scored tokens. The approximate update count is $S=D/B$. μP can keep a base LR stable across width while changing actual matrix-group LRs. A raw global LR from a conventional recipe is not automatically a μP base LR. [Tensor Programs V, Appendix B.1](https://arxiv.org/abs/2203.03466v2); [architecture evidence](../architecture/architecture-evidence.qmd).
+
+## Decay and optimizer-memory timescales {#timescale}
+
+With decoupled decay, the decay-only update multiplies a parameter by $1-\eta_s\lambda$. At small products,
+
+$$\prod_{s=1}^{S}(1-\eta_s\lambda)\approx\exp[-\lambda\sum_s\eta_s].$$
+
+For constant LR this leads to $\tau=B/(\eta\lambda D)$, a dimensionless fraction-of-training proxy. Scheduled runs require the full LR shape and matching parameter-group conventions.
+
+Power Lines v2 finds $\tau_*\approx1.084(D/N)^{-0.527}$, so its cross-TPP optimum is not constant. At fixed $N,D,\eta$, holding $\tau$ fixed motivates $\lambda\propto B$ in its supported regime. Moving to a new TPP requires the fitted $\tau_*$ or new tuning. [Bergsma et al., v2, §2/Fig. 1](https://arxiv.org/abs/2505.13738v2).
+
+Adam's momentum coefficients are measured in steps. A coefficient $\beta$ has token e-folding span $-B/\ln\beta$. To preserve that span when batch changes, the derived relation is $\beta_{\mathrm{new}}=\beta_{\mathrm{old}}^{B_{\mathrm{new}}/B_{\mathrm{old}}}$. This is an accounting identity under a constant-batch exponential-memory model; whether preserving the span is optimal is an empirical question.
+
+## Compare schedules at comparable endpoints {#endpoints}
+
+Cosine ties decay to a chosen horizon. WSD provides a stable trunk that can fork into multiple decay branches. A branch comparison must record its starting checkpoint, tokens added, decay shape, final LR and mixture. Stable-phase loss is not the same quantity as annealed endpoint loss. Tune candidate schedules comparably. [Fantastic Optimizers](https://arxiv.org/abs/2509.02046v2); [Tissue et al., loss with annealing](https://arxiv.org/abs/2408.11029).
+
+In a branch budget, if shared trunk cost is $C_0$ and branches cost $C_j$, actual training cost is $C_0+\sum_j C_j$. Summing full end-to-end costs for every branch double-counts the prefix.
+
+## Two clocks in an actual production run {#nemotron}
+
+Nano's report uses a 25T-token horizon, starts its final 5T-token LR decay around 80%, and switches to the quality-focused mixture at 94%. These boundaries differ. Reproducing the data curriculum while moving decay earlier is a different experiment. Super and Ultra use different phase boundaries again. [Nano §§2.3–2.4](https://arxiv.org/abs/2512.20848); [full comparison](../efforts/nemotron-pretraining.qmd).
+
+## A small calibration experiment {#experiment}
+
+At fixed shape, compare two token horizons and several token batches. First tune LR and decay on the smaller configuration; then test the transferred region at the longer horizon. Include a fully annealed comparison for schedule finalists, preserve branch lineage and confirm the selected setting with a fresh seed. This is our proposed design, not a published universally sufficient run count.
+
+**Required artifact:** a schedule function, batch/optimizer-memory units, matrix-group hyperparameters, full endpoint definition and measured LR/batch/decay response.
+
+[Back to the blog reading guide](../reading/jiaxuan-reading-guide.qmd) · [Quarto notes](../reading/deep-dive-notes.qmd)

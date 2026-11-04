@@ -1,0 +1,81 @@
+        %auto-ignore
+\section{Warm-Up: An Intuitive Explanation with Linear Networks}\label{sec:intuition}
+
+Let us begin with a simple example that provides the necessary intuition underpinning our depth scaling strategy. Given a depth $L$, width $n$, consider a linear residual network of the form
+\begin{align*}
+    x^0 & = U \xi, \\
+    \forall l\in [L], \quad x^l & = x^{l - 1} + \frac1{\sqrt L} W^{l} x^{l-1},  \\
+    f &= V^\top x^L,
+\end{align*}
+where the weight matrices $W^l \in \mathbb{R}^{n\times n}$ and $U, V$ are input and output weight matrices that we assume to be fixed during training. 
+
+\subsection{Optimal Scaling of the Learning Rate}
+To simplify the analysis, we consider gradient updates based on a single datapoint. The first gradient step is given by 
+$$
+W^l_1 = W^l_0 - \eta G^l_0, 
+$$
+where $\eta$ is the learning rate, and $G^l_0$ is a matrix with update directions. For instance, we have the following expressions for $G^l_0$ with SGD and Adam:
+\begin{itemize}
+    \item SGD: $G^l_0 = \frac{1}{\sqrt{L}} \del x^{l} \otimes x^{l-1}$, where $\del x^l \defeq \frac{\partial \ell}{\partial x^l}$ for some loss function $\ell$.\footnote{We use $\del$ for gradient because we want to distinguish from $d$ in depth differential equations that appear later in the paper. }
+    \item Adam\footnote{For the sake of simplification, we consider SignSGD in this section, which can be seen as a memory-less version of Adam. The analysis is valid for any training algorithm that gives $\Theta(1)$ gradients.}:  $G^l_0 = \textrm{sign}\left(\frac{1}{\sqrt{L}} \del x^{l} \otimes x^{l-1}\right)$.
+\end{itemize}
+In both cases, $\del x^{l}$ and $x^{l-1}$ are computed for a single training datapoint $\xi_0$.
+The last layer features $x^L$ (for some input $\xi$) are given by $x^L = \prod_{l=1}^L \left( I + \frac{1}{\sqrt{L}} W^l\right) x^0$.\footnote{ To avoid any confusion, here we define the matrix product by $\prod_{l=1}^L A_l = A_L \times A_{L-1} \dots \times A_1$.} We use the subscript $t$ to refer to training step. After the first gradient step, we have the following 
+\begin{equation}\label{eq:first_order_linear}
+x^L_1 = \prod_{l=1}^L \left( I + \frac{1}{\sqrt{L}} W^l_1\right) x^0 = x^L_0 - \frac{\eta}{\sqrt{L}} A_L + \mathcal{O}(\eta^2),
+\end{equation}
+where $A_L = \sum_{l=1}^L \left[\prod_{k>l} \left( I + \frac{1}{\sqrt{L}} W^k_0\right)\right] G^l_0 \left[\prod_{k<l} \left( I + \frac{1}{\sqrt{L}} W^k_0\right)\right] x^0$. 
+We argue that $A_L$ behaves as $\Theta(L)$ (in $L_2$ norm). This is the due to the $1/\sqrt{L}$ scaling factor. To see this, we further simplify the analysis by considering the case $d_{in} = n = d_{out} = 1$ (single neuron per layer) and the squared loss. In this case, the term $A_L$ simplifies to 
+$$
+A_L = \sum_{l=1}^L \prod_{k \neq l}\left(1 + \frac{1}{\sqrt{L}} W^k_0\right) G^l_0 x_0.
+$$
+
+\paragraph{Scaling for SGD.} With SGD,  we have that $G^l_0 = \frac{1}{\sqrt{L}} \prod_{k \neq l} \left(1 + \frac{1}{\sqrt{L}} W^k_0\right) x_0 \del x^L$, where $\del x^L = (V x^L - y(\xi_0))$ and $y(\xi_0)$ is the target output. 
+Therefore, it is easy to see that 
+\begin{align*}
+\E A_l^2 = \frac{1}{L} \E \left(\sum_{l=1}^L \prod_{k \neq l}\left(1 + \frac{1}{\sqrt{L}} W^k_0\right)^2 \del x^L x_0^2 \right)^2 = \Theta\left(\frac{1}{L} L^2\right) = \Theta(L),
+\end{align*}
+where we have used the fact that $\E\left(1 + \frac{1}{\sqrt{L}} W^k_0\right)^{2p} = 1 + \Theta(L^{-1})$, for any positive integer $p$.\\
+
+Hence, the magnitude of the first order term in \cref{eq:first_order_linear} is given by 
+$$
+\E\left[ \left(\frac{\eta}{\sqrt{L}} A_l\right)^2\right] = \Theta(\eta^2),
+$$
+which shows that the update is stable in depth as long as $\eta = \Theta(1)$ in depth. More precisely, this is the maximal choice of learning rate that does not lead to exploding features as depth increases.
+
+\paragraph{Scaling for Adam.} With Adam, we have $G^l_0 = \pm 1$, and therefore we obtain
+\begin{align*}
+\E A_l^2 =  \E \left(\sum_{l=1}^L \prod_{k \neq l}\left(1 + \frac{1}{\sqrt{L}} W^k_0\right) x_0 \right)^2 = \Theta\left(L^2\right),
+\end{align*}
+where we have used the same arguments as before. In this case, the first order term in \cref{eq:first_order_linear} is given by
+$$
+\E\left[ \left(\frac{\eta}{\sqrt{L}} A_l\right)^2\right] = \Theta(\eta^2 L^{-1}).
+$$
+Therefore, the maximal learning rate that one can choose without exploding the features is given by $\eta = \Theta(L^{-1/2})$.
+
+\underline{\textit{Summary}:} By ensuring that parameter update is $\Theta(1/\sqrt{L})$, the features remain stable while feature update is $\Theta(1)$. This $\Theta(1)$ update is due to the accumulation of $\Theta(1/L)$ correlated terms across depth.
+
+\subsection{Convergence when Depth goes to $\infty$}
+Let us look at $x^L_1$ again in the simple case $d_{in} = d_{out} = n = 1$ and analyze its behaviour when $L \to \infty$. This paragraph is only intended to give an intuition for the convergence. A rigorous proof of such convergence will be later presented in the paper. Let us consider the case with SGD training with learning rate $\eta = 1$ and let $M_{L,l}=\prod_{k \neq l} \left(1 + \frac{1}{\sqrt{L}} W_0^k\right)$ and $\tau = (V x^L_0 - y(\xi_0))x^0$. With this, we have the following 
+\begin{equation}
+x^L_1 = \prod_{l=1}^L \left( 1 + \frac{1}{\sqrt{L}} W^l_0 - \frac{1}{L} \tau M_{L,l}   \right) x^0.
+\end{equation}
+WLOG, let us assume that $x^0_0 > 0$. Then, with high probability (the event that $W^l_0 \ll \sqrt{L}$, for some notion of ``$\ll$'', occurs with a probability of at least $1 - e^{-L^{\alpha}}$ for some $\alpha>0$)\footnote{This follows from simple concentration inequalities for sub-exponential random variables.}, we have that $x^L_1 > 0$. We can therefore look at $\log(x^L_1)$ which simplifies the task. Taking the log and using Taylor expansion under a high probability event, we obtain
+\begin{equation*}
+\begin{aligned}
+\log(x^L_1 / x^0) &= \frac{1}{\sqrt{L}} \sum_{l=1}^L W^l_0 - \frac{1}{L} \sum_{l=1}^L \tau M_{L,l}  + \frac{\sum_{l=1}^L (W^l_0)^2}{L} + \mathcal{O}(L^{-1+\epsilon})\\
+&= \frac{1}{\sqrt{L}} \sum_{l=1}^L W^l_0 -  \tau x^L_0  \frac{1}{L} \sum_{l=1}^L \frac{1}{1 + \frac{1}{\sqrt{L}}W^l_0}  + \frac{\sum_{l=1}^L (W^l_0)^2}{L} + \mathcal{O}(L^{-1+\epsilon}),
+\end{aligned}
+\end{equation*}
+for some $\epsilon > 0$. The first and third terms $\frac{1}{\sqrt{L}} \sum_{l=1}^L W^l_0 $ and $\frac{\sum_{l=1}^L (W^l_0)^2}{L}$ converge (almost surely) to a standard Gaussian and $1$, respectively. The second term also converges naturally, since $x^L_0$ converges in $L_2$ to a Log-Normal random variable (\cite{hayou2023infinitedepth}) and with a delicate treatment (involving high probability bounds), one can show that the term $\frac{1}{L} \sum_{l=1}^L \frac{1}{1 + \frac{1}{\sqrt{L}}W^l_0}$ converges (in $L_2$ norm) at large depth. This implies that one should expect $x^L_1$ to have some notion of weak convergence as depth grows. Note that the same analysis becomes much more complicated for general width $n > 0$. To avoid dealing with high probability bounds, a convenient method consists of taking the width to infinity first $n \to \infty$, then analyzing what happens as depth increases. We discuss this in the next section.
+\subsection{A Discussion on the General Case}
+\paragraph{Difficulty of generalizing to the nonlinear case. } The extension to the general width scenario ($n > 1$) necessitates a more intricate treatment of the term $A_l$ to find optimal scaling rules, yet the proposed scaling remains optimal for general width. This preliminary analysis lays the groundwork for proposing a specific learning rate scaling scheme that maximizes feature learning. Moreover, demonstrating the optimality of this scaling strategy in the presence of non-linearities is a non-trivial task. The primary challenge stems from the correlation among the post-activations induced during the training process.  Overcoming these challenges requires a rigorous framework capable of addressing the large depth limit of crucial quantities in the network.
+
+For this purpose, we employ the Tensor Program framework to investigate the behavior of essential network quantities in the infinite-width-then-depth limit. By leveraging this framework, our theoretical findings establish that the aforementioned scaling strategy remains optimal for general networks with skip connections. Our framework considers the setup where the width is taken to infinity first, followed by depth. This represents the case where $1 \ll depth \ll width$, which encompasses most practical settings (e.g. Large Language Models).
+
+\paragraph{The critical role of  Initialization.} A naive approach to depth scaling can be as follows: since the weights $W^k_t$ might become highly correlated during training, one has to scale the blocks with $1/L$. To understand this, let us assume a block multiplier of $L^{-\alpha}$ and consider the scenario of perfect correlation where all weights are equal, i.e., $W^k_t = W$ for every $k \in {1, \dots, L}$. In this case, the last layer features can be expressed as $x^L = \left( I + L^{-\alpha} W\right)^L x_0$. When $\alpha = 1/2$, the features are likely to exhibit an explosive growth with increasing depth, while opting for $\alpha=1$ is guaranteed to stabilize the features.
+
+However, in this paper, we demonstrate that this intuition does not align with practical observations. Contrary to expectations, the features do not undergo an explosive growth as the depth increases when $\alpha = 1/2$. This phenomenon is attributed to two key factors: random initialization and learning rate scaling with depth. These factors ensure that the weight matrices never become highly correlated in this particular fashion during the training process.
+
+In summary, while a naive depth scaling strategy based on scaling blocks might suggest the need for $\alpha=1$ to stabilize the features, our findings reveal that in practice, this is not the case. The interplay of random initialization and learning rate scaling effectively prevents the features from experiencing explosive growth, even with the choice of $\alpha = 1/2$.
+

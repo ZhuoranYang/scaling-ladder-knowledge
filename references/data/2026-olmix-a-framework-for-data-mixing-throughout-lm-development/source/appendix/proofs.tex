@@ -1,0 +1,752 @@
+\section{Proofs for Section~\ref{sec:analysis}}\label{supp:proofs}
+
+\subsection{Definitions and Notation}\label{supp:defs}
+Define performance of $q$ as $F(q) := \frac{1}{n}\sum_{i=1}^n f_i(\LM(S,R,q))$. We also write $F(q)$ as a bivariate function, $F(r,p_1) \;:=\; F(\Phi_{p_1}(r))$. 
+
+Recall $q^\star$ is the optimal solution to~\eqref{eq:mixing_problem} on $\D'$, and $q^\star(\tilde p_{\Dfix})$ is solution returned by \fullmixreuse when reusing $\tilde p_{\Dfix}$ to solve~\eqref{eq:conditional_mixing_problem}. We define $q^\star_{\Dfix}$ as the optimal mix on $\Dfix$ after the domain set update; that is, $q^\star = [\rho^\star q^\star_{\Dfix},\; (1-\rho^\star)q^\star_{\Dcomp}]$. We write $q^\star(\tilde p_{\Dfix}) = [\rho^\star(\tilde p_{\Dfix}) \tilde p_{\Dfix}, (1 - \rho^\star(\tilde p_{\Dfix})) q_{\Dcomp}^\star(\tilde p_{\Dfix})]$.
+
+We can also write $\tilde{p}$ in terms of $\Dfix$ and $\D \setminus \Dfix$: any $p$ can be expressed as $p = [\pi p_{\Dfix}, (1 - \pi) p_{\D \setminus \Dfix}]$, where $\pi \in [0, 1]$ (similar to $\rho$).
+
+
+
+The log-linear model is $f_i(q) = c_i + \sum_{i = 1}^n \exp(A_i^\top q)$, where $A_{ij}$ intuitively captures a notion of how much domain $j$ impacts task $i$. We split each $A_i \in \R^{m'}$ into $A_{i, \fix} \in \R^{|\Dfix|}$ and $A_{i,\comp} \in \R^{|\Dcomp|}$ corresponding to $\Dfix$ and $\Dcomp$. Define $\alphafix, \alphacomp \in \R^n$ where $\alpha_{i, \fix} = \|A_{i, \fix}\|, \alpha_{i, \comp} = \|A_{i, \comp} \|$. 
+
+Define the coupling term $\kappa(\Dfix, \Dcomp) = \kappa(\alphafix, \alphacomp)$ as
+\begin{align}
+    \kappa(\alphafix, \alphacomp) := \|(1 + \alphafix + \alphacomp) \odot \alphafix \|,
+\end{align}
+
+where $\odot$ is the Hadamard product.
+
+Define $\bar{F}(\cdot)$ to be the objective without the constant term of the log-linear regression model, $F(\cdot) - \frac{1}{n}\sum_{i =1 }^n c_i$.
+
+
+
+Denote $p_1 = \tilde{p}_{\Dfix}$ and $p_1' = q^\star_{\Dfix}$ for simplicity. Let $p_2 = q_{\Dcomp}$. Recall that $r^\star(p_1)$ (and the expanded $q^\star(p_1)$) is the solution to~\eqref{eq:conditional_mixing_problem} when $q_{\Dfix}$ is constrained to be $p_1$. 
+Any $r$ can be written as $r = [\rho, (1 - \rho), p_2]$, so we similarly define $\rho^\star(p_1)$ and $p_2^\star(p_1)$.
+
+
+\subsection{Proof for Theorem~\ref{thm:general_gap}}\label{supp:general_gap_proof}
+
+\begin{assumption}\label{ass:1}
+    We make the following assumptions:
+    \begin{enumerate}
+    
+    \item The log-linear model accurately captures the relationship between the mixture ratios and target model performance on each task; that is, $f_i(\LM(S, R, q)) = c_i + \exp(A_i^\top q)$ for some $c_i \in \R^+, A_i \in \R^{m'}$.
+    \item Applying \base (Algorithm~\ref{alg:base_method}) exactly solves~\eqref{eq:mixing_problem}, and applying \fullmixreuse exactly solves~\eqref{eq:conditional_mixing_problem}. That is, we ignore (i) proxy-to-target transfer error and (ii) estimation error in learning $c_i$ and $A_i$ from the swarm. However, extending the analysis to include these errors is straightforward by adding corresponding approximation terms.
+    \item We assume that $F(r, p_1)$ is $\mu$-strongly convex in $r$.
+    \item Let $\mathcal{S}(q_{\Dfix})$ be the feasible set of~\eqref{eq:conditional_mixing_problem} defined by repetition constraints:
+    \begin{align*}
+        r_v \le \min_{j \in \Dfix} \bigg\{\frac{k N_j'}{R q_j}\bigg\}, \quad r_j \le \frac{k N_j'}{R} \; \forall j \in \D_2',
+    \end{align*}
+    together with the simplex constraints on $r$. We assume \textbf{mutual feasibility} of $\tilde{p}_{\Dfix}$ and $q^\star_{\Dfix}$: that $r^\star(\tilde{p}_{\Dfix}) \in \mathcal{S}(q^\star_{\Dfix})$ and $r^\star(q^\star_{\Dfix}) \in \mathcal{S}(\tilde{p}_{\Dfix})$. This holds in the following two cases:
+    \begin{itemize}
+        \item Both $\tilde{p}_{\Dfix}$ and $q^\star_{\Dfix}$ have an active repetition constraint on at least one domain. Intuitively, this means that among the unaffected domains, there exist some high-utility domains that are data-constrained.
+        \item $r_v^\star(\tilde{p}_{\Dfix}) \le \min_{j \in \Dfix} \{\frac{k N_j'}{ R q_j} \}$ and $r_v^\star(\tilde{p}_{\Dfix}) \le \min_{j \in \Dfix} \{\frac{k N_j'}{ R \tilde{p}_j} \}$. Intuitively, the contents of the virtual domain are sufficiently low utility such that the proposed mix does not ``push against'' the tighter of the two $r_v$ constraints. 
+    \end{itemize}
+    This assumption is reasonable in our setting: when the repetition constraint is active, a domain is valuable enough that we would allocate more weight if we could. When it is slack, the domain does not warrant allocating weight up to its availability limit. Our two cases simply rule out the marginal situation where one mix is availability-limited while the other is not.
+    \end{enumerate}
+\end{assumption}
+
+
+First, we show that the mixture reuse problem and the standard mixing problem are equivalent when the existing mix on the unaffected domains is equal to the optimal mix on the unaffected domains after the domain update. This is the ``equality'' condition of Theorem~\ref{thm:general_gap}: when $\tilde{p}_{\Dfix} = q^\star_{\Dfix}$, the performance gap is $0$.
+
+
+\begin{lemma}\label{lemma:conditional_standard_equivalence}
+The solution of~\eqref{eq:conditional_mixing_problem}, $r^\star(\tilde{p}_{\Dfix})$, is equivalent to the solution of~\eqref{eq:mixing_problem}, $q^\star = [\rho^\star q^\star_{\Dfix}, (1 - \rho^\star) q^\star_{\D_2'}]$, when the existing mix satisfies $\tilde{p}_{\Dfix} = q^\star_{\Dfix}$. 
+\end{lemma}
+
+
+\begin{proof}
+For~\eqref{eq:mixing_problem}, restricting the feasible set to the subspace $q_{\Dfix} = q^\star_{\Dfix}$ does not change the optimal value of this problem, since this subspace still contains the optimal solution to the original problem. Therefore,~\eqref{eq:mixing_problem} is equivalent to:
+\begin{align*}
+    &\text{minimize}_{q \in \triangle^{m'-1}}  \frac{1}{n} \sum_{i = 1}^m f_i(\LM(S, R, q)) \\
+    &\text{s.t.} \quad  q_j \le \frac{k N_j'}{R} \quad \forall j \in [m'] \nonumber \\
+    &  \qquad \; q_{\Dfix} = q^\star_{\Dfix} \nonumber 
+\end{align*}
+
+Comparing this formulation of~\eqref{eq:mixing_problem} to~\eqref{eq:conditional_mixing_problem}, we can see that the problems are equivalent when $\tilde{p}_{\Dfix} = q^\star_{\Dfix}$.
+\end{proof}
+
+
+
+Based on this result, we can write $q^\star = q^\star(q_{\Dfix}^\star) = q^\star(p_1')$. Similarly, $\rho^\star = \rho^\star(p_1')$, $r^\star = r^\star(p_1')$, $p_2^\star = p_2^\star(p_1')$. Furthermore, the problem of bounding the performance gap now becomes one of bounding $F(q^\star(\tilde{p}_{\Dfix})) - F(q^\star(q^\star_{\Dfix}))$ in terms of $\|q^\star(\tilde{p}_{\Dfix}) - q^\star_{\Dfix} \|$. We can apply standard tools from optimization and convexity over $F(r, p_1)$ to address this.
+
+
+
+\subsubsection{Performance Gap Lemmas}
+
+
+\begin{lemma}[FOC Inequality]\label{lem:mutual_feas_foc}
+Recall that $r^\star(p_1)= \arg\min_{r \in\mathcal S(p_1)} F(r, p_1)$ and $r^\star(p_1')= \arg\min_{r \in\mathcal S(p_1')} F(r, p_1')$. 
+Then,
+\begin{align*}
+\left\langle \triangledown_r F(r^\star(p_1),p_1)-\triangledown_r F(r^\star(p_1'),p_1'),\; r^\star(p_1')-r^\star(p_1)\right\rangle \ge 0.
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+Since $r^\star(p_1)$ minimizes $F(\cdot,p_1)$ over the convex set $\mathcal S(p_1)$, we have the first-order condition
+\begin{align*}
+\langle \triangledown_r F(r^\star(p_1),p_1), r-r^\star(p_1)\rangle \ge 0 \quad \forall r\in\mathcal S(p_1).
+\end{align*}
+
+Using the mutual feasibility assumption, $r^\star(p_1')\in\mathcal S(p_1)$, so plugging $r=r^\star(p_1')$ yields
+\begin{align*}
+\langle \triangledown_r F(r^\star(p_1),p_1), r^\star(p_1')-r^\star(p_1)\rangle \ge 0.
+\end{align*}
+
+Similarly, since $r^\star(p_1')$ minimizes $F(\cdot,p_1')$ over $\mathcal S(p_1')$ and $r^\star(p_1)\in\mathcal S(p_1')$,
+\begin{align*}
+\langle \triangledown_r F(r^\star(p_1'),p_1'), r^\star(p_1)-r^\star(p_1')\rangle \ge 0.
+\end{align*}
+Adding the two inequalities completes the proof.
+\end{proof}
+
+
+\begin{lemma}[Mean value bound for $\triangledown_r F$ along a segment]\label{lem:mvt_grad_r}
+Fix $r$ and consider the map
+\begin{align*}
+G(\cdot) := \triangledown_r F(r,\cdot).
+\end{align*}
+Assume $G$ is continuously differentiable on the line segment
+\begin{align*}
+p_1^t := t p_1' + (1-t)p_1,\qquad t\in[0,1].
+\end{align*}
+Then
+\begin{align*}
+\left\|\triangledown_r F(r,p_1')-\triangledown_r F(r,p_1)\right\|
+\le
+\sup_{t\in[0,1]}\left\|\triangledown^2_{r,p_1}F(r,p_1^t)\right\|\cdot \|p_1'-p_1\|.
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+Define the scalar function
+\begin{align*}
+h(t) := G(p_1^t),\qquad t\in[0,1].
+\end{align*}
+Since $G$ is continuously differentiable on the segment, $h$ is differentiable and
+\begin{align*}
+h'(t) = \triangledown_{p_1}G(p_1^t)\,(p_1'-p_1),
+\end{align*}
+where $\triangledown_{p_1}G(p_1^t)$ denotes the Jacobian of $G$ at $p_1^t$.
+By the fundamental theorem of calculus,
+\begin{align*}
+G(p_1')-G(p_1) = h(1)-h(0) = \int_0^1 h'(t)\,dt
+= \int_0^1 \triangledown_{p_1}G(p_1^t)\,(p_1'-p_1)\,dt.
+\end{align*}
+Taking norms and applying the triangle inequality,
+\begin{align*}
+\|G(p_1')-G(p_1)\|
+&\le \int_0^1 \|\triangledown_{p_1}G(p_1^t)\,(p_1'-p_1)\|\,dt \\
+&\le \int_0^1 \|\triangledown_{p_1}G(p_1^t)\|\,\|p_1'-p_1\|\,dt \\
+&\le \left(\sup_{t\in[0,1]}\|\triangledown_{p_1}G(p_1^t)\|\right)\cdot \|p_1'-p_1\|.
+\end{align*}
+Substituting $G(\cdot)=\triangledown_r F(r,\cdot)$ completes the proof.
+\end{proof}
+
+
+\begin{lemma}[Behavior of $r^\star(\cdot)$ under changes in $p_1$]\label{lem:stability}
+Let $\Delta := p_1'-p_1$ and $\Delta r := r^\star(p_1')-r^\star(p_1)$. 
+
+Then
+\begin{align*}
+\|\Delta r\| \;\le\; \frac{M}{\mu}\,\|\Delta\|,
+\end{align*}
+where
+\begin{align*}
+M \;:=\; \sup_{t\in[0,1]} \left\| \triangledown^2_{r,p_1} F\big(r^\star(p_1'),\, p_1^t\big)\right\|,\quad
+p_1^t := t p_1' + (1-t)p_1.
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+By $\mu$-strong convexity of $F(\cdot,p_1)$ in $r$, for $r:=r^\star(p_1)$ and $r':=r^\star(p_1')$,
+\begin{align*}
+F(r',p_1)&\ge F(r,p_1)+\langle \triangledown_r F(r,p_1), r'-r\rangle +\frac{\mu}{2}\|r'-r\|^2,\\
+F(r,p_1)&\ge F(r',p_1)+\langle \triangledown_r F(r',p_1), r-r'\rangle +\frac{\mu}{2}\|r-r'\|^2.
+\end{align*}
+Adding yields
+\begin{align*}
+\mu\|\Delta r\|^2 \le \left\langle \triangledown_r F(r^\star(p_1'),p_1)-\triangledown_r F(r^\star(p_1),p_1),\; \Delta r\right\rangle.
+\end{align*}
+Next, we add and subtract $\triangledown_r F(r^\star(p_1'),p_1')$:
+\begin{align*}
+\mu\|\Delta r\|^2
+&\le
+\left\langle \triangledown_r F(r^\star(p_1'),p_1)-\triangledown_r F(r^\star(p_1'),p_1'),\; \Delta r\right\rangle \\
+&\quad+
+\left\langle \triangledown_r F(r^\star(p_1'),p_1')-\triangledown_r F(r^\star(p_1),p_1),\; \Delta r\right\rangle.
+\end{align*}
+By Lemma~\ref{lem:mutual_feas_foc}, the second inner product is less than $0$. Thus
+\begin{align*}
+\mu\|\Delta r\|^2
+\le
+\left\|\triangledown_r F(r^\star(p_1'),p_1)-\triangledown_r F(r^\star(p_1'),p_1')\right\|\cdot \|\Delta r\|.
+\end{align*}
+
+Finally, applying Lemma~\ref{lem:mvt_grad_r}, we have
+\begin{align*}
+    \mu\|\Delta r\|^2 \le \sup_{t\in[0,1]}\left\|\triangledown^2_{r,p_1}F(r^\star(p_1'),p_1^t)\right\| \cdot \|\Delta\| \cdot \| \Delta r \|
+\end{align*}
+
+We divide both sides by $\|\Delta r\|$ to complete the proof.
+\end{proof}
+
+
+
+
+\begin{lemma}[Decomposing the performance gap]\label{lem:gap_decomp}
+Define $\Delta:=p_1'-p_1$, $\Delta r:=r^\star(p_1')-r^\star(p_1)$. Then
+\begin{align*}
+F(r^\star(p_1),p_1)-F(r^\star(p_1'),p_1')
+&\le
+\|\triangledown_r F(r^\star(p_1),p_1)\|\cdot \|\Delta r\|
++
+\|\Delta\|\cdot \sup_{t\in[0,1]}\|\triangledown_{p_1}F(r^\star(p_1'),p_1^t)\|.
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+Add and subtract $F(r^\star(p_1'),p_1)$ from the LHS:
+\begin{align*}
+F(r^\star(p_1),p_1)-F(r^\star(p_1'),p_1')
+=
+\big(F(r^\star(p_1),p_1)-F(r^\star(p_1'),p_1)\big)
++
+\big(F(r^\star(p_1'),p_1)-F(r^\star(p_1'),p_1')\big).
+\end{align*}
+For the first difference, convexity of $F(\cdot,p_1)$ implies
+\begin{align*}
+F(r^\star(p_1'),p_1)\ge F(r^\star(p_1),p_1)+\langle \triangledown_r F(r^\star(p_1),p_1), r^\star(p_1')-r^\star(p_1)\rangle,
+\end{align*}
+so
+\begin{align*}
+F(r^\star(p_1),p_1)-F(r^\star(p_1'),p_1)
+\le
+\langle \triangledown_r F(r^\star(p_1),p_1), r^\star(p_1)-r^\star(p_1')\rangle
+\le
+\|\triangledown_r F(r^\star(p_1),p_1)\|\cdot \|\Delta r\|.
+\end{align*}
+For the second difference, we apply the mean value theorem along $p_1^t$:
+\begin{align*}
+|F(r^\star(p_1'),p_1)-F(r^\star(p_1'),p_1')|
+\le
+\|\Delta\|\cdot \sup_{t\in[0,1]}\|\triangledown_{p_1}F(r^\star(p_1'),p_1^t)\|.
+\end{align*}
+Combining the two bounds completes our proof.
+\end{proof}
+
+
+\subsubsection{Gradient Lemmas}
+
+\begin{lemma} \label{lemma:grad_r}
+    The gradient norm $\|\triangledown_r F(r^\star(p_1),p_1)\|$ can be bounded by 
+    \begin{align*}
+        \triangledown_r F(r^\star(p_1), p_1) \le \bar{F}(q^\star(p_1))  \big\| | A_1 p_1 | + \alphacomp \big\|.
+    \end{align*}
+\end{lemma}
+
+
+\begin{proof}
+
+First, we write $r$ as $[\rho, b_2]$, where $b_2 = (1 - \rho)p_2$. Define $s_i = A_{i, 1}^\top \rho p_1 + A_{i, 2}^\top b_2$. We compute the gradient of $F(r, p_1)$ with respect to $\rho$ and $b_2$:
+\begin{align*}
+    \triangledown_{\rho} F(r, p_1) &= \frac{1}{n} \sum_{i = 1}^n \exp(s_i) A_{i, 1}^\top p_1 \\
+    \triangledown_{b_2} F(r, p_1) &= \frac{1}{n} \sum_{i = 1}^n \exp(s_i) A_{i, 2}
+\end{align*}
+
+We can consolidate this into a single expression if we define $a_i = \SmallMatrix{ \langle A_{i, 1}, p_1 \rangle \\ A_{i, 2}} \in \R^{|\D_2'| + 1}$:
+\begin{align*}
+    \triangledown_{r} F(r, p_1) &= \frac{1}{n} \sum_{i = 1}^n \exp(s_i) a_i.
+\end{align*}
+
+Let us write $r^\star(p_1)$ as $[\rho^\star(p_1), (1 - \rho^\star(p_1)) p_2^\star(p_1)]$. The expression for the gradient at $r^\star(p_1)$ is
+\begin{align*}
+    \triangledown_r F(r^\star(p_1), p_1) &= \frac{1}{n}\sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1) p_1 + A_{i, 2}^\top (1 - \rho^\star(p_1)) p_2^\star(p_1)) a_i.
+\end{align*}
+
+We now bound the norm. First, applying the Cauchy-Schwarz inequality twice, we have:
+\begin{align*}
+    \|\triangledown_r F(r^\star(p_1), p_1)\| &\le \frac{1}{n} \sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1) p_1 + A_{i, 2}^\top (1 - \rho^\star(p_1)) p_2^\star(p_1)) \|a_i\| \\
+    &\le \frac{1}{n} \sqrt{\sum_{i = 1}^n \exp(2(A_{i, 1}^\top \rho^\star(p_1) p_1 + A_{i, 2}^\top (1 - \rho^\star(p_1)) p_2^\star(p_1)))} \sqrt{\sum_{i = 1}^n \| a_i\|^2} \\
+    &\le \frac{1}{n} \sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1) p_1 + A_{i, 2}^\top (1 - \rho^\star(p_1)) p_2^\star(p_1)) \sqrt{\sum_{i = 1}^n \| a_i\|^2}.
+\end{align*}
+
+Observe that the first summation is equivalent to $\bar{F}(q^\star(p_1))$. Then, to bound the remaining term $\sqrt{\sum_{i = 1}^n \| a_i\|^2}$, we have
+\begin{align*}
+\sqrt{\sum_{i = 1}^n \| a_i\|^2} &= \sqrt{\sum_{i = 1}^n \langle A_{i, 1}, p_1 \rangle^2 + \| A_{i, 2}\|^2 } \\
+&\le \sqrt{\sum_{i = 1}^n (|\langle A_{i, 1}, p_1 \rangle| + \| A_{i, 2}\|)^2 } \\
+&= \big\| | A_1 p_1 | + \alphacomp \big\|.
+\end{align*}
+
+where $| \cdot |$ is an elementwise absolute value, and $\alphacomp \in \R^n$ is constructed where $\alpha_{i, 2} = \|A_{i, 2}\|$. 
+
+Therefore,
+\begin{align*}
+    \triangledown_r F(r^\star(p_1), p_1) \le \bar{F}(q^\star(p_1))  \big\| | A_1 p_1 | + \alphacomp \big\|.
+\end{align*}
+
+
+
+
+\end{proof}
+
+
+\begin{lemma}\label{lemma:grad_p_1}
+    The gradient norm $\triangledown_{p_1} F(r^\star(p_1'), p_1^t)$ can be bounded by 
+    \begin{align*}
+        &\|\triangledown_{p_1} F(r^\star(p_1'), p_1^t)\| \le  \bar{F}(q^\star(p_1'))  \big\|  \exp( \alphafix \|\triangle \|) \odot \alphafix   \big\|,
+    \end{align*}
+    where $\odot$ is the Hadamard product, and $\exp$ is elementwise.
+\end{lemma}
+
+\begin{proof}
+
+
+Define $s_i = A_{i, 1}^\top \rho p_1 + A_{i, 2}^\top (1 - \rho) p_2$. We compute the gradient of $F(r, p_1)$ with respect to $p_1$:
+\begin{align*}
+    \triangledown_{p_1} F(r, p_1) = \frac{1}{n}\sum_{i = 1}^n \exp(s_i) \rho A_{i, 1}.
+\end{align*}
+
+Let us write $r^\star(p_1')$ as $[\rho^\star(p_1'), (1 - \rho^\star(p_1')) p_2^\star(p_1')]$. Then, the gradient of $F(r, p_1)$ at $r^\star(p_1'), p_1^t$ is
+\begin{align*}
+    \triangledown_{p_1} F(r^\star(p_1'), p_1^t) &= \frac{1}{n} \sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1') p_1^t + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')) \rho^\star(p_1') A_{i, 1}.
+\end{align*}
+
+We now bound the norm of the gradient over $t \in [0, 1]$. First, we add and subtract $p_1'$ to create an $\exp$ term defined over $p_1'$ and a difference term with $p_1^t - p_1'$:
+\begin{align*}
+    &\|\triangledown_{p_1} F(r^\star(p_1'), p_1^t)\| \le \frac{1}{n} \sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1') (p_1' + p_1^t - p_1') + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')) \rho^\star(p_1')  \| A_{i, 1} \| \\
+    &\le \frac{1}{n} \sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')) \exp(A_{i, 1}^\top \rho^\star(p_1') (p_1^t - p_1'))  \| A_{i, 1} \|.
+\end{align*}
+
+Then, we apply Cauchy-Schwarz inequality to get
+\begin{align*}
+    &\|\triangledown_{p_1} F(r^\star(p_1'), p_1^t)\| \\
+    &\le \frac{1}{n} \sqrt{\sum_{i = 1}^n \exp(2 A_{i, 1}^\top \rho^\star(p_1') (p_1^t - p_1'))  \| A_{i, 1} \|^2} \sqrt{\sum_{i = 1}^n \exp(2(A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')))} \\
+    &\le \frac{1}{n} \sqrt{\sum_{i = 1}^n \exp(2 A_{i, 1}^\top \rho^\star(p_1') (p_1^t - p_1'))  \| A_{i, 1} \|^2} \cdot \sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')).
+\end{align*}
+
+We observe that we can replace the second summation with $\bar{F}(q^\star(p_1'))$, so we only need to further simplify $\sqrt{\sum_{i = 1}^n \exp(2 A_{i, 1}^\top \rho^\star(p_1') (p_1^t - p_1'))  \| A_{i, 1} \|^2}$. We observe that $\|p_1^t - p_1'\|$ is always bounded by $\|\Delta\|$, and use the fact that $\rho^\star(p_1') \le 1$:
+\begin{align*}
+    & \sqrt{\sum_{i = 1}^n \exp(2 A_{i, 1}^\top \rho^\star(p_1') (p_1^t - p_1'))  \| A_{i, 1} \|^2} \le \sqrt{\sum_{i = 1}^n \exp(2 \|A_{i, 1} \| \|p_1^t - p_1' \|)  \| A_{i, 1} \|^2} \\
+    &\le \sqrt{\sum_{i = 1}^n \exp(2 \|A_{i, 1} \| \|\triangle \|)  \| A_{i, 1} \|^2} \le \big\|  \exp( \alphafix \|\triangle \|) \odot \alphafix   \big\|.
+\end{align*}
+
+Therefore,
+\begin{align*}
+    &\|\triangledown_{p_1} F(r^\star(p_1'), p_1^t)\| \le  \bar{F}(q^\star(p_1'))  \big\|  \exp( \alphafix \|\triangle \|) \odot \alphafix  \big\|.
+\end{align*}
+\end{proof}
+
+
+\begin{lemma}\label{lemma:grad_r_p_1}
+Let $a_{\max} = \max_i \{ \|A_{i, 1}\|\}$, the largest norm of $A_{i, 1}$ across all tasks. Define $b_{\max} \in \R^n$ where $b_{i, \max} = \max\{ |\langle A_{i, 1}, p_1 \rangle|, |\langle A_{i, 1}, p_1' \rangle| \}$ as the larger of the two dot products per task.  The gradient norm $\|\triangledown^2_{r,p_1}F(r^\star(p_1'),p_1^t)\|$ can be bounded by 
+    \begin{align*}
+\|\triangledown^2_{r,p_1}F(r^\star(p_1'),p_1^t)\| &\le\exp( a_{\max} \| \Delta \| ) \cdot  \bar{F}(q^\star(p_1')) \cdot \big\| (\mathbf{1} + b_{\max} + \alphacomp) \odot \alphafix \big\|,
+    \end{align*}
+    
+where $\odot$ is the Hadamard product.
+\end{lemma}
+
+\begin{proof}
+We derive an expression for $\triangledown_{r, p_1}^2 F(r, p_1)$. 
+We write $r$ as $[\rho, b_2]$, where $b_2 := (1 - \rho) p_2$, and define $s_i = A_{i, 1}^\top \rho p_1 + A_{i, 2}^\top b_2$ to be the expression inside the $\exp$. First, we have that $\triangledown_{p_1} F(r, p_1)$ is
+\begin{align*}
+    \triangledown_{p_1} F(r, p_1) = \frac{1}{n} \sum_{i = 1}^n \exp(s_i) \rho A_{i, 1}.  \nonumber
+\end{align*}
+
+Then, we can compute $\triangledown_{\rho, p_1} F(r, p_1)$ and $\triangledown_{b_2, p_1} F(r, p_1)$:
+\begin{align*}
+    \triangledown_{\rho, p_1} F(r, p_1) &= \triangledown_{\rho} \bigg(\frac{1}{n}\sum_{i = 1}^n \exp(s_i) \rho A_{i, 1} \bigg) = \frac{1}{n} \sum_{i= 1}^n (\rho \exp(s_i) \langle A_{i, 1}, p_1 \rangle + \exp(s_i)) A_{i, 1}^\top \nonumber \\
+    \triangledown_{b_2, p_1} F(r, p_1) &= \triangledown_{b_2} \bigg(\frac{1}{n}\sum_{i = 1}^n \exp(s_i) \rho A_{i, 1} \bigg) = \frac{1}{n} \sum_{i = 1}^n \rho \exp(s_i) A_{i, 2} A_{i, 1}^\top \nonumber
+\end{align*}
+
+We can consolidate these into
+\begin{align*}
+    \triangledown_{r, p_1}^2 F(r, p_1) = \frac{1}{n}\sum_{i = 1}^n \exp(s_i) (\rho a_i + e_1) A_{i, 1}^\top, \nonumber
+\end{align*}
+
+where $a_i = \SmallMatrix{\langle A_{i, 1}, p_1 \rangle \\ A_{i, 2}}  \in \R^{|\D_2'| + 1}$ and $e_1$ is the standard basis vector $\SmallMatrix{1 \\ 0 \\ \vdots \\ 0} \in \R^{|\D_2'| + 1}$. Therefore, the gradient $\triangledown_{r, p_1}^2 F(r, p_1)$ at $r^\star(p_1'), p_1^t$ is
+\begin{align*}
+    \triangledown_{r, p_1}^2 F(r^\star(p_1'), p_1^t) = \frac{1}{n}\sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1') p_1^t + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')) (\rho^\star(p_1') a_i + e_1) A_{i, 1}^\top,
+\end{align*}
+
+where $a_i$ is now $\SmallMatrix{\langle A_{i, 1}, p_1^t \rangle \\ A_{i, 2}}$. Now, we would like to upper bound $ \sup _{t \in [0, 1]} \|\triangledown_{r, p_1}^2 F(r^\star(p_1'), p_1^t) \|$. Using Cauchy-Schwarz inequality, we have
+\begin{align}
+    &\|\triangledown_{r, p_1}^2 F(r^\star(p_1'), p_1^t) \| \le \frac{1}{n}\sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1') p_1^t + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')) \|(\rho^\star(p_1') a_i + e_1) A_{i, 1}^\top \| \nonumber \\
+    &\le \frac{1}{n} \sqrt{\sum_{i = 1}^n \exp\big(2 (A_{i, 1}^\top \rho^\star(p_1') p_1^t + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1'))\big)} \sqrt{\sum_{i=1}^n \|(\rho^\star(p_1') a_i + e_1) A_{i, 1}^\top \|^2}. \label{eq:m_bound}
+\end{align}
+
+We simplify the first summation in~\eqref{eq:m_bound} by adding and subtracting $p_1'$ to $p_1^t$:
+\begin{align*}
+    \sum_{i = 1}^n &\exp\big(2 (A_{i, 1}^\top \rho^\star(p_1') p_1^t + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1'))\big) \\
+    &= \sum_{i = 1}^n \exp\big(2 A_{i, 1}^\top \rho^\star(p_1') (p_1' + p_1^t - p_1') +  2 A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')\big) \\
+    &= \sum_{i = 1}^n \exp\big(2 (A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')) + 2 A_{i,1}^\top \rho^\star(p_1') ( p_1^t - p_1')\big) \\
+    &\le \max_i \{\exp(2 A_{i,1}^\top \rho^\star(p_1') ( p_1^t - p_1')) \} \bigg(\sum_{i = 1}^n \exp\big(A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')\big) \bigg)^2.
+\end{align*}
+
+We note that $\sum_{i = 1}^n \exp\big(A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1')\big)$ is $n \cdot \bar{F}(q^\star(p_1'))$.  Moreover, using the fact that $\rho^\star(p_1') \le 1$ and $\|p_1^t - p_1' \|\le \| \Delta\|$, we can bound $\max_i \{\exp(2 A_{i,1}^\top \rho^\star(p_1') ( p_1^t - p_1')) \} \le \max_i \{\exp( 2 \|A_{i, 1}\| \| p_1^t - p_1' \|) \} \le \exp(2  \| \Delta \| \max_i \{ \|A_{i, 1}\| \})$. Let $a_{\max} = \max_i \{ \|A_{i, 1}\|\}$, the largest norm of $A_{i, 1}$ across all tasks. Therefore, we have:
+\begin{align*}
+    &\frac{1}{n}\sqrt{\sum_{i = 1}^n \exp\big(2 (A_{i, 1}^\top \rho^\star(p_1') p_1^t + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^\star(p_1'))\big)} \le \frac{1}{n} \sqrt{\exp(2a_{\max}  \| \Delta \| ) \cdot  n^2 \cdot F(q^\star(p_1'))^2} \\
+    &= \exp( a_{\max} \| \Delta \| ) \cdot  F(q^\star(p_1')).
+\end{align*}
+
+
+Next, we simplify the second summation in~\eqref{eq:m_bound}, $\sum_{i=1}^n \|(\rho^\star(p_1') a_i + e_1) A_{i, 1}^\top \|^2$, using Cauchy-Schwarz inequality, the definition of the norm, and the fact that $\rho^\star(p_1') \le 1$:
+\begin{align*}
+    &\sum_{i=1}^n \|(\rho^\star(p_1') a_i + e_1) A_{i, 1}^\top \|^2 \le \sum_{i=1}^n \|\rho^\star(p_1') a_i + e_1 \|^2 \| A_{i, 1} \|^2 \\
+    &= \sum_{i=1}^n ((1 + \rho^\star(p_1') \langle A_{i, 1}, p_1^t \rangle)^2 + \rho^\star(p_1')^2 \| A_{i, 2}\|^2)  \| A_{i, 1} \|^2 \\
+    &\le \sum_{i=1}^n ((1 + \rho^\star(p_1') \langle A_{i, 1}, p_1^t \rangle)^2 + \| A_{i, 2}\|^2)  \| A_{i, 1} \|^2.
+\end{align*}
+
+
+Note that $\langle A_{i, 1}, p_1^t \rangle$ is bound by $\langle A_{i, 1}, p_1' \rangle$ and $\langle A_{i, 1}, p_1 \rangle$. Therefore, it holds that $(1 + \rho^\star(p_1') \langle A_{i, 1}, p_1^t \rangle)^2 \le (1 + \max\{ |\langle A_{i, 1}, p_1 \rangle|, |\langle A_{i, 1}, p_1' \rangle| \})^2$. We denote $b_{i, \max} = \max\{ |\langle A_{i, 1}, p_1 \rangle|, |\langle A_{i, 1}, p_1' \rangle| \}$ as the larger of the two dot products per task, and then we can write:
+\begin{align*}
+    &\sqrt{\sum_{i=1}^n \|(\rho^\star(p_1') a_i + e_1) A_{i, 1}^\top \|^2} \le \sqrt{\sum_{i = 1}^n ((1 + b_{i, \max})^2 + \|A_{i, 2} \|^2) \| A_{i, 1}\|^2} \\
+    &\le \sqrt{\sum_{i = 1}^n (1 + b_{i, \max} + \|A_{i, 2} \|)^2 \| A_{i, 1}\|^2}  \\
+    &= \big\| (\mathbf{1} + b_{\max} + \alphacomp) \odot \alphafix \big\|.
+\end{align*}
+
+where addition is elementwise, $\odot$ is the Hadamard product, and $\alphafix, \alphacomp \in \R^n$ are constructed where $\alpha_{i, 1} = \|A_{i, 1}\|$ and $\alpha_{i, 2} = \|A_{i, 2}\|$. Putting everything together, our gradient norm bound in~\eqref{eq:m_bound} becomes
+\begin{align*}
+    \|\triangledown^2_{r,p_1}F(r^\star(p_1'),p_1^t)\| &\le\exp( a_{\max} \| \Delta \| ) \cdot  \bar{F}(q^\star(p_1')) \cdot \big\| (\mathbf{1} + b_{\max} + \alphacomp) \odot \alphafix \big\|.
+\end{align*}
+\end{proof}
+
+\subsubsection{Theorem~\ref{thm:general_gap} (Formal)}
+
+
+
+
+\begin{theorem}\label{thm:gap_lipschitz}
+Define $a_{\max} = \max_i \{\|A_{i, 1} \|\}$. The performance gap between using $q^\star$ and $q^\star(\tilde{p}_{\Dfix})$ is bounded by:
+\begin{align*}
+F(q^\star(\tilde p_{\Dfix}))-F(q^\star) \le C \|\tilde{p}_{\Dfix}-q^\star_{\Dfix}\|,
+\end{align*}
+where 
+\begin{align*}
+    C = \bar{F}(q^\star) \exp(a_{\max} \|\tilde{p}_{\Dfix}-q^\star_{\Dfix}\|) \left( \frac{\bar{F}(q^\star(\tilde{p}_{\Dfix}))}{\mu} \cdot \|\alphafix + \alphacomp \| \cdot \kappa(\alphafix, \alphacomp)   + \|\alphafix \| \right).
+\end{align*}
+\end{theorem}
+
+\begin{proof}
+
+Recall our simplified notation $p_1 = \tilde{p}_{\Dfix}$, $p_1' = q^\star_{\Dfix}$.
+Applying Lemma~\ref{lem:stability} to Lemma~\ref{lem:gap_decomp}, we can bound the performance gap to be linear in $\| p_1 - p_1' \|$:
+\begin{align*}
+    F(r^\star(p_1),p_1)-F(r^\star(p_1'),p_1') \le C \|\Delta\|,
+\end{align*}
+
+
+where $C$ is a term that consists of three gradient norms:
+\begin{align*}
+        C = \frac{1}{\mu} \sup_{t\in[0,1]} \left( \|\triangledown^2_{r,p_1}F(r^\star(p_1'),p_1^t)\| \right) \,\|\triangledown_r F(r^\star(p_1),p_1)\| + \sup_{t\in[0,1]}\|\triangledown_{p_1}F(r^\star(p_1'),p_1^t)\|,
+\end{align*}
+and $p_1^t=t p_1'+(1-t)p_1$. We can apply the gradient norm bounds from Lemmas~\ref{lemma:grad_r}, \ref{lemma:grad_p_1}, \ref{lemma:grad_r_p_1}:
+
+\begin{align*}
+    C &\le \frac{1}{\mu} \exp( a_{\max} \| \Delta \| ) \cdot  \bar{F}(q^\star(p_1')) \cdot \big\| (\mathbf{1} + b_{\max} + \alphacomp) \odot \alphafix \big\| \cdot \bar{F}(q^\star(p_1))  \big\| | A_1 p_1 | + \alphacomp \big\| \\
+    &+ \bar{F}(q^\star(p_1'))  \big\|  \exp( \alphafix \|\triangle \|) \odot \alphafix   \big\|.
+\end{align*}
+
+We simplify this bound a bit further. First, note that the elements of $|A_1 p_1|$ are $| \langle A_{i, 1}, p_1 \rangle| \le \|A_{i, 1}\| \| p_1\| \le \|A_{i, 1}\|$. Therefore, $|A_1 p_1| \preceq \alphafix$.
+
+Second, note that $b_{i, \max} = \max\{ |\langle A_{i, 1}, p_1 \rangle|, |\langle A_{i, 1}, p_1' \rangle| \} \le \|A_{i, 1}\|$, so $b_{\max} \preceq \alphafix$ as well.
+
+Lastly, $\big\|  \exp( \alphafix \|\triangle \|) \odot \alphafix   \big\| $ can be bounded by $\exp(a_{\max} \|\Delta\|) \cdot \big\|  \alphafix \big\| $.
+
+Then, we can bound $C$ as
+\begin{align*}
+    C \le \bar{F}(q^\star) \exp(a_{\max} \| \Delta \|) \left( \frac{\bar{F}(q^\star(\tilde{p}_{\Dfix}))}{\mu} \|(\mathbf{1} + \alphafix + \alphacomp) \odot \alphafix \| \cdot \|\alphafix + \alphacomp \|  + \|\alphafix \| \right).
+\end{align*}
+
+Replacing $\|(\mathbf{1} + \alphafix + \alphacomp) \odot \alphafix \|$ with $\kappa(\alphafix, \alphacomp)$ completes our proof.
+
+\end{proof}
+
+\subsection{Proof for Theorem~\ref{thm:add_domains}}\label{supp:add_domains_proof}
+
+When domains are being added and $\tilde{p}$ is the optimal mix on $\D$, $\tilde{p}$ is equal to $\tilde{p}_{\Dfix}$ and is the solution to the following optimization problem:
+\begin{align}
+    &\text{minimize}_{p \in \triangle^{m-1}}  \frac{1}{n} \sum_{i = 1}^m f_i(\LM(S, R, p))
+    \label{eq:p_mixing_problem} \\
+    &\text{s.t.} \quad  p_j \le \frac{k N_j}{R} \quad \forall j \in [m] \nonumber
+\end{align}
+
+\begin{assumption}\label{ass:2}
+We make the following assumptions beyond Assumption~\ref{ass:1}.
+\begin{enumerate}
+    \item We assume that $F(r, p_1)$ is $\mu_1$-strongly convex in $p_1$.
+    \item Let $\mathcal{S}(r)$ be the feasible set of~\eqref{eq:mixing_problem} defined by the repetition constraints on $p_1$:
+    \begin{align*}
+        p_j \le \frac{k N_j}{R \rho} \; \forall j \in \Dfix
+    \end{align*}
+    We assume \textbf{mutual feasibility} of $\tilde{p}_{\Dfix}$ and $q^\star_{\Dfix}$:
+    that $\tilde{p}_{\Dfix} \in \mathcal{S}(r^\star)$, and $q^\star_{\Dfix} \in \mathcal{S}(r_0)$, where $r_0 = [1, \mathbf{0}]$ corresponds to the mix before new domains are added. That is, we assume that $\tilde{p}_j \le \frac{k N_j}{R \rho^\star}$ and $q^\star_j \le \frac{k N_j}{R}$ for $j \in \Dfix$, meaning that the existing mix cannot have active repetition constraints.
+\end{enumerate}
+    
+\end{assumption}
+
+First, we present a general lemma that allows us to bound any $\|p_1 - p_1'\|$.
+
+\begin{lemma}[Argmin stability with mutual feasibility]\label{lem:argmin_stability_mutual}
+Let $\mathcal{S}, \mathcal{S}' \subset \triangle^{\|D_1\| - 1}$ be convex sets. Let $h: \mathcal{S} \rightarrow \R$ be differentiable and $\mu_1$-strongly convex on $\mathcal{S}$. Let $h': \mathcal{S}' \rightarrow \R$ be a differentiable function. Define
+\begin{align*}
+    p_1 = \arg\min_{p_1 \in \mathcal{S}} h(p_1), \qquad p_1' = \arg\min_{p_1 \in \mathcal{S}'} h'(p_1)
+\end{align*}
+
+We assume mutual feasibility; that is, $p_1 \in \mathcal{S}'$ and $p_1' \in \mathcal{S}$. Then,
+\begin{align*}
+    \|p_1 - p_1'\| \le \frac{1}{\mu_1} \|\triangledown h(p_1') - \triangledown h'(p_1') \|.
+\end{align*}
+\end{lemma}
+
+\begin{proof}
+Applying our mutual feasibility assumption, the first order condition at $p_1$ for $h$ and $p_1'$ for $h$ yields
+\begin{align*}
+    &\langle \triangledown h(p_1), p_1' - p_1) \ge 0 \\
+    &\langle \triangledown h'(p_1'), p_1 - p_1') \ge 0
+\end{align*}
+
+Adding these together and adding and subtracting $\triangledown h(p_1')$, we have
+\begin{align*}
+    &\langle \triangledown h(p_1) - \triangledown h'(p_1'), p_1' - p_1 \rangle \ge 0 \\
+    \Rightarrow &\langle \triangledown h(p_1) - \triangledown h(p_1') + \triangledown h(p_1') - \triangledown h'(p_1'), p_1' - p_1 \rangle \ge 0 \\
+    \Rightarrow &\langle \triangledown h(p_1) - \triangledown h(p_1'), p_1 - p_1' \rangle \le \langle \triangledown h(p_1') - \triangledown h'(p_1'), p_1' - p_1 \rangle
+\end{align*}
+
+Next, due to $\mu_1$ strong convexity of $h$, we have
+\begin{align*}
+    h(p_1) &\ge h(p_1') + \langle \triangledown h(p_1'), p_1 - p_1' \rangle + \frac{\mu_1}{2} \| p_1 - p_1'\|^2 \\
+    h(p_1') &\ge h(p_1) + \langle \triangledown h(p_1), p_1' - p_1 \rangle + \frac{\mu_1}{2} \| p_1 - p_1'\|^2 \\
+\end{align*}
+
+Adding these together and applying the bound from the first order conditions, we get
+\begin{align*}
+    \mu \| p_1 - p_1'\|^2 &\le \langle \triangledown h(p_1) - \triangledown h(p_1'), p_1 - p_1' \rangle  \\
+    &\le \langle \triangledown h(p_1') - \triangledown h'(p_1'), p_1' - p_1 \rangle \\
+    &\le \|\triangledown h(p_1') - \triangledown h'(p_1') \| \cdot \| p_1' - p_1\|
+\end{align*}
+
+Dividing both sides by $\mu \|p_1' - p_1\|$ completes our proof.
+\end{proof}
+
+
+\begin{lemma}[When $\tilde{p}_{\Dfix} = q^\star_{\Dfix}$ for adding]\label{lem:add_exactness}
+Consider the \Add update, where $\D_2=\emptyset$ and $\D'=[\D_1\D_2']$ with $\D_2'\neq\emptyset$.
+Let $\tilde p\in\triangle^{m-1}$ be an optimal solution to the mixing problem on the pre-update domain set $\D=\D_1$ (equivalently, $\tilde p_{\D_1}=\tilde p$), and let $q^\star$ be the optimal solution to the post-update mixing problem on $\D'$.
+If $\rho^\star=1$, then
+\[
+\tilde p_{\Dfix} = q^\star_{\Dfix}.
+\]
+\end{lemma}
+
+\begin{proof}
+Since $\D_2=\emptyset$, the pre-update problem over $\D=\D_1$ is equivalent to the post-update problem restricted to mixtures that assign zero mass to all added domains:
+\begin{align*}
+    &\text{minimize}_{q\in\triangle^{m'-1}} \; \frac{1}{n} \sum_{i = 1}^n f_i(\LM(S, R, q)) \\
+    &\text{s.t.}\quad q_j \le \frac{kN_j'}{R}\quad \forall j\in\D_1\cup\D_2' \\
+    &\qquad\;\; q_j = 0 \quad \forall j\in\D_2'.
+\end{align*}
+If $\rho^\star=1$, then $q_j^\star=0$ for all $j\in\D_2'$. This means that the additional constraints $q_j=0$ on the post-update problem do not change the optimal value, since the restricted feasible set still contains the optimal solution of $q_j^\star = 0$. Therefore, if $\rho^\star = 1$, the restricted problem above and the unrestricted post-update problem have the same optimum, and their optimizers coincide on $\D_1$; in particular, $q^\star_{\D_1}=\tilde p_{\D_1}$. Replacing $\D_1$ with $\Dfix$ completes our proof.
+\end{proof}
+
+
+
+\begin{lemma}\label{lemma:add_bound}
+Assume mutual feasibility between $p_1$ and $p_1'$. Then, when the domain update involves adding domains,
+\begin{align*}
+     \| p_1 - p_1' \| \le \frac{2(1 - \rho^\star)}{\mu_1} \| \sup_{t \in [0, 1]}  \| \triangledown_{p_1, r}^2 F(r^t, p_1') \| \qquad r^t = t r_0+(1 - t)r^\star
+\end{align*}
+
+\end{lemma}
+
+
+\begin{proof}
+    Define $r_0 = [1, \mathbf{0}]$ where $\rho_0 = 1$. Then, $p_1 = \arg \min_{p_1 \in \mathcal{S}(r_0)} F(r_0, p_1)$. We can write $p_1'$ similarly as $p_1' = \arg \min_{p_1 \in \mathcal{S}(r^\star)} F(r^\star, p_1)$. 
+
+    If we assume mutual feasibility and define $h(p_1) = F(r_0, p_1), h'(p_1) = F(r^\star, p_1)$, then applying Lemma~\ref{lem:argmin_stability_mutual} gives us
+    \begin{align*}
+        \| p_1 - p_1' \| \le \frac{1}{\mu_1} \|\triangledown_{p_1} F(r_0, p_1') - F(r^\star, p_1') \|.
+    \end{align*}
+
+    Define $r^t = t r_0 + (1 - t) r^\star$, where $t \in [0, 1]$. By the fundamental theorem of calculus, it holds that 
+    \begin{align*}
+        \triangledown_{p_1} F(r_0, p_1') - \triangledown_{p_1} F(r^\star, p_1') = \int_0^1 \triangledown_{p_1, r}^2 F(r^t, p_1') (r_0 - r^\star) dt.
+    \end{align*}
+
+    Therefore, 
+    \begin{align*}
+        \| p_1 - p_1' \| \le \frac{1}{\mu_1} \|r_0 - r^\star \| \sup_{t \in [0, 1]}  \| \triangledown_{p_1, r}^2 F(r^t, p_1') \|.
+    \end{align*}
+
+    Lastly, we bound $\|r_0 - r^\star\|$:
+    \begin{align*}
+        \|r_0 - r^\star\| = \|[1, \mathbf{0}] - [\rho^\star, (1 - \rho^\star) q_{\D_2'}^\star] \| = \| (1 - \rho^\star) [1, -q_{\D_2'}^\star]\| \le 2(1 - \rho^\star).
+    \end{align*}
+
+    This completes our proof.
+\end{proof}
+
+\begin{lemma}\label{lemma:grad_r_p1_add}
+    Define $r^t = t r_0 + (1 - t) r^\star(p_1')$, where $r_0 = [1, \mathbf{0}]$.
+    The gradient norm $\|\triangledown^2_{r,p_1}F(r^t,p_1')\|$ can be bounded by 
+    \begin{align*}
+       \|\triangledown^2_{r,p_1}F(r^t,p_1')\| &\le \bar{F}(q^\star) \exp( c_{\max}(1 - \rho^\star)) \|(1 + \alphafix + \alphacomp) \odot \alphafix \|
+    \end{align*}
+    
+    where $c_{\max} = max_i \{\|A_{i, 1}\| + \|A_{i, 2}\| \}$ and $\odot$ is the Hadamard product. 
+\end{lemma}
+
+\begin{proof}
+
+First, we can write $r^t$ as
+\begin{align*}
+    r^t &= t[1, \mathbf{0}] + (1 - t) [\rho^\star(p_1'), (1 - \rho^\star(p_1')) p_2^\star(p_1')] \\
+    &= [t + (1 - t) \rho^\star(p_1'), (1 - t) (1 - \rho^\star(p_1')) p_2^\star(p_1')] \\
+    &= [t + (1 - t) \rho^\star(p_1'), (1 - (t + (1 - t) \rho^\star(p_1'))) p_2^\star(p_1')].
+\end{align*}
+
+Therefore, we can express $r^t = [\rho^t, (1 - \rho^t) p_2^t]$ where $\rho^t := t + (1 - t) \rho^\star(p_1')$, and $p_2^t = p_2^\star(p_1')$. 
+
+Applying Lemma~\ref{lemma:grad_r_p_1}, we can write the gradient as
+\begin{align*}
+    \triangledown^2_{r,p_1} F(r^t,p_1') &= \frac{1}{n}\sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^t p_1' + A_{i, 2}^\top (1 - \rho^t) p_2^t) (\rho^t a_i + e_1) A_{i, 1}^\top,
+\end{align*}
+
+where $a_i = \SmallMatrix{\langle A_{i, 1}, p_1' \rangle \\ A_{i, 2}}  \in \R^{|\D_2'| + 1}$ and $e_1$ is the standard basis vector $\SmallMatrix{1 \\ 0 \\ \vdots \\ 0} \in \R^{|\D_2'| + 1}$. Then, using Cauchy-Schwarz inequality, the gradient norm can be bounded as
+\begin{align}
+&\|\triangledown^2_{r,p_1}F(r^t,p_1')\| \le \frac{1}{n}\sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^t p_1' + A_{i, 2}^\top (1 - \rho^t) p_2^t) \|(\rho^t a_i + e_1) A_{i, 1}^\top\| \label{eq:add_grad_bound} \\
+&\le \frac{1}{n}\sqrt{\sum_{i = 1}^n \exp(2(A_{i, 1}^\top \rho^t p_1' + A_{i, 2}^\top (1 - \rho^t) p_2^t))} \sqrt{\sum_{i = 1}^n \|(\rho^t a_i + e_1) A_{i, 1}^\top\|^2}. \nonumber 
+\end{align}
+
+We bound the first summation of~\eqref{eq:add_grad_bound} by adding and subtracting $\rho^\star(p_1')$:
+\begin{align*}
+\sum_{i = 1}^n &\exp(2(A_{i, 1}^\top \rho^t p_1' + A_{i, 2}^\top (1 - \rho^t) p_2^t)) \\
+&= \sum_{i = 1}^n \exp(2(A_{i, 1}^\top (\rho^t + \rho^\star(p_1') - \rho^\star(p_1')) p_1' + A_{i, 2}^\top ((1 - \rho^t) + (1 - \rho^\star(p_1')) - (1 - \rho^\star(p_1'))) p_2^t)) \\
+&= \sum_{i = 1}^n \exp(2(A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^t)) \exp(2(A_{i, 1}^\top (\rho^t - \rho^\star(p_1')) p_1' + A_{i,2}^\top (\rho^\star(p_1') - \rho^t) p_2^\star(p_1') )) \\
+&= \sum_{i = 1}^n \exp(2(A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^t)) \exp(2t (1 - \rho^\star(p_1'))(A_{i, 1}^\top p_1' - A_{i, 2}^\top p_2^\star(p_1'))).
+\end{align*}
+
+We can then replace some terms in~\eqref{eq:add_grad_bound} with $\bar{F}(r^\star(p_1'), p_1')$ 
+\begin{align*}
+    \frac{1}{n}&\sqrt{\sum_{i = 1}^n \exp(2(A_{i, 1}^\top \rho^t p_1' + A_{i, 2}^\top (1 - \rho^t) p_2^t))} \\
+    &\le \frac{1}{n} \sum_{i = 1}^n \exp(A_{i, 1}^\top \rho^\star(p_1') p_1' + A_{i, 2}^\top (1 - \rho^\star(p_1')) p_2^t) \cdot \max_i \{\exp(t (1 - \rho^\star(p_1'))(A_{i, 1}^\top p_1' - A_{i, 2}^\top p_2^\star(p_1'))) \}\\
+    &= \bar{F}(r^\star(p_1'), p_1') \max_i \{\exp(t (1 - \rho^\star(p_1'))(A_{i, 1}^\top p_1' - A_{i, 2}^\top p_2^\star(p_1'))) \}.
+\end{align*}
+
+
+We can bound $A_{i, 1}^\top p_1' - A_{i, 2}^\top p_2^\star(p_1') \le \|A_{i, 1}\| + \|A_{i, 2}\|$ using Cauchy-Schwarz. Let $c_{\max} = \max_i \{ \|A_{i, 1}\| + \|A_{i, 2}\|\}$.
+Using the fact that $t\in[0, 1]$, the first part of~\eqref{eq:add_grad_bound} can be bounded by
+\begin{align*}
+    \frac{1}{n}&\sqrt{\sum_{i = 1}^n \exp(2(A_{i, 1}^\top \rho^t p_1' + A_{i, 2}^\top (1 - \rho^t) p_2^t))} \le \bar{F}(r^\star(p_1'), p_1') \exp( c_{\max}(1 - \rho^\star(p_1'))).
+\end{align*}
+
+The second summation of~\eqref{eq:add_grad_bound} can be bounded in the exact same way as the second summation of~\eqref{eq:m_bound} in Lemma~\ref{lemma:grad_r_p_1}. Therefore, we have that
+\begin{align*}
+    \sqrt{\sum_{i = 1}^n \|(\rho^t a_i + e_1) A_{i, 1}^\top\|^2} \le  \|(1 + \alphafix + \alphacomp) \odot \alphafix \|.
+\end{align*}
+
+This completes our proof.
+\end{proof}
+
+
+\subsubsection{Theorem~\ref{thm:add_domains} (Formal)}
+
+\begin{theorem}
+    Define $\tilde{p}$ is the solution to~\eqref{eq:mixing_problem} on $\D$ and suppose that new domains are added. Let $c_{\max} = \max_i \{\|A_{i, 1}\| + \|A_{i, 2}\|\}$. Then, the difference between $\tilde{p}_{\Dfix}$ and $q^\star_{\Dfix}$ is bounded by
+    \begin{align*}
+        \|\tilde{p}_{\Dfix} - q^\star_{\Dfix}\| \le \frac{2\bar{F}(q^\star) \exp( c_{\max}(1 - \rho^\star))}{\mu_1}   \cdot \kappa(\alphafix, \alphacomp) \cdot (1 - \rho^\star).
+    \end{align*}
+\end{theorem}
+
+\begin{proof}
+    Applying Lemma~\ref{lemma:grad_r_p1_add} and Lemma~\ref{lemma:add_bound}, we have
+    \begin{align*}
+        \| p_1 - p_1' \| &\le \frac{2(1 - \rho^\star)}{\mu_1} \bar{F}(q^\star) \exp( c_{\max}(1 - \rho^\star)) \|(1 + \alphafix + \alphacomp) \odot \alphafix \| \\
+        &= \frac{2\bar{F}(q^\star) \exp( c_{\max}(1 - \rho^\star))}{\mu_1}   \cdot \kappa(\alphafix, \alphacomp) \cdot (1 - \rho^\star).
+    \end{align*}
+\end{proof}
+
+\subsection{Additional Theoretical Results}
+
+\subsubsection{Removing domains}
+
+Our results for are symmetric to the addition update, but we state the full derivation for completeness.
+
+\begin{lemma}[When $\tilde{p}_{\Dfix} = q^\star_{\Dfix}$ for removing]\label{lem:rem_exactness}
+Consider the \emph{removing} update, where $\D_2\neq\emptyset$ and $\D'=\D_1$ (equivalently, $\D_2'=\emptyset$).
+Let $\tilde p\in\triangle^{m-1}$ be an optimal solution to the mixing problem on the pre-update domain set $\D=[\D_1,\D_2]$, and let $q^\star$ be the optimal solution to the post-update mixing problem on $\D'=\D_1$ (equivalently, $q^\star_{\D_1}=q^\star$).
+If $\pi^\star=1$, then
+\[
+\tilde p_{\Dfix} = q^\star_{\Dfix}.
+\]
+\end{lemma}
+
+\begin{proof}
+Since $\D_2'=\emptyset$, the post-update problem over $\D'=\D_1$ is equivalent to the pre-update problem restricted to mixtures that assign zero mass to all removed domains:
+\begin{align*}
+    &\text{minimize}_{p\in\triangle^{m-1}} \; \frac{1}{n} \sum_{i = 1}^n f_i(\LM(S, R, p)) \\
+    &\text{s.t.}\quad p_j \le \frac{kN_j}{R}\quad \forall j\in\D_1\cup\D_2 \\
+    &\qquad\;\; p_j = 0 \quad \forall j\in\D_2'.
+\end{align*}
+If $\pi^\star=1$, then $\tilde p_j=0$ for all $j\in\D_2$. This means that the additional constraints $p_j=0$ on the pre-update problem do not change the optimal value, since the restricted feasible set still contains the optimal solution of $\tilde p_j = 0$. Therefore, if $\pi^\star = 1$, the restricted problem above and the unrestricted pre-update problem have the same optimum, and their optimizers coincide on $\D_1$; in particular, $q^\star_{\D_1}=\tilde p_{\D_1}$. Replacing $\D_1$ with $\Dfix$ completes our proof.
+\end{proof}
+
+\subsubsection{Partitioning a domain}
+
+\begin{lemma}[When $\tilde{p}_{\Dfix} = q^\star_{\Dfix}$ for partitioning]\label{lem:part_exactness}
+Consider the \emph{partitioning} update operator, where $\D \setminus \D_1 =\{D\}$ consists of a single domain and
+$\D_2'=\{D_1',\dots,D_\ell'\}$ are subdomains with $D=\bigcup_{j=1}^\ell D_j'$.
+
+Define the natural distribution $p_{\mathrm{nat}}\in\triangle^{\ell-1}$ by
+\[
+[p_{\mathrm{nat}}]_j = \frac{N_j'}{\sum_{t=1}^\ell N_t'} \qquad \forall j\in[\ell].
+\]
+If $q^\star_{\D_2'} = p_{\mathrm{nat}}$, then
+\[
+\tilde p_{\Dfix} = q^\star_{\Dfix}.
+\]
+\end{lemma}
+
+\begin{proof}
+Since $\D_2=\{D\}$ is a single domain, sampling $(1-\pi)R$ tokens from $D$ induces a distribution over the subdomains
+$\{D_1',\dots,D_\ell'\}$ that is proportional to token counts, i.e., $p_{\mathrm{nat}}$.
+Therefore, the pre-update optimization problem can be written as the post-update optimization problem restricted to mixtures that preserve this
+conditional distribution within the partition:
+\begin{align*}
+    &\text{minimize}_{q\in\triangle^{m'-1}} \; \frac{1}{n} \sum_{i = 1}^n f_i(\LM(S, R, q)) \\
+    &\text{s.t.}\quad q_j \le \frac{kN_j'}{R}\quad \forall j\in\D_1 \cup\D_2' \\
+    &\qquad\;\; q_{\D_2'} = p_{\mathrm{nat}},
+\end{align*}
+
+If $q^\star_{\D_2'}=p_{\mathrm{nat}}$, then $q^\star$ lies in the restricted feasible set above. The additional constraint
+$q_{\D_2'}=p_{\mathrm{nat}}$ does not change the optimal value of the post-update problem, since the restricted feasible set still contains
+the optimal solution. Therefore, the optimizer on the unrestricted post-update problem must coincide with the optimizer of the restricted problem on the
+unaffected domains, implying $q^\star_{\D_1}=\tilde p_{\D_1}$. Replacing $\D_1$ with $\Dfix$ completes our proof.
+\end{proof}
+
+\subsubsection{Revising a domain}
+
+\begin{lemma}[Exactness for revising]\label{lem:rev_exactness}
+Consider the \emph{revising} update operator, where $\D_2=\{D\}$ and $\D_2'=\{D'\}$ consists of a single domain whose contents are modified.
+Assume the log-linear model holds both pre- and post-update:
+\[
+F^{\mathrm{old}}(q) = \frac{1}{n}\sum_{i=1}^n \exp\!\left((A_{i,1})^\top q_{\Dfix} + (A_{i,2}^{\mathrm{old}})^\top q_{\D_2}\right),
+\qquad
+F^{\mathrm{new}}(q) = \frac{1}{n}\sum_{i=1}^n \exp\!\left((A_{i,1})^\top q_{\Dfix} + (A_{i,2}^{\mathrm{new}})^\top q_{\D_2}\right),
+\]
+where $\D=[\D_1,\D_2]$ and $\D'=[\D_1,\D_2']$ have the same dimensionality, and the repetition constraints are unchanged.
+
+Let $\tilde p$ be an optimal solution to the pre-update mixing problem with objective $F^{\mathrm{old}}$, and let $q^\star$ be an optimal solution to the post-update mixing problem with objective $F^{\mathrm{new}}$.
+If $A_{i,2}^{\mathrm{new}} = A_{i,2}^{\mathrm{old}}$ for all $i\in[n]$, then $\tilde p = q^\star$, and in particular $\tilde p_{\Dfix}=q^\star_{\Dfix}$.
+\end{lemma}
+
+\begin{proof}
+If $A_{i,2}^{\mathrm{new}} = A_{i,2}^{\mathrm{old}}$ for all $i\in[n]$, then $F^{\mathrm{new}}(q)=F^{\mathrm{old}}(q)$ for all $q$.
+Since the feasible set (simplex and repetition constraints) is unchanged under revising, the pre-update and post-update optimization problems are identical.
+Therefore their optimizers coincide, so $\tilde p=q^\star$.
+\end{proof}
+

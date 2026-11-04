@@ -1,0 +1,497 @@
+                                                                      Chinchilla Scaling: A replication attempt
+                                                           Tamay Besiroglu              Ege Erdil                Matthew Barnett             Josh You
+                                                                                                  Epoch AI
+                                                                                                 May 16, 2024
+
+
+                                         Abstract                                                            The key result is that for compute-optimal training, the
+                                                                                                             model size and the number of training tokens should be
+                                         Hoffmann et al. (2022) propose three methods for estimat-           scaled equally: for every doubling of model size the number
+arXiv:2404.10102v2 [cs.AI] 15 May 2024
+
+
+
+
+                                         ing a compute-optimal scaling law. We attempt to replicate          of training tokens should also be doubled.
+                                         their third estimation procedure, which involves fitting a             The result that scaling training tokens should grow at
+                                         parametric loss function to a reconstruction of data from           roughly the same rate as the number of model parameters
+                                         their plots. However, we find that their reported estimates         has been replicated by others, such as Anil et al. (2023).
+                                         are inconsistent with their first two estimation methods,           Similarly, Bi et al. (2024) find that training tokens and
+                                         fail at fitting the extracted data, and report implausibly          model parameters should be scaled roughly proportionally,
+                                         narrow confidence intervals—intervals this narrow would re-         but finds that this is sensitive to the quality of the data,
+                                         quire over 600,000 experiments, while they likely only ran          and that a lower token-per-parameter ratio is optimal when
+                                         fewer than 500. Two factors explain these findings: firstly,        training on a higher-quality data.
+                                         the optimizer used by Hoffmann et al. stopped before con-              In addition to informing us about optimal scaling, Ap-
+                                         vergence due to a poor choice of loss scale, and secondly,          proach 3 is of particular interest because it sheds light on
+                                         the parameter estimates reported in the body of the paper           the parametric form of the scaling laws for dense transform-
+                                         (as opposed to the TeX source) are rounded in a way that            ers. The specific parametric estimates from Hoffmann et
+                                         results in substantial bias in the predictions of the scaling       al. have been of independent scientific interest, such as
+                                         law. In contrast, our re-derivation of the scaling law us-          in the theoretical explanations of neural scaling laws (e.g.
+                                         ing the third approach yields results that are compatible           Michaud et al. 2024; Bordelon et al. 2024), and questions
+                                         with the findings from the first two estimation procedures          about optimizing compute expenditure across both training
+                                         described by Hoffmann et al.                                        and inference (e.g. Sardana and Frankle 2023).
+                                                                                                                We partially reconstruct the dataset from Hoffmann et
+                                         1   Introduction                                                    al. and attempt to replicate Approach 3. This involves fit-
+                                                                                                             ting a parametric function to model the final pre-training
+                                         Hoffmann et al. (2022) investigate the optimal model size           loss as L(N, D) = E + NAα + DBβ , where N represents the
+                                         and number of training tokens for training a transformer lan-       number of model parameters and D represents the number
+                                         guage model under a given compute budget. They train over           of training tokens. Our analysis reveals that our estimated
+                                         400 models ranging from 70M to over 16B parameters on 5B            model differs substantially from the fit reported in Hoff-
+                                         to 500B tokens and find that for compute-optimal training,          mann et al., and that their fit fails to adequately describe
+                                         the model size and number of training tokens should scale           the reconstructed data. We demonstrate that the confidence
+                                         at equal rates: for every doubling of model size, the number        intervals reported by Hoffmann et al. are implausibly tight
+                                         of training tokens should also be doubled. They then train          and unlikely to be obtained from proper statistical proce-
+                                         a model called Chinchilla that is compute-optimal accord-           dures given the size of their dataset. Finally, we finally
+                                         ing to their results. For this reason, the scaling laws they        show that their fit is inconsistent with the scaling policies
+                                         propose are often called “Chinchilla scaling laws”.                 derived through other approaches, and with the scaling pol-
+                                            The authors use three different approaches to estimate           icy suggested by our fit.
+                                         the compute-optimal frontier (A1-A3):
+                                         A1 Training models of fixed sizes on varying numbers of
+                                            tokens.                                                          2    Extracting data from Hoffmann et al.’s
+                                                                                                                  Figure 4
+                                         A2 Training models of varying sizes targeting fixed com-
+                                            pute budgets (IsoFLOP profiles).                                 We reconstruct the data from Figure 4 in Hoffmann et al.
+                                          A3 Fitting a parametric model of the loss as a function of Figure 4, which is reproduced in this paper, displays a scat-
+                                              model size and training tokens.                                ter plot of language models (see Figure 1). The x-axis rep-
+                                                                                                             resents model size, the y-axis represents training FLOP, and
+                                             We thank Nuño Sempere, Tom Adamczewski, Eric Michaud, Tony
+                                         Wang, Nathan Labenz and Jaime Sevilla for their suggestions.
+                                                                                                             the color of each point encodes the loss value. To extract
+                                             All our analysis can be replicated using the following address: the data from the figure, we first downloaded the PDF from
+                                         https://epochai.org/code/analyzing-chinchilla-repo                  Hoffmann et al.’s arXiv submission and saved it in SVG
+
+
+                                                                                                         1
+                                                                                      to determine the exact y-coordinates corresponding to
+                                                                                      specific model sizes. We assumed that the labels in-
+                                                                                      dicating the model sizes were positioned such that the
+                                                                                      vertical center of each text label aligns with its respec-
+                                                                                      tive value on the y-axis.
+                                                                                    2. Precision loss due to loss-to-color mapping. The color
+                                                                                       scale is limited to 256 hex values, which restricts our
+                                                                                       ability to precisely estimate the loss value to an accu-
+                                                                                       racy of approximately 0.01.
+
+                                                                                   A few datapoints stand out. There is a column of points
+                                                                                with training FLOP around 1019 where some of the larger
+                                                                                models obtain high loss values (up to 70% higher compared
+Figure 1: Display contour from the left sub-figure in Figure 4                  to models with similar compute budgets). These correspond
+                         taken from Hoffmann et al.                             to the lowest ratio of training tokens to parameters (the top
+                                                                     5.00       five have a ratio < 0.4). It is unclear why these training runs
+                  1010                                                          yielded such high losses. In our analysis, we will sometimes
+                                                                     4.00
+                                                                                drop the five points in this column (which we refer to as “the
+                                                                                five outliers” hereafter). In Appendix A.1, we show that
+                                                                                including these would not materially change our conclusions
+     Model Size
+
+
+
+
+                  109
+                                                              Loss
+
+
+
+
+                                                                     3.00       about the poor fit of Hoffmann et al.’s estimated scaling law.
+
+                                                                                3      Hoffmann et al.’s Approach 3 Replication
+                  108                                                2.00
+                                                                                       attempt
+                         1019      1020         1021   1022                     We fit the Hoffmann et al. parametric scaling law to our
+                                Training FLOP
+                                                                                reconstructed subset of the data:
+   Figure 2: Our reconstruction of the data from figure 4 in
+                                Hoffmann et al.
+                                                                                                                          A     B
+                                                                                                        L(N, D) = E +       α
+                                                                                                                              + β                      (1)
+                                                                                                                          N    D
+                                                                                with N being the number of parameters and D being the
+format. We then parsed the SVG content to navigate and
+                                                                                number of training tokens. To fit this function used by Hoff-
+search the SVG structure. Within the SVG, we identified
+                                                                                mann et al, we minimize the Huber loss:
+the group of points representing the scatter plot data and it-                                                                                        
+erated over each point to extract its fill color and position (x                            X
+                                                                                    min             Huberδ LSE (a − α log Ni , b − β log Di , e)−log Li ,
+and y coordinates) using the attributes of the corresponding                    a,b,e,α,β
+                                                                                            Run i
+SVG elements.                                                                                                                                          (2)
+   To map the SVG coordinates to the model size and train-                      where LSE is the log-sum-exp operator. We follow the
+ing FLOP values, we used the location of the labels or ticks                    methodology in Appendix D.2. in Hoffmann et al. and
+on the respective axes. This allowed us to establish a cor-                     set δ to 10−3 , and use a grid of initialisations given by: α ∈
+respondence between the SVG coordinates and the actual                          {0, 0.5, . . . , 2}, β ∈ {0, 0.5, . . . , 2}, e ∈ {−1, −0.5, . . . , 1},
+data values represented in the plot.                                            a ∈ {0, 5, . . . , 25}, and b ∈ {0, 5, . . . , 25}. Doing so yields
+   To derive the loss values associated with each scatter                       the following estimated model:
+point, we further extracted the color values (in hex format)
+from the color scale provided in the graph. The graph’s                              Our estimated model
+color scale maps colors to loss values using a logarithmic
+                                                                                                                        482.01    2085.43
+scale ranging from 2.00 to 5.00. We processed the color                                        L(N, D) = 1.8172 +                + 0.3658        (3)
+                                                                                                                        N 0.3478  D
+scale by iterating through the pixels from top to bottom,
+reading the hex color values from each pixel, and calculat-
+ing the corresponding loss value based on the pixel’s vertical                       Hoffmann et al.’s estimated model
+position within the scale. This process resulted in a map-
+ping between hex color values and their corresponding loss                                                                406.4     410.7
+                                                                                               L(N, D) = 1.6934 +          0.3392
+                                                                                                                                  + 0.2849       (4)
+values. We then used this mapping to determine the loss                                                                  N         D
+value for each scatter point based on its fill color.
+   The digitization process may introduce some noise or er-The values we report in Equation 4 for the scaling law
+ror due to the following factors:                        parameters in Hoffmann et al. (2022) are more precise than
+                                                         those that may be found in the body of the paper. These
+ 1. Imprecise y-coordinate extraction. The y-axis of the more precise estimates are available in the form of com-
+    scatter plot lacks tick marks, making it challenging ments in the TeX source documents for the paper (which
+
+
+                                                                            2
+may be found on arXiv). As we will see later, especially                     highly significant differences, with p-values of 2.6 × 10−6
+the increased precision of the data exponent that we’re able                 and 1.1 × 10−4 , respectively. These small p-values indicate
+to obtain this way makes a big difference to the model’s                     that the estimated values for E and β are significantly dif-
+goodness of fit to the data.                                                 ferent from their respective true values, suggesting substan-
+  We test how significant the differences between our es-                    tial deviations in these parameters’ estimates from expected
+timates and Hoffmann et al.’s estimates are. This test is                    outcomes based on the model. On the other hand, the pa-
+based on the following observation: if Hoffmann et al.’s es-                 rameters A, B, and α have estimated values that are not
+timates were optimal on the full dataset and our dataset                     statistically significantly different from the values reported
+was a generic or random subset of the original dataset they                  in Hoffmann et al.
+used, then our estimates should approximately follow a nor-
+mal distribution centered around their estimates with some                   3.1         Our estimates fit the data better compared to
+covariance matrix Σ.                                                                     the reported and non-rounded values
+
+  Parameter          Our estimate      Hoffmann et al’s estimate             When plotting the residuals of this fitted scaling law and
+                                                                             those of our estimate of the same scaling law, it becomes
+  A                      482.01                   406.4
+                         (124.58)                                            clear that the estimated scaling law from Hoffmann et al.
+  B                     2085.43                   410.7                      (2022) with the rounded parameter values reported in the
+                        (1293.23)
+  E                      1.8172                  1.6934                      paper (E = 1.69, A = 406.4, B = 410.7, α = 0.34, β = 0.28)
+                          (0.03)                                             fails to fit the data well. The residuals for our estimated
+  α                      0.3478                  0.3392
+                          (0.02)
+  β                      0.3658                  0.2849
+                          (0.02)
+  a = β/(α + β)          0.5126                   0.454                                  0.15
+                          (0.02)
+
+  Data points             240                     > 400                      Residuals   0.10
+Table 1: Our parameter estimates and their standard errors.                              0.05
+The standard errors are shown in parentheses and are obtained
+by bootstrapping. We show the estimate from Hoffmann et al.                              0.00
+along with our estimates for comparison.1
+                                                                                         0.05
+   In other words, if µ denotes the Hoffmann et al. estimates
+and ν denotes our best fit, the difference µ − ν should follow                           0.10
+N (0, Σ) for some covariance matrix Σ. Given that this is the                                   Hoffmann et al.          Ours
+case, we expect (µ−ν)T Σ−1 (µ−ν) to follow a χ2 distribution
+with the number of degrees of freedom equal to the number
+of dimensions of the vectors µ, ν.                                           Figure 3: Plot of residuals of Hoffmann et al.’s estimated model
+                                                                             with rounded parameter values and our estimated model.)
+   The covariance matrix Σ is unknown, but we can esti-
+mate it by following the bootstrapping philosophy: “the                      scaling law are tightly concentrated around 0, indicating a
+bootstrap is to the sample as the sample is to the popula-                   substantially better fit. We find that 98% of our Huber loss
+tion”. We construct each bootstrap by sampling n = 240                       values are smaller than the median loss value of Hoffmann
+times with replacement from our full dataset of 240 data                     et al, and that our model obtains lower losses for 90% of
+points and then fitting the scaling law to this bootstrapped                 all observations. A likelihood ratio test enables us to confi-
+dataset. Repeating this for 4000 different bootstraps allows                 dently reject the hypothesis that Hoffman et al.’s estimate
+us to obtain a sampling distribution for the vector of param-                performs as well as our fit (p < 10−235 , see Appendix A.2).
+eters (log A, log B, log E, α, β), from which we can compute                 In other words, if our data reconstruction is correct, the
+a sample covariance matrix. Doing this gives us the Σ we                     Hoffmann et al. reported scaling law fails to fit the data.
+need for the χ2 test above, and the p-value of the resulting                    After publishing the first version of this paper, we’ve been
+χ2 test ends up being < 10−51 if we exclude the five outliers                able to ascertain that there are two major reasons behind
+from our dataset and < 10−35 if we include them in the                       the worse fit of the Hoffmann et al. parameters to the data:
+dataset when computing Σ using bootstrapping (we always
+exclude them when computing our parameter estimates).                           1. The parameter values reported in the paper are
+This means that the difference between our parameters and                          rounded, and especially for the data exponent this
+Hoffmann et al.’s parameters is extremely statistically sig-                       rounding is significant enough to make the fit much
+nificant.                                                                          worse than it should be. The true value of the data
+   Examining the parameters individually, E and β show                             exponent β should be around 0.2849 according to the
+   1 We do not use the grid of initializations for our bootstraps, and
+                                                                                   comments in the TeX source code of Hoffmann et al.
+use the BFGS optimizer rather than Hoffmann et al.’s L-BFGS. We
+                                                                                   (2022); using the value 0.28 instead introduces a posi-
+find that using this optimizer enables us to forego having the use a               tive bias on the order of ≈ (1011 )0.0049 − 1 ≈ 13% for
+grid of initializations to get very close to the local minimum.                    a typical dataset size of D = 1011 tokens in the finite
+
+
+                                                                         3
+            data component of the reducible loss. This effect is Parameters                             Log likelihood      Log likelihood
+            large enough to explain the Hoffmann et al. residuals                                       without outliers    with outliers
+            not ending up centered around zero.                   Hoffmann et al.’s fit (with               562.25             531.89
+                                                                       rounding)
+   2. However, even when we use the more precise param-
+                                                                       Hoffmann et al.’s fit (without       837.78             714.43
+      eter values from the TeX source, the Hoffmann et al.
+                                                                       rounding)
+      parameters are still a worse fit to the data (by around          Our best fit                         879.77             757.80
+      40-50 nats in log likelihood, more on how we compute                                                            −16
+      this later) than our parameters, and this remains true           Likelihood ratio test p-value      1.22 · 10          3.23 · 10−17
+                                                                       Data points                            240                245
+      whether or not we exclude the outliers with five high-
+      est loss values in the dataset. The authors of Hoffmann
+      et al. (2022) have confirmed this is because they aver-          Table 2: The log-likelihood values for the Hoffmann et al. pa-
+                                                                       rameters and our best-fit parameters on our dataset, excluding
+      aged the Huber loss values over different data points
+                                                                       the five outliers. Assuming the unrounded Hoffmann et al. pa-
+      instead of summing them during loss minimization and             rameters as the null hypothesis, we perform a likelihood ratio
+      the high loss scale of their optimizer caused their op-          test to show that the difference between the log-likelihoods re-
+      timization to terminate early, resulting in sub-optimal          mains highly significant.
+      parameter values.
+
+   We first show the effects of correcting for (1) by using               In addition to this, as mentioned earlier, the χ2 test for
+the precise parameter values from the TeX source of Hoff-              parameter inequality also remains highly significant (p <
+mann et al. (2022) instead of the rounded values from the              10−48 without the five outliers, p < 10−35 with the five
+published paper. The improvement in goodness of fit is sub-            outliers included when computing the covariance matrix Σ):
+stantial, closing most (though not all) of the gap between             if the true optimal parameters were in fact the unrounded
+the two fits in figure 4.                                              parameters from Hoffmann et al. (2022), it’s unlikely that
+   The differences no longer look visually striking, so it’s           we would have found parameters as different from them as
+worth wondering whether this was the entire problem with               we have, even taking into account that our 240 data points
+the parameter values from Hoffmann et al. (2022). As we’ve             might be a random subset of the full dataset of > 400 data
+stated in (2), this turns out to not be the case, and we can           points that Hoffmann et al. (2022) may have used for their
+precisely quantify the difference in goodness of fit by defining       fit. All of this is enough to make the case that (1) is not the
+a probability distribution whose negative log likelihood is            only reason behind the bad fit of the Hoffmann et al. (2022)
+equal to Huber loss and performing a likelihood ratio test.            parameters to the data.
+The results of this are in Table 2, and the details of how we             We make some effort to clarify this point because it might
+define the associated probability distributions are available          be tempting to assume that since most of the visually ap-
+in Appendix A.2 for the interested reader.                             parent evidence of bad fit in Figure 4 has disappeared upon
+                                                                       correcting (1), the early stopping of the optimizer that pro-
+            0.25                                                       duced worse fits in Hoffmann et al. (2022) was only a minor
+                                                                       problem, at least when it comes to the point estimates of
+            0.20                                                       the parameters. This is not true: the difference in good-
+                                                                       ness of fit remains significant even after correcting for (1)
+            0.15                                                       and implies substantial differences in optimal scaling policy
+Residuals
+
+
+
+
+                                                                       when it’s extrapolated out to e.g. the compute scale of the
+            0.10                                                       Chinchilla 70B model.
+            0.05
+                                                                       3.2   Hoffmann et al. report implausibly narrow
+            0.00                                                             confidence intervals
+
+            0.05                                                       A further perplexing feature of Hoffmann et al.’s estimates,
+                    Hoffmann et al.            Ours                    once again attributable to the early stopping problem they
+                                                                       had with their optimizer, is their extremely narrow confi-
+                                                                       dence intervals for parameters a and b, which are defined
+Figure 4: Plot of residuals of Hoffmann et al.’s estimated model       as:
+with unrounded parameter values and our estimated model.)                                       β
+                                                                                          a≡        , b ≡ 1 − a.                (5)
+                                                                                              α+β
+                                                                       The significance of these coefficients lies in their role in un-
+                                                                       derstanding optimal scaling relationships, specifically how
+                                                                       the optimal allocation of a computational budget C can be
+                                                                       modeled. The relationships Nopt ∝ C a and Dopt ∝ C a use
+                                                                       these coefficients to describe how best to allocate training
+                                                                       compute.
+
+
+                                                                   4
+   In particular, they report a confidence intervals of 0.454
+to 0.455 and 0.542 to 0.543 for a and b respectively. These
+
+
+
+
+                                                                     Tokens per parameters ratio
+                                                                                                           Optimal policy (ours)
+are very tight given that they likely had on the order of 400                                      100     Optimal policy (Hoffmann et al.)
+observations with which to estimate α and β.                                                               Chinchilla model
+   By contrast we estimate a standard error of 0.018 for a
+(See Table 3). This would correspond to a width of the                                                                                         D/N = 20 rule of thumb
+80% confidence interval of 2 · z0.9 · 0.018 ≈ 0.05. Hence our
+80% confidence interval is roughly 50-fold wider than that                                          10
+reported by Hoffmann et al.
+   How many training runs would we need to observe to get                                                1019         1021          1023      1025           1027
+a confidence
+           √ interval of 0.001? Since the standard errors                                                               Training compute (FLOP)
+shrink in N , we would need to increase the number of
+experiments by a factor of 502 or 2500. That means that             Figure 5: Optimal ratio of training tokens to model parameters
+we would need to have access to the results from nearly             using our estimates. Shaded regions represent 80% confidence
+                                                                    intervals. While our estimates are consistent with the scaling
+240 × 2116 = 600, 000 training runs to obtain a confidence
+                                                                    policy used for Chinchilla, their estimates of their parametric
+interval as tight as that reported by Hoffmann et al.               model are not.
+   Based on Hoffmann et al.’s report of having “over 400”
+observations, we interpret this to mean they likely had be-
+tween 400 and 500 data points. If, as they claimed, they        proaches (Approaches 1 and 2) reported in their paper.
+used only the final loss values for each trained model, it         By contrast, our fitted model implies an optimal ratio of
+seems unlikely that they would have had hundreds of thou-       around 20 tokens per parameter, which is consistent with
+sands of observations.                                          both how the Chinchilla model was trained and the findings
+   After the publication of the first version of this paper,    from Approaches 1 and 2 in Hoffmann et al. (see Figure
+one of the lead authors of Hoffmann et al. (2022) has clar-     5). So, while the inconsistency between the prescriptions
+ified that the reason behind the low standard errors was a      based on the estimated scaling law (Approach 3) and the
+high loss scale in their L-BFGS-B minimizer resulting from      results from Approaches 1 and 2 in Hoffmann et al. might
+them averaging Huber loss values over examples instead of       initially appear to be a product of the functional form of the
+summing them (Borgeaud (2024)). This caused early termi-        scaling law not fitting the data well, it’s in fact an artifact
+nation of the optimization process, both during the original    of the early optimizer stopping problem that has produced
+model fit and during bootstrapping. The early stopping          the inaccurate parameter estimates from Hoffmann et al.
+of loss minimization during bootstrapping resulted in little    (2022) in the first place. The only data points for which the
+movement of the parameter values from their initialization      functional form seems to perform badly in our fit are those
+and gave the implausibly narrow confidence intervals that       with extremely few data points compared to their number of
+they report for a and b.                                        parameters, which are the five outliers that we’ve excluded
+                                                                from the fit that produced our main parameter estimates.
+3.3 Hoffmann et al.’s Approach 3 scaling policy is                 We regard the fact that our parameter and standard error
+       inconsistent with Chinchilla and our estimates estimates can make Approach 3 consistent with Approaches
+                                                                1 and 2, both in terms of point estimates and in terms of
+Note that our confidence interval for a is consistent with
+                                                                standard errors, as further evidence that our scaling law
+Approaches 1 and 2 in Hoffmann et al. in the sense that
+                                                                parameters are indeed a better fit to the data from Hoffmann
+our confidence intervals overlap with theirs. This implies
+                                                                et al. (2022).
+that our optimal scaling policy is consistent with the scaling
+recommendations from those approaches.
+   We solve for what the compute-optimal scaling policies 4 Discussion
+are. By doing so, and accounting for the uncertainty in
+our estimates, we obtain the range of policies illustrated in We have found three potential issues with Hoffmann et al.’s
+Figure 5.                                                       estimates of the Chinchilla scaling law that rely on Approach
+   Two key observations emerge from this analysis. First, 3:
+the confidence intervals for the optimal scaling policies based
+on Hoffmann et al.’s estimates are extremely narrow. As           1. Their estimated model fits the reconstructed data
+discussed in Section 3.2, we argue that these intervals are          poorly compared to the best possible estimate of the
+unjustifiably tight given the reported number of data points.        same functional form. Most of this poor fit is due to
+   Second, the scaling policy derived from Hoffmann et al.’s         the rounding of the parameters reported in the paper,
+estimated parameters suggests using approximately 70 to-             but even after correcting for this the Hoffmann et al.
+kens per parameter for optimal performance. This prescrip-           parameters remain significantly worse than the best fit
+tion is inconsistent with the 20 tokens-per-parameter ratio          parameters we find.
+actually used by Hoffmann et al. to train their 70B Chin-
+chilla model. Interestingly, this 20 tokens-per-parameter ra-     2. The confidence are implausibly tight given the num-
+tio aligns closely with the results from the two other ap-           ber of data points. Obtaining confidence intervals that
+
+
+                                                                5
+      tight would require many hundreds of thousands of ob-                  Parameter       Our estimate   Chinchilla’s estimate
+      servations, while they likely had only ∼400.
+                                                                             A                   463.3             406.4
+                                                                                                 (145.0)
+
+ 3. Their estimated model implies a scaling policy that is                   B                   12530             410.7
+                                                                                                 (61650)
+    inconsistent with their other approaches and their 20-                   E                       1.89          1.693
+                                                                                                (0.0441)
+    tokens-per-parameter rule-of-thumb.
+                                                                             α                   0.345             0.339
+                                                                                                (0.0178)
+   According to the authors, all of these issues arise because               β                   0.452             0.285
+                                                                                                (0.0543)
+of a problem with their optimizer which led to early stop-                   a = β/(α + β)       0.512             0.454
+ping: the optimizer halted before it converged to the true                                       (0.032)
+
+optimal parameter values Borgeaud (2024). Because we run                     Data points             245           > 400
+the optimizer to convergence both during initial estimation
+and during bootstrapping, both our point estimates and our             Table 3: Our parameter estimates and their standard er-
+confidence intervals are more accurate given the data.                 rors. The standard errors are shown in parentheses and
+   Hoffmann et al.’s paper has been highly influential in the          are obtained by bootstrapping. We show the estimate from
+language modeling community. Its findings have informed                Hoffmann et al. along with our estimates for comparison.2
+the scaling policies of notable models, such as Google’s Gem-
+ini suite (Google, 2023), and have likely guided the develop-
+ment of many other models. Moreover, the specific param-               Optimal scaling We find a range consistent with the 20
+eter estimates of the scaling law presented in the paper are           tokens per parameter rule of thumb. Indeed, our point esti-
+of significant scientific interest, such as for machine learn-         mates imply that 25.6 tokens per parameters is optimal.
+ing theory. Given the wide-reaching impact of this research,
+it is crucial for the parameter estimates to be robust and             A.2       Likelihood ratio test
+reproducible.
+                                                                       We can further quantify this lack of good fit by recasting the
+   Our work further makes clear that, given the size of the
+                                                                       Huber loss minimization problem as a maximum likelihood
+numbers of the number of parameters and tokens, simply
+                                                                       problem and perform a likelihood ratio test. For any value
+reporting scaling law exponents to several significant figures
+                                                                       of δ > 0, the function p : R → R≥0
+does not provide enough precision to accurately establish
+the relevant relationship.                                                                       exp(−Huberδ (x))
+   Finally, our work further highlights the uncertainty about                         pδ (x) = R ∞                                  (6)
+                                                                                               −∞
+                                                                                                  exp(−Huberδ (x)) dx
+compute-optimal scaling. In our plotted range of compute-
+optimal scaling policies (see Figure 5), we find that our fitted       is a legitimate probability density function on the real num-
+model is consistent with a ratio of tokens to parameters               bers whose negative log-likelihood equals the Huber loss
+between 4 and 40 at models train on 1e26 FLOP or more.                 function up to an additive constant.3 Consequently, we can
+Getting tighter estimates before running experiments of this           convert the loss minimization problem into a likelihood max-
+magnitude would, in expectation, save a meaningful fraction            imization problem for the distribution defined by p. Intro-
+of that amount of compute.                                             ducing location and scale parameters µ and σ, we augment
+                                                                       this distribution to
+A     Appendix
+                                                                                                                 
+                                                                                                     1       x−µ
+                                                                                        pµ,σ,δ (x) = · pδ                         (7)
+                                                                                                    σ          σ
+A.1     What if we don’t drop the five outliers?
+                                                              and then convert the loss minimization problem from Equa-
+In the previous analysis, we excluded the five experiments tion 2 into the following negative log-likelihood minimiza-
+with the lowest ratio of training tokens to parameters, as tion problem:
+these outliers were challenging to fit using the Chinchilla                                          
+scaling law. To ensure the robustness of our findings, we now      min
+                                                                             X
+                                                                                  − log pµ=0,σ=σ,δ=δ
+repeat key parts of the analysis without removing these out-    a,b,e,α,β,σ
+                                                                            Run i
+liers. This additional analysis reveals that our main conclu-                                                              (8)
+sions remain unchanged, although the parameter estimates                    LSE (a − α log Ni , b − β log Di , e) − log Li .
+are more uncertain when these outliers are included.
+                                                                 We perform three fits: one unconstrained fit exactly as
+Equality of models The overall significance of the model      described     in Equation 8 and two where σ is allowed to vary
+                                 2                  −50
+is underscored by an implied χ p-value of 6 × 10 , indi-      freely   but   the other parameters are fixed at the values re-
+cating substantial deviations in certain parameter estimates. ported     for them in Hoffmann et al. We consider both the
+In detail, E and β show highly significant differences from   rounded     parameter    values reported in the body of Hoffmann
+                                                      −5
+their expected true values, with p-values of 2.0 × 10 and        3 It is possible to explicitly compute the integral in the denomina-
+2.4×10−3 , respectively, highlighting considerable deviations tor as √2π(2Φ(δ) − 1) + 2e−δ2 /2 /δ where Φ is the standard normal
+in these parameters’ estimates.                               distribution’s cumulative distribution function.
+
+
+                                                                   6
+et al. (2022) and the more precise values that may be found
+in the TeX source.
+   Then, we compare the two log-likelihoods we obtain us-
+ing a likelihood ratio test: we assume the Hoffmann et al.
+parameters as the null hypothesis and report a p-value for
+the log-likelihood difference under the χ2 distribution with
+6 − 1 = 5 degrees of freedom, as this is the asymptotic dis-
+tribution of the test statistic per Wilks (1938).
+
+References
+Anil, R., Dai, A. M., Firat, O., Johnson, M., Lepikhin, D.,
+ Passos, A., Shakeri, S., Taropa, E., Bailey, P., Chen, Z.,
+ et al. (2023). Palm 2 technical report. arXiv preprint
+ arXiv:2305.10403.
+Bi, X., Chen, D., Chen, G., Chen, S., Dai, D., Deng, C.,
+  Ding, H., Dong, K., Du, Q., Fu, Z., et al. (2024). Deepseek
+  llm: Scaling open-source language models with longter-
+  mism. arXiv preprint arXiv:2401.02954.
+Bordelon, B., Atanasov, A., and Pehlevan, C. (2024). A
+  dynamical model of neural scaling laws. arXiv preprint
+  arXiv:2402.01092.
+
+Borgeaud, S. (2024). Twitter. Twitter thread involving dis-
+  cussion on the paper’s methodologies and data replication
+  issues.
+Google, G. T. (2023). Gemini: a family of highly capable
+ multimodal models. arXiv preprint arXiv:2312.11805.
+
+Hoffmann, J., Borgeaud, S., Mensch, A., Buchatskaya, E.,
+ Cai, T., Rutherford, E., Casas, D. d. L., Hendricks,
+ L. A., Welbl, J., Clark, A., et al. (2022). Training
+ compute-optimal large language models. arXiv preprint
+ arXiv:2203.15556.
+
+Michaud, E., Liu, Z., Girit, U., and Tegmark, M. (2024).
+ The quantization model of neural scaling. Advances in
+ Neural Information Processing Systems, 36.
+Sardana, N. and Frankle, J. (2023). Beyond chinchilla-
+  optimal: Accounting for inference in language model scal-
+  ing laws. arXiv preprint arXiv:2401.00448.
+Wilks, S. S. (1938). The large-sample distribution of the
+ likelihood ratio for testing composite hypotheses. The
+ annals of mathematical statistics, 9(1):60–62.
+
+
+
+
+                                                                7
+

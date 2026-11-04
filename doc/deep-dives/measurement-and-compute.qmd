@@ -1,0 +1,41 @@
+---
+title: "Count parameters, tokens, and executed training work"
+---
+
+This companion expands notes §3 and blog §3. Measurement conventions are part of the experiment: different counters can turn a real improvement into an apparent regression.
+
+## Parameters are not a single universal number {#parameters}
+
+For hidden width $d$, $n$ Transformer blocks and vocabulary $V$, trunk matrices often grow like $nd^2$, while embeddings and the language-model head grow like $Vd$. The latter can dominate very narrow proxies. Record trunk, input embedding and output head separately, including whether weights are tied. A tied head saves stored parameters but still executes the output projection.
+
+For MoE, record total and per-token active parameters, routed/shared experts and router overhead. Two models with the same active count can have different memory, communication and quality. Use the exact convention of any cited study rather than silently converting its reported parameter name into your own. [Porian et al., Table 2](https://arxiv.org/abs/2406.19146); [AI2 task ladder, Table 1](https://arxiv.org/abs/2412.04403).
+
+## Derive the familiar FLOP approximation {#flops}
+
+For a standard MHA block and a two-matrix FFN of dimension $4d$, forward matrix work is approximately $24d^2$ FLOPs per token. A forward-plus-backward factor of about three gives $72d^2$; with $N_{\mathrm{body}}\approx12nd^2$, this is $6N_{\mathrm{body}}$ FLOPs per token.
+
+Let $\ell$ be context length. Computing both attention matrix products over the full $\ell\times\ell$ matrix adds roughly $12\ell dn$ forward-plus-backward FLOPs per token. The vocabulary head adds approximately $6Vd$. Therefore,
+
+$$C\approx\left(6+\frac{\ell}{d}\right)N_{\mathrm{body}}D+6VdD.$$
+
+This derivation assumes full attention-matrix accounting. Causal kernels can skip masked tiles; GQA, gated FFNs, Mamba, sparse experts and recomputation require different accounting. Report both algorithmic model FLOPs and the execution convention used for efficiency claims.
+
+A derived example illustrates why this matters: $\ell=4096,d=512$ gives $\ell/d=8$, so the attention term is large relative to the coefficient 6 even before the head term. At $d=4096$, the ratio is 1. A narrow proxy can have a different compute composition from the target.
+
+## Tokens and loss denominators {#tokens}
+
+Keep processed tokens, loss-bearing tokens, unique corpus tokens and repeated exposures separate. With padding or answer-only masks, processed tokens are not all optimization targets. For devices $r$ with summed loss $s_r$ and valid-token count $t_r$, the token mean is
+
+$$L=\frac{\sum_r s_r}{\sum_r t_r},$$
+
+not generally the mean of device-local means. Packing, EOS insertion and document masks also change the task.
+
+For comparisons across tokenizers, define byte-normalized NLL on identical scored raw text. If summed NLL is in nats, BPB is $\mathrm{NLL}/(\ln2\times\mathrm{bytes})$. Byte normalization does not repair differences in which text positions are scored.
+
+## A concrete practice check {#practice}
+
+AI2 reports a 190M ladder configuration with 128 sequences at length 4096, giving 524,288 tokens per batch; its 1.3B configuration uses 384 sequences, or 1,572,864 tokens. This is why a number called “batch size” needs a unit. The [architecture evidence table](../architecture/architecture-evidence.qmd#what-exactly-did-ai2-scale) transcribes all six configurations. [Bhagia et al., Table 1](https://arxiv.org/abs/2412.04403).
+
+**Required artifact:** a count breakdown, FLOP function with assumptions, token counters, scoring masks and loss-reduction contract. Continue with the [measurement protocol](../experiments/03-measurement.qmd).
+
+[Back to the blog reading guide](../reading/jiaxuan-reading-guide.qmd) · [Quarto notes](../reading/deep-dive-notes.qmd)

@@ -1,0 +1,37 @@
+\section{Introduction}
+% \sj{Active params definition, from mixtral: "which grows with n, and the number of parameters used for processing an
+% individual token (called the active parameter count), "}
+% \repl{Recently, we have witnessed the development of large language models achieving exceptional effectiveness in various tasks. Despite their performance, the cost of training these massive models is very high. In response to these challenges, the research is striving to increase the efficiency of these systems. One approach that proves to be promising is the use of the Mixture of Experts (MoE) architecture.}{
+In recent years, we have witnessed Large Language Models (LLMs) achieve exceptional performance in tasks across numerous domains \citep{chowdhery2022palm, yin2023survey, agostinelli2023musiclm}. However, training those massive models incurs high computational costs, measured in millions of GPU-hours \citep{touvron2023llama2}, enabled only by enormous budgets \citep{workshop2023bloom} and leading to non-negligible carbon footprints \citep{faiz2024llmcarbon}. To combat these obstacles, the research community has been striving to increase the efficiency of LLMs. One promising approach that has lately been gaining visibility is the use of Mixture of Experts (MoE) methods.
+%}. 
+Models such as Switch \citep{fedus2022switch} and Mixtral \citep{jiang2024mixtral} have already demonstrated that it is possible to achieve comparable effectiveness with significantly lower computational costs.
+
+
+% In the context of the current trend of increasing budgets for training models, a question arises: will MoE models continue to be attractive in the future? This is an important issue, as results from other studies \cite{clark2022unified%, artetxe2022efficient
+% } suggest that the traditional dense models may outperform MoE as the size of the models increases. Furthermore, it has been stated \citep{artetxe2022efficient} that the gap in efficiency between MoE and standard Transformers narrows at scale.
+
+In the context of the current trend of increasing budgets for training language models, a question arises: will MoE models continue to be attractive in the future? This is an important issue, as other studies have stated that the gap in efficiency between MoE and standard Transformers narrows at scale \citep{artetxe2022efficient} or even that traditional dense models may outperform MoE as the size of the models increases \citep{clark2022unified}.
+% Furthermore, it has been stated \citep{artetxe2022efficient} .
+
+In this paper, we argue that previous claims lose their validity when we relax certain implicit assumptions regarding the training process, present in previous research. In particular, we refer to the fixed training duration and the constant size of experts in MoE models. %\sj{not understandable paragraph; also a bit strong}
+
+Our results suggest that a compute-optimal MoE model trained with a budget of $10^{20}$ FLOPs will achieve the same quality as a dense Transformer trained with a \textit{$20\times$} greater computing budget, with the compute savings rising steadily, exceeding \textit{$40\times$} when budget of $10^{25}$ FLOPs is surpassed (see Figure \ref{flag_plots}). Importantly, we show that the standard practice of fixing the size of experts in MoE to be the same as feed-forward layer is \emph{almost never} optimal.
+
+Our main contributions are:
+
+\begin{enumerate}
+    \item Introducing a new hyperparameter - granularity. Adjusting this parameter allows us to determine the optimal size of experts in MoE models, which translates into increased efficiency.
+
+    \item Deriving new scaling laws for MoE models that incorporate variable training duration, the number of parameters, and granularity. Such scaling laws allow us to calculate optimal training hyperparameters for MoE models.
+    
+    %\item Finally, using these scaling laws to derive the parameters of the optimal training setup for MoE models.
+
+
+    % \item  \repl{ Using these scaling laws, we derive the parameters of the optimal training setup for MoE models. We demonstrate that, with optimal settings, MoE models always outperform traditional Transformers in terms of the trade-off between training budget and model quality. For example, for training using the order of $10^{20}$ FLOPs, the computational savings amount to about 20x for the same model quality, while for $10^{25}$ FLOPs, the savings increase to 40x.}{  Finally, using these scaling laws to derive the parameters of the optimal training setup for MoE models. \maciej{Odtąd bym skończył enumerate i byłoby "zakończenie" introduction i 3 punkty w main contributions podobnej długości} We demonstrate that, with optimal settings, MoE models always match the quality of traditional Transformers trained with a much larger computing budget.
+    % For example, a compute-optimal MoE model trained with a budget of $10^{25}$ FLOPs will achieve the same quality as a dense Transformer trained with a \textit{40x} greater computing budget (see Figure \ref{flag_plot}).
+    % } \maciej{Rozumiem, że MoE potrzebuje $10^{25} / 40$ FLOPsów, żeby osiągnąć jakość Transformera trenowanego na $10^{25}$?} \jk{do mp: odwrotnie} \sj{"see figure X?"} \sj{altho this paragraph maybe should be shorter, so idk}
+
+\item Demonstrating that, with optimal settings, MoE models can always outperform traditional Transformers at any computing budget. This is a conclusion contrary to the results from \cite{clark2022unified}.
+\end{enumerate}
+
+The code used to produce the results described in this work is open-sourced at \href{https://github.com/llm-random/llm-random}{\texttt{github.com/llm-random/llm-random}}.

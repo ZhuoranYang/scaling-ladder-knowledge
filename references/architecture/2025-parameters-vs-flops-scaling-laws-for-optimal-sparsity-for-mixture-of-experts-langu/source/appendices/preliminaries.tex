@@ -1,0 +1,63 @@
+\section{Preliminaries}
+\label{app:prelim}
+
+
+\subsection{Notation and Terminology}
+
+\noindent To aid readability, we provide a list of key symbols used throughout this paper.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{@{}ll@{}} % Modified tabular specification - only two 'l's now
+\toprule
+\textbf{Symbol} & \textbf{Description}                                             \\ \midrule
+$N$               & Total number of model parameters                        \\
+$N_a$             & Active number of model parameters                       \\
+$S$               & Sparsity level (ratio of non-active to total experts)    \\
+$S^*$             & Optimal sparsity level                                  \\
+$L$               & Pretraining Loss (Categorical Cross-Entropy)           \\
+$L^*$             & Optimal pretraining loss                                \\
+$C$               & Total training compute budget (in FLOPs)               \\
+$N^*$             & Optimal total number of parameters                       \\
+$N^*_a$           & Optimal active number of parameters                      \\
+$E$               & Expansion factor (number of experts per MoE layer)     \\
+$K$               & Number of selected experts per token                    \\
+$G$               & Granularity of experts (size relative to base MLP)       \\
+$D$               & Dataset size (number of training tokens)               \\
+$\alpha, \beta, \gamma, \lambda, \delta, a, b, c, d, e$ & Coefficients in the parametric scaling law equation \\ \bottomrule
+\end{tabular}
+\label{tab:symbols} % Optional: Add a label for referencing
+\end{table}
+% In this section, we provide a brief overview of Mixture-of-Expert (\moe) Transformers. 
+ \noindent In this paper, we use the term "compute" in a general sense to refer to computational cost.
+Unless otherwise specified, "compute" and "FLOPs" (Floating Point Operations) are used interchangeably to quantify this cost.
+
+
+\subsection{Mixture-of-Expert (MoE) Transformers} 
+
+Mixture-of-Experts Transformers modify the standard transformer architecture by introducing in the MLP layer. In this design, the experts are MLP (Multi-Layer Perceptron) modules that follow the attention mechanism and are selectively activated for each token. A gating mechanism determines which MLP experts are most relevant for each token, ensuring that only a subset of experts (top-k) is active at any given time, while the rest remain inactive. Below, we provide the notations used throughout the paper for various terms related to training MoEs.
+
+\paragraph{Total and Active Parameters:} In MoEs, we distinguish between total and active parameters, denoted by \(N\) and \(N_a\), respectively. The total parameter count, \(N\), includes all parameters of the network, encompassing both the experts and the rest of the architecture. The active parameter count, \(N_a\), refers to the parameters associated with the active portion of the experts, along with the rest of the network that is always utilized.
+
+\paragraph{Top-k Expert Selection:} In MoEs, the gating mechanism assigns tokens to a subset of experts using a top-k selection process, where \(k\) denotes the number of experts activated for each token. The gate computes a relevance score for each expert, and the top \(k\) experts with the highest scores are selected and activated. This selective activation limits the computational overhead by ensuring that only a fraction of the experts are used per token.
+
+\paragraph{Expansion Factor and Granularity:} The expansion factor, typically denoted by \(E\), represents the increase in model capacity due to the inclusion of multiple experts, measured as a multiplicative factor relative to the base dense model. The granularity, \(G\), determines the size of each expert relative to the size of the MLP module in the base dense model. The total number of experts in the model is given by \(E \times G\), where \(E\) scales the capacity and \(G\) controls the level of granularity.
+
+
+\paragraph{Sparsity (\(S\)):} In general, sparsity is defined as the ratio of inactive to total parameters. However, in the context of \moes, we focus on the sparsity of the MLP modules specifically. Therefore, we define the sparsity level as the ratio of inactive to total experts, given by:
+\begin{equation}
+    % S(E, K) = \frac{E - K}{E}
+    S = \frac{\text{number of non-active experts}}{\text{number of total experts}}.
+    \label{eqn:moe:sparsity}
+\end{equation}
+This definition provides an interpretable measure of sparsity but cannot be directly used to calculate the active parameter count \(N_a\) due to the contribution of other parameters in the model that remain unsparsified. %We experiment with different sparsity levels, \(S \in \{0, 0.25, 0.50, 0.75, 0.95\}\), to observe their effect on model performance.
+
+
+% \Harshay{move most of section 2 stuff here}
+
+% \begin{itemize}
+%     \item MoE primer 
+%     \item Scaling laws [kaplan chinchilla primer] ? 
+% \end{itemize}
+
+\newpage

@@ -1,0 +1,137 @@
+        %auto-ignore
+\section{Heuristics for the proofs in the general case}
+
+The notation in this section is mostly defined in \cref{sec:notations}. The complete notation is defined in \cite{yang2023tensor}.
+\subsection{Depth-$\mu$P}\label{heuristics:depth-mup}
+
+Let $\MS(x)=x-\langle x,1\rangle/n=Gx$ where $G=I-11^{\top}/n$,
+where $x\in\R^{n}$. Recall the definition of the network and the normalized gradients
+
+\begin{align*}
+x^{1} & =U\xi\\
+h^{l} & =W^{l}x^{l-1}\\
+x^{l} & =x^{l-1}+\frac{1}{\sqrt{L}}G\phi(h^{l})\\
+f(\xi) & =V^{\trsp}x^{L}\\
+\tilde\del x^{L} & =nV\\
+\tilde\del h^{l} & =\phi'(h^{l})\odot(G\tilde\del x^{l})\\
+\tilde\del x^{l-1} & =\tilde\del x^{l}+\frac{1}{\sqrt{L}}W^{l\trsp}\tilde\del h^{l}
+\end{align*}
+
+where $V=\Theta(1/n)$ coordinatewise, $\tilde\del x^{l}=\Theta(1)$ coordinatewise
+and $W^{l}=\Theta(\frac{1}{\sqrt{n}})$ coordinate-wise. 
+
+We also abuse the notation of $G$ and use it as an operator on kets: $G\ket x\odefeq \ket x - \E\ket x$. 
+
+\paragraph{Forward.} Similar to the linear case, one can show that under technical conditions (mostly on the activation function) that the infinite-depth limit of the TP follows the dynamics
+\begin{align*}
+d\ket{x_{t}^{\lambda}} & =\sqrt{d\lambda}G\phi\left(\oplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra+\sqrt{d\lambda}\oplim{\widetilde{\bar{\Delta}W_{t}^{\lambda}}}x_{t}^{\lambda}\ra\right)\\
+ & =\sqrt{d\lambda}G\phi\left(\oplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra\right)+d\lambda G\phi'\left(\oplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra\right)\oplim{\widetilde{\bar{\Delta}W_{t}^{\lambda}}}x_{t}^{\lambda}\ra\\
+ & =\sqrt{d\lambda}G\phi\left(\hatoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra+\dotoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra\right)+d\lambda G\phi'\left(\oplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra\right)\oplim{\widetilde{\bar{\Delta}W_{t}^{\lambda}}}x_{t}^{\lambda}\ra\\
+ & =\sqrt{d\lambda}G\phi\left(\hatoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra\right)+d\lambda G\phi'\left(\oplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra\right)\left(\widetilde{\dotoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra}+\oplim{\widetilde{\bar{\Delta}W_{t}^{\lambda}}}x_{t}^{\lambda}\ra\right)
+\end{align*}
+where $\lambda \in [0,1]$ refers to the fractional layer index ($\lambda$ represents layer index $\lfloor \lambda L\rfloor$ as $L\to \infty$), $t$ refers to the training step, $\oplim{W_{0}^{\lambda}}$ the matrix operator (defined in \Cref{sec:tp}), and the tilde symbol refers to the ``normalized'' version of the object, i.e., multiply the ket with $(d\lambda)^c$ for some $c$ such that the multiplication (normalized ket) is $\Theta(1)$ w.r.t. $L$, and same for the normalized operators. We also simplify $\tilde \del$ to $\del$ if it is already under wider tilde symbol. The first term represents a Gaussian noise.\\
+
+In the linear case, we have
+\[
+d\ket{x_{t}^{\lambda}}=\sqrt{d\lambda}\left(\hatoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra\right)+d\lambda\left(\widetilde{\dotoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra}+\oplim{\widetilde{\bar{\Delta}W_{t}^{\lambda}}}x_{t}^{\lambda}\ra\right)
+\]
+\iffalse
+\begin{align*}
+\oplim W & =\hatoplim W+\dotoplim W\\
+\hatoplim{W^{\trsp}} & =\dotoplim W^{\dagger}\\
+\oplim W^{\dagger}=\oplim{W^{\trsp}} & =\dotoplim W^{\dagger}+\hatoplim W^{\dagger}=\hatoplim{W^{\trsp}}+\dotoplim{W^{\trsp}}
+\end{align*}
+\fi
+Note
+\[
+\dotoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra=\sqrt{d\lambda}\sum_{s=0}^{t-1}\widetilde{\ket{\delta h_{s}^{\lambda}}}\bra{\nabla_{W_{0}^{\lambda\trsp}\tilde\delta h_{s}^{\lambda}}}x_{t}^{\lambda}\ra=\sqrt{d\lambda}\widetilde{\ket{\delta\hh_{<t}^{\lambda}}}\dbra{W_{0}^{\lambda\trsp}\tilde\delta\hh_{<t}^{\lambda}}x_{t}^{\lambda}\ra
+\]
+Using multi-vector notation, we write
+\begin{align*}
+\oplim{\widetilde{\bar{\Delta}W_{t}^{\lambda}}}x_{t}^{\lambda}\ra & =-\eta\widetilde{\ket{\delta\hh_{<t}^{\lambda}}}_{\cchi}\braket{\xx_{<t}^{\lambda}}{x_{t}^{\lambda}} =-\eta \sum_{s<t} \widetilde{\ket{\delta h_{s}^{\lambda}}}_{\chi_s}\braket{x_{s}^{\lambda}}{x_{t}^{\lambda}}\\
+\oplim{\bar{\Delta}W_{t}^{\lambda}}x_{t}^{\lambda}\ra & =-\eta\ket{\tilde\delta\hh_{<t}^{\lambda}}_{\cchi}\braket{\xx_{<t}^{\lambda}}{x_{t}^{\lambda}}  =-\eta \sum_{s<t} {\ket{\tilde\delta h_{s}^{\lambda}}}_{\chi_s}\braket{x_{s}^{\lambda}}{x_{t}^{\lambda}}
+\end{align*}
+
+\paragraph{Backward.} Similar to the forward prop, we obtain the following dynamics for the infinite-depth TP
+\begin{align*}
+-d\ket{\tilde\delta x_{\tau}^{\lambda}} & =\sqrt{d\lambda}\oplim{W_{\tau}^{\lambda\trsp}}\phi'(W_{\tau}^{\lambda}x_{\tau}^{\lambda})\odot(G\tilde\delta x_{\tau}^{\lambda})\ra\\
+ & =\sqrt{d\lambda}\left(\hatoplim{W_{0}^{\lambda\trsp}}+\dotoplim{W_{0}^{\lambda\trsp}}+\sqrt{d\lambda}\oplim{\bar{\Delta}\widetilde{W_{\tau}^{\lambda}}}^{\dagger}\right)\left[\phi'\left(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}}+\sqrt{d\lambda}\dotket{\widetilde{W_{0}^{\lambda}x_{\tau}^{\lambda}}}+\sqrt{d\lambda}\oplim{\widetilde{\bar{\Delta}W_{\tau}^{\lambda}}}x_{\tau}^{\lambda}\ra\right)\ket{G\tilde\delta x_{\tau}^{\lambda}}\right]\\
+ & =\sqrt{d\lambda}\hatoplim{W_{0}^{\lambda\trsp}}\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\ket{G\tilde\delta x_{\tau}^{\lambda}}\right]+\sqrt{d\lambda}\dotoplim{W_{0}^{\lambda\trsp}}\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\ket{G\tilde\delta x_{\tau}^{\lambda}}\right]+d\lambda\oplim{\bar{\Delta}\widetilde{W_{\tau}^{\lambda}}}^{\dagger}\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\ket{G\tilde\delta x_{\tau}^{\lambda}}\right]\\
+ & \quad+d\lambda\dotoplim{W_{0}^{\lambda\trsp}}\left[\phi''\left(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}}\right)\left\{ \dotket{\widetilde{W_{0}^{\lambda}x_{\tau}^{\lambda}}}+\oplim{\widetilde{\bar{\Delta}W_{\tau}^{\lambda}}}x_{\tau}^{\lambda}\ra\right\} \ket{G\tilde\delta x_{\tau}^{\lambda}}\right]
+\end{align*}
+Here the $(d\lambda)^{3/2}$ term got dropped. The individual terms
+can be simplified as follows
+
+\[
+\oplim{\bar{\Delta}\widetilde{W_{\tau}^{\lambda}}}^{\dagger}\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\ket{G\tilde\delta x_{\tau}^{\lambda}}\right]=-\eta\ketdbra{\xx_{<\tau}^{\lambda}}{\cchi}{\widetilde{\delta\hh_{<\tau}^{\lambda}}}\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\ket{G\tilde\delta x_{\tau}^{\lambda}}\right]\approx-\eta\ketdbra{\xx_{<\tau}^{\lambda}}{\cchi}{\widetilde{\delta\hh_{<\tau}^{\lambda}}}\widetilde{\delta h_{\tau}^{\lambda}}\ra
+\]
+\begin{align*}
+\dotoplim{W_{0}^{\lambda\trsp}}\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\ket{G\tilde\delta x_{\tau}^{\lambda}}\right] & =\left[\ket{\xx_{<\tau}^{\lambda}}\dbra{W_{0}^{\lambda}\xx_{<\tau}^{\lambda}}+\ket{\xx_{\tau}^{\lambda}}\dbra{W_{0}^{\lambda}\xx_{\tau}^{\lambda}}\right]\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\ket{G\tilde\delta x_{\tau}^{\lambda}}\right]\\
+ & =\ket{\xx_{<\tau}^{\lambda}}\EV\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\frac{\partial\ket{G\tilde\delta x_{\tau}^{\lambda}}}{\partial\hatket{W_{0}^{\lambda}\xx_{<\tau}^{\lambda}}}\right]+\ket{\xx_{\tau}^{\lambda}}\EV\left[\phi''(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\ket{G\tilde\delta x_{\tau}^{\lambda}}\right]\\
+ & =\Theta(\sqrt{d\lambda})
+\end{align*}
+where the other terms from the product rule drops out because 
+\[
+\frac{\partial\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})}{\partial\hatket{W_{0}^{\lambda}\xx_{<\tau}^{\lambda}}}=\frac{\partial\ket{G\tilde\delta x_{\tau}^{\lambda}}}{\partial\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}}}=0
+\]
+
+\subsection{$1/L$ branches}\label{heuristics:inv-depth}
+
+\subsubsection{Forward:}
+
+\begin{align*}
+d\ket{x_{t}^{\lambda}} & =d\lambda G\EV\left[\phi\left(\oplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra+\oplim{\bar{\Delta}W_{t}^{\lambda}}x_{t}^{\lambda}\ra\right)\mid\ket{U_{0},V_{0}}\right]\\
+ & =d\lambda G\EV\left[\phi\left(\hatoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra+\oplim{\bar{\Delta}W_{t}^{\lambda}}x_{t}^{\lambda}\ra\right)\mid\ket{U_{0},V_{0}}\right]
+\end{align*}
+where the equality follows because $\ket{x_{t}^{\lambda}}$ is contained
+the $\sigma$-algebra of $\ket{U_{0},V_{0}},$so $\dotoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra=0$.
+Since $\oplim{\bar{\Delta}W_{t}^{\lambda}}\in\sigma(\ket{U_{0},V_{0}})\otimes\sigma(\ket{U_{0},V_{0}})$,
+$\oplim{\bar{\Delta}W_{t}^{\lambda}}x_{t}^{\lambda}\ra\in\sigma(\ket{U_{0},V_{0}})$,
+and the expectation is really just over $\hatoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra$.
+
+\subsubsection{Backward}
+
+\begin{align*}
+-d\ket{\tilde\delta x_{\tau}^{\lambda}} & =d\lambda\EV\left[\oplim{W_{\tau}^{\lambda\trsp}}\phi'(W_{\tau}^{\lambda}x_{\tau}^{\lambda})\odot(G\tilde\delta x_{\tau}^{\lambda})\ra\mid\ket{U_{0},V_{0}}\right]\\
+ & =d\lambda\EV\left[\oplim{\bar{\Delta}W_{\tau}^{\lambda\trsp}}\phi'(W_{\tau}^{\lambda}x_{\tau}^{\lambda})\odot(G\tilde\delta x_{\tau}^{\lambda})\ra\mid\ket{U_{0},V_{0}}\right]
+\end{align*}
+Here the $\hatoplim{W_{0}^{\lambda\trsp}}$ and $\dotoplim{W_{0}^{\lambda\trsp}}$
+drop out because the former is zero-mean and indepenent from $\ket{U_{0},V_{0}}$
+and the latter drops out because $\ket{x_{t}^{\lambda}}$ is contained
+the $\sigma$-algebra of $\ket{U_{0},V_{0}}$.
+
+\subsection{$1/L^{\alpha}$ branches, $\alpha\in(1/2,1]$}\label{heuristics:smooth_limits}
+
+\subsubsection{Forward}
+
+\begin{align*}
+d\ket{x_{t}^{\lambda}} & =(d\lambda)^{\alpha}G\EV\left[\phi\left(\oplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra+(d\lambda)^{1-\alpha}\widetilde{\oplim{\bar{\Delta}W_{t}^{\lambda}}}x_{t}^{\lambda}\ra\right)\mid\ket{U_{0},V_{0}}\right]\\
+ & =d\lambda\EV\left[\phi'\left(\hatoplim{W_{0}^{\lambda}}x_{t}^{\lambda}\ra\right)\right]G\oplim{\bar{\Delta}W_{t}^{\lambda}}x_{t}^{\lambda}\ra
+\end{align*}
+because the same reason as above.
+
+\subsubsection{Backward}
+
+\begin{align*}
+-d\ket{\tilde\delta x_{\tau}^{\lambda}} & =d\lambda\EV\left[\oplim{W_{\tau}^{\lambda\trsp}}\phi'(W_{\tau}^{\lambda}x_{\tau}^{\lambda})\odot(G\tilde\delta x_{\tau}^{\lambda})\ra\mid\ket{U_{0},V_{0}}\right]\\
+ & =d\lambda\EV\left[\oplim{\bar{\Delta}W_{\tau}^{\lambda\trsp}}\phi'(W_{\tau}^{\lambda}x_{\tau}^{\lambda})\odot(G\tilde\delta x_{\tau}^{\lambda})\ra\mid\ket{U_{0},V_{0}}\right]\\
+ & =d\lambda\EV\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\right]\oplim{\bar{\Delta}W_{\tau}^{\lambda\trsp}}G\tilde\delta x_{\tau}^{\lambda}\ra
+\end{align*}
+
+Here, 
+\[
+\ket{\phi'(W_{\tau}^{\lambda}x_{\tau}^{\lambda})\odot(G\tilde\delta x_{\tau}^{\lambda})}\equiv\EV\left[\phi'(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\right]G\ket{\tilde\delta x_{\tau}^{\lambda}}+(d\lambda)^{1-\alpha}\EV\left[\phi''(\hatket{W_{0}^{\lambda}x_{\tau}^{\lambda}})\right]G\oplim{\bar{\Delta}W_{\tau}^{\lambda\trsp}}\tilde\delta x_{\tau}^{\lambda}\ra
+\]
+
+\subsection{Justifications of the claims}\label{sec:claim_justifications}
+\textbf{Claim \ref{clm:stable_non_trivial}.} Stability during training when $\alpha+\gamma\geq1$ is straightforward (some technical conditions on the activation function are required). This is because the weight updates are of order $L^{-\alpha-\gamma}$ and feature updates involve no more than $L$ terms of size $L^{-\alpha-\gamma}$ (plus higher order terms that do not contribute to the update in the large depth limit). When $\alpha +\gamma >1$, the contribution of a sum of at most $L$ terms of order $L^{-\alpha - \gamma}$ will decrease to zero, and the network output $f_t$ will converge to $f_0$ in this case, yielding a trivial limit. However, when $\alpha + \gamma=1$, the updates remain important in the infinite depth limit, yielding a non-trivial limit.\\
+
+\textbf{Claim \ref{clm:faithful}.} Consider a stable and nontrivial parametrization (i.e. $\alpha+\gamma=1$). Faithfulness at initialization is achieved only when $\alpha\geq 1/2$. This was proven in \cite{hayou21stable} in a more general setup. Faithfulness during training is ensured as long as $\alpha\leq 1$ because feature updates are always $\Theta(1)$ in depth. With $\alpha>1$, $\gamma<0$ and the weight updates explode with depth in this case, which yield exploding behaviour for $\hh$.\\
+
+\textbf{Claim \ref{clm:redundant}} When $\alpha \in (1/2,1]$, we obtain smooth limiting dynamics when $L\to \infty$ as demonstrated in \Cref{heuristics:smooth_limits}. This limiting process is a smooth process (no Brownian jumps) that satisfies the required definition of redundancy.
+
+\textbf{Claim \ref{clm:depth_mup}.} It remains to prove that Depth-$\mu$P is non-redundant. This is a result of the limiting dynamics in this case (\Cref{heuristics:depth-mup}) . With Depth-$\mu$P, the randomness of the initialization in the hidden layer remains present throughout training, inducing a Brownian-like term that breaks redundancy. 
+
+\textbf{Claim \ref{clm:layerwise-linearization}.} In Depth-$\mu$P, $W_t^l-W_0^l$ is $\Theta(1/\sqrt L)$ which is much smaller than $W_0^l$. Therefore, $\phi(W^l_t\xx_t^{l-1})-\phi( W^l_0\xx_t^{l-1}) - \phi'(W_0^l\xx_t^{l-1})\odot ((W_t^l-W_0^l)\xx_t^{l-1})=o(1/\sqrt L)$, thus satisfies \Cref{defn:layerwise-linearization}.
+Similar to the depth-$\mu$P case, for $\alpha \in [1/2,1)$, the activation in the forward pass can be linearized which indicates layerwise linearization when $\alpha+\gamma=1$.
+

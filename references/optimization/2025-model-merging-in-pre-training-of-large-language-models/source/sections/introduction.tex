@@ -1,0 +1,65 @@
+\section{Introduction}
+Modern large language models~(LLMs)~\citep{seed2025seed, achiam2023gpt,guo2025deepseek,team2024gemini,yang2024qwen2} have demonstrated remarkable capabilities with widespread applications across diverse tasks. Despite their exceptional performance in fundamental tasks, LLMs still face several critical challenges, including the extensive pre-training costs, discounted effectiveness of domain-specific post-training, imprecisely-predictable performance scaling, as well as the instability of large-scale training. Model merging~\citep{yang2024model}, as a relatively young topic, presents a promising approach to alleviate these practical challenges. 
+
+Recently, the benefits of model merging have been primarily studied in the post-training stage, where several models fine-tuned on different downstream tasks are combined into a single but more versatile model~\citep{ilharco2022editing,zhou2024metagpt,yu2024language}. For example, using the DARE~\citep{yu2024language} method to merge WizardLM~\citep{xu2023wizardlm} with WizardMath~\citep{luo2023wizardmath} shows a significant performance enhancement on GSM8K~\citep{cobbe2021training}, raising its score from 2.2 to 66.3. In contrast, research on model merging during the pre-training phase remains scarce. Such pre-training merging typically involves combining checkpoints from a single training trajectory, as explored in LAWA~\citep{kaddour2022stop} which utilizes model merging to accelerate the LLM training. However, as the model and data scales dramatically, independent researchers struggle to evaluate model merging's impact on large-scale models, mainly due to limited access to intermediate checkpoints from extensive pre-training. Although DeepSeek~\citep{liu2024deepseek} and LLaMA-3~\citep{grattafiori2024llama} have both indicated their employment of model merging techniques for model development, detailed information regarding these techniques has not been publicly disclosed.
+
+In this work, we mainly focus on model merging during the pre-training stage,
+introducing Pre-trained Model Average (\OURS{}),
+a novel strategy for model-level weight merging during pre-training.
+To comprehensively evaluate \OURS{},
+we trained a diverse set of LLMs of varying sizes and architectures from scratch,
+including Dense models~\cite{grattafiori2024llama} with parameters spanning from 411M to 70B, as well as
+Mixture-of-Experts (MoE) architectures~\cite{shazeer2017outrageously} with activated/total parameters ranging from 0.7B/7B to 20B/200B.
+We first investigate the performance impact of \OURS{} 
+and establish systematic evaluations across different phases of the warmup-stable-decay (WSD) learning schedule, which lately becomes a popular choice of $lr$ scheduler for LLM pre-training since~\cite{hu2024minicpm}.
+Experimental results demonstrate that model merging during the stable training phase yields consistent performance gains at different training steps.
+More remarkably, applying \OURS{} at early-stage of the $cosine$-decay phase usually achieve comparable or even superior performance to their final-stage annealing counterparts.
+These findings suggest that during the extensively lengthy pre-training stage with constant $lr$, \OURS{} can serve as a fast, reliable yet low-cost simulator for the annealed performance,
+enabling both faster validation cycles and significant computational savings.
+
+% Our experiments reveal that during the stable stage of WSD, merging models trained with a constant learning rate results in substantial performance improvements across various downstream tasks.
+% Notably, when merging models with an annealing learning rate, those merged at an early annealing stage can match or even outperform models at the final annealing stage.
+% Based on this, we found that merging models trained with a constant learning rate can predict the performance of corresponding annealed models in advance, accelerating validation and reducing computational costs.
+
+Building upon our \OURS{} framework, we first evaluate its performance with various prevalent merging strategies, including Simple Moving Average (SMA)~\cite{johnston1999some}, Weighted Moving Average (WMA)~\cite{perry2010weighted} and Exponential Moving Average (EMA)~\cite{hunter1986exponentially}.
+Notably, our experiments demonstrate that the performance differences among these methods gradually become negligible.
+% Consequently, we chose SMA for subsequent experiments, assigning equal weights to each model during the merging process.
+We further investigate how these important factors of \OURS{}, namely, the interval between each merging checkpoint, the number of models involved in merging, and the size of the model, would affect merging performance.
+Our analysis reveals two important findings:
+First, the optimal merging interval exhibits a clear scaling relationship with model size.
+Second, incorporating more checkpoints in the merging process consistently improves performance once training is completed.
+% we trained a diverse set of language models (LMs) from scratch while maintaining consistent data corpus and tokenization schemes across varying models and data scales.
+% These models encompass Mixture-of-Experts (MoE) architectures~\cite{shazeer2017outrageously} with activated/total parameters ranging from 0.7B/7B to 20B/200B, as well as dense models~\cite{grattafiori2024llama} with parameters spanning from 411M to 70B.
+
+Furthermore, we also investigated whether \OURS{} could produce more effective initialization weights for the consecutive continued training (CT) or supervised fine-tuning (SFT)~\cite{wei2021finetuned} stages to enhance the downstream model performance.
+% Our results indicate that although \OURS{} performs comparably to initializing CT and SFT stages with the latest checkpoint, we practically observed that merged model initialization yields smoother \textit{GradNorm} curves which thus helps stabilize the training dynamics.
+We practically observed that entering CT and SFT stages with \OURS{} applied could yield smoother \textit{GradNorm} curves, which thus helps stabilize the training dynamics yet without harming the performance, compared to initializing these stages with the latest available checkpoint as usual.
+This finding inspire a novel application of model merging for training stabilization, which we dubbed as \OURS{}-init.
+We demonstrate that in scenarios when the LLM training experiences severe irrecoverable loss spikes with broken training dynamics,
+applying \OURS{}-init over \(N\) preceding checkpoints to resume training, enables reliable recovery from unstable training trajectories.
+
+% we found an application of model merging on stablize training.
+% We show that by merging the weights from the \(N\) checkpoints prior to the spike and using the merged weights as initialization to resume training,
+% we can reliably bypass the problematic loss spike regions under a number of highly unstable training scenarios, where models exhibited severe loss spikes and failed to return to normal training trajectories.
+
+% we designed a number of highly unstable training scenarios, where models exhibited severe loss spikes and failed to return to normal training trajectories.
+% By merging the weights from the \(N\) checkpoints prior to the spike and using the merged weights as initialization to resume training, we found, as expected, that the resumed training could reliably bypass the problematic loss spike regions.
+% We also conducted ablation studies to assess the impact of learning rates on our experiments.
+% However, we did not observe consistent performance improvements across models of varying sizes.
+% Although some models achieved notable improvements in internal evaluations, these gains could not be consistently reproduced across models of other sizes.
+% Nevertheless, model merging remains a worthwhile, low-cost approach, particularly when the goal is to release a stronger model.
+
+In summary, our paper makes the following key contributions:
+\begin{itemize}
+    \item We present the Pre-trained Model Averaging (\OURS{}) strategy, a novel framework for model merging during LLM pre-training.
+    Through extensive experiments across model scales (from millions to over 100B parameters),
+    we demonstrate that merging checkpoints from the stable training phase produces consistent and significant performance improvements.
+    \item We delved into novel applications of model merging for weight initialization (\OURS-init), to help stabilize training process without harming the downstream performance, especially when it suffers from irrecoverable loss spikes with broken training dynamics.
+    Through extensive experiments, we demonstrate the effectiveness of \OURS{}-init on both CT and SFT stages.
+    \item We also comprehensively ablated various model merging techniques with their associated hyper-parameters. Our findings offer the research community practical pre-training guidelines with effective model merging.
+    Nevertheless, the low cost and rapid deployment of \OURS{} also make it a reliable and economic monitor for the pre-training process, to flexibly simulate the ultimate model performance after annealing.
+
+\end{itemize}
+
+
+%\subsection{Hello World}

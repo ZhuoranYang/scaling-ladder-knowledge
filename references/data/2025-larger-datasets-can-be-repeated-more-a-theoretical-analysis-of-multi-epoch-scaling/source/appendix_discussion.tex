@@ -1,0 +1,2489 @@
+\section{Theoretical Analysis under Learning Rate Decay} \label{app:discussion}
+\newcommand{\Vol}{\mathrm{Vol}}
+% In the main part of this paper, we mainly focus on SGD algorithm with a constant learning rate. However, in real-world scenarios, we often use optimization algorithms with learning rate schedule. Thus, in this section, we aim to discuss whether multi-epoch training could beat one pass training under learning rate schedule. We prove that one-pass training using a polynomial learning rate schedule is suboptimal compared to the Cramer-Rao (CR) lower bound, while multi-epoch training can obtain near minimax rates.
+
+% In the main body of this paper, we focus on SGD with a constant learning rate. However, in practical training, learning rate schedules are almost always utilized. In this section, we investigate whether multi-epoch training can outperform one-pass training when a learning rate schedule is used. We show that one-pass training with a polynomially decaying learning rate is suboptimal relative to the Cramér–Rao (CR) lower bound, whereas multi-epoch training can achieve near-minimax optimal rates.
+
+While the main body of this paper focuses on SGD with a constant learning rate, practical training almost always utilizes learning rate schedules. 
+% In particular, polynomially decaying learning rates are widely used in practice.\kaifeng{this is wrong. it is not widely used} 
+In this section, we study multi-epoch versus one-pass training under a class of polynomially decaying learning rate schedules.
+% \kaifeng{not practical.} 
+We show that one-pass training with a polynomial learning rate schedule is suboptimal relative to the statistical minimax rate $\frac{\sigma^2 d}{N}$ implied by the Cramér--Rao lower bound, which is $\frac{\sigma^2d}{2N}$ \citep{jain2017markov}. Meanwhile, multi-epoch training can almost attain this rate.
+
+% \kaifeng{state the Cramér--Rao lower bound here}
+
+% \paragraph{Setup (comparison with the standard linear regression model).}
+% We consider the same linear regression model as in the standard setup above in the following aspects:
+% (i) each data point $(\vx,y)\in\R^d\times\R$ is sampled i.i.d.\ from a joint distribution $\cD$;
+% (ii) $\|\vx\|\le D$ almost surely and $y=\langle \vw^*,\vx\rangle+\xi$, where the label noise $\xi$ is independent of $\vx$, satisfies $\E[\xi]=0$ and $\E[\xi^2]=\sigma^2$;
+% (iii) we optimize the squared loss $\ell(\vw;\vx,y)=\frac12(\langle \vw,\vx\rangle-y)^2$, and we measure performance by the population excess risk
+% \[
+% \cR(\vw):=\cL(\vw)-\frac12\sigma^2,
+% \qquad
+% \cL(\vw):=\E_{(\vx,y)\sim\cD}\big[\ell(\vw;\vx,y)\big].
+% \]
+% Moreover, we focus on multi-epoch SGD with random shuffling over a training set of size $N$ for $K$ epochs, and denote by $\cW_{K,N,\eta}$ the distribution of the final iterate $\vw_{KN}$ under learning rate $\eta$.
+
+% \smallskip
+% Our setting differs from the above standard setup in the following aspects, which are specific to our analysis.
+
+% \paragraph{(A) We do not require a diagonal covariance.}
+% Unlike the assumption $\E[\vx\vx^\top]=\diag(\lambda_1,\dots,\lambda_d)$, our results do not rely on the covariance being diagonal.
+% When convenient, we may work in the eigenbasis of $\mH:=\E[\vx\vx^\top]$ for notational simplicity, but the algorithm and guarantees are invariant to rotations.
+
+% \paragraph{(B) We study a different performance gap.}
+% Instead of only bounding $\cR(\vw_{KN})$ (excess risk above the irreducible noise),
+% we will upper bound a \emph{comparison gap} of the form
+% \[
+% \cL(\vw_{KN})-\cL(\widehat{\vw}_S),
+% \]
+% where $\widehat{\vw}_S$ is the empirical risk minimizer (ERM) on the same training set $S$.
+% This isolates the optimization error from the statistical estimation error.
+
+% \paragraph{(C) We use a schedule and constants tailored to RandomShuffle analysis.}
+% We assume a stepsize condition sufficient for stability (e.g.\ $\eta\le D^{-2}$),
+% and when proving explicit rates we may further specify an epochwise decaying schedule (or a constant stepsize)
+% as required by the RandomShuffle recursion we use.
+% All constants in the final bounds will be made explicit in terms of $D$, the spectrum of $\mH$, and the noise level.
+
+% \paragraph{(D) Randomness sources.}
+% All expectations are taken over (1) the random draw of the dataset $S\sim\cD^N$,
+% (2) the label noise $\{\xi_i\}$, and (3) the random shuffling permutations $\{\pi_k\}_{k=1}^K$.
+% Accordingly, we define the expected excess risk of $K$-epoch SGD with dataset size $N$ and learning rate $\eta$ as
+% \[
+% \bar{\cR}(K,N;\eta):=\E_{\vw\sim\cW_{K,N,\eta}}[\cR(\vw)].
+% \]
+
+% \paragraph{Problem Setup.}
+% We use the same notation for population loss $\cL(\cdot)$, excess risk $\cR(\cdot)$, and one-pass / multi-epoch RandomShuffle SGD with $i.i.d.$ training data as in \Cref{sec:setup}.
+% A data point $(\vx,y)\in\R^d\times\R$ is sampled from $\cD$, satisfies $\|\vx\|\le D$, and the label is generated by
+% $y=\langle \vw^*,\vx\rangle+\xi$, where $\xi$ is independent noise with $\E[\xi]=0$ and $\E[\xi^2]=\sigma^2$.
+% Let $\mH:=\E[\vx\vx^\top]$ and, w.l.o.g.\ working in its eigenbasis, $\mH=\diag(\lambda_1,\dots,\lambda_d)$.
+% Given a training set $S=\{(\vx_i,y_i)\}_{i=0}^{N-1}\sim\cD^N$, we run $K$-epoch RandomShuffle SGD with stepsize $\eta\le D^{-2}$ from $\vw_0=0$,
+% and denote by $\cW_{K,N,\eta}$ the distribution of the final iterate $\vw_{KN}$ over the randomness of $S$, $\{\xi_i\}$, and the shuffling permutations.
+% We define the expected excess risk as $\bar{\cR}(K,N;\eta):=\E_{\vw\sim\cW_{K,N,\eta}}[\cR(\vw)]$.
+
+% \paragraph{Problem Setup.}We consider the same linear regression problem setup and i.i.d training data as in \Cref{sec:setup}. Additionally, we assume that $|\xi| \leq D'$ for some constant $D'$ due to technical issues. We also take $d=1$, and denote $\lambda_1 = \lambda$. In this section, we use an SGD training algorithm with learning rate schedule. Specifically, the update rule is given by  
+% \begin{equation}
+%     \vw_{t+1} = \vw_{t} - \eta_t \nabla_{\vw}\ell(\vw_t; \vx_{j_t}, y_{j_t}) =\vw_t-\eta_t\vx_{j_t}\vx_{j_t}^{\top}\left(\vw_t-\vw^*\right)+\eta_t\xi_{j_t}\vx_{j_t}. \nonumber
+% \end{equation}
+
+\subsection{Problem Setup}
+We consider the same linear regression model, i.i.d.\ training data and the initial parameter value $\vw_0 = 0$ as in \Cref{sec:setup}.
+In addition, we assume the label noise is bounded almost surely as $|\xi|\le D'$ for technical convenience.
+% We specialize to $d=1$, so $x,w,w^*\in\R$, and denote $\lambda:=\E[x^2]$ (i.e., $\lambda_1=\lambda$).
+We run SGD algorithm with a learning rate schedule $E=\{\eta_t\}_{t\ge 0}$ (with $\eta_t\le D^{-2}$),
+where the sampled index $j_t$ is defined as in \Cref{sec:setup}. The update is
+\begin{equation}
+\vw_{t+1} = \vw_{t} - \eta_t \nabla_{\vw}\ell(\vw_t; \vx_{j_t}, y_{j_t}) =\vw_t-\eta_t\vx_{j_t}\vx_{j_t}^{\top}\left(\vw_t-\vw^*\right)+\eta_t\xi_{j_t}\vx_{j_t} \nonumber
+\end{equation}
+Next, given a $K$-epoch SGD over $N$ data points, with learning rate schedule $E$, we define $\cW_{K,N,E}$ to be the distribution of $\vw_{KN}$. Based on this, we define the expected excess risk of a given $K$-epoch SGD over $N$ data points with learning rate schedule $E$ as $\bar{\cR}(K, N; E) := \E_{\vw \sim \cW_{K,N,E}}[\cR(\vw)]$. We further assume that \Cref{asp:strongly-convex} holds, and $\vx$ has a continuous probability density function $p(\vx)$ with upper bound $M$ on a $d$-dimension ball with radius $D$. We also define $\lambda_{\min}:=\lambda_d$, and $\kappa_{\mH}=\frac{\lambda_1}{\lambda_d}$ to be the condition number of $\mH$.
+
+We then introduce a polynomial learning rate schedule class that we consider.
+\begin{definition}[Polynomial Learning-Rate Schedule Class] Given the $K$-epoch SGD trained with $N$ fresh data samples, we define a learning rate schedule class $\Gamma:=\left\{E(\eta_0,b,\alpha):\eta_0>0, b>0,0.5\leq\alpha\leq1\right\}$, where $E(\eta_0,b,\alpha)=\{\eta_t(\eta_0,b,\alpha)\}_{t=0}^{KN-1}$ that satisfies $\eta_t = \frac{\eta_0}{1 + bt^{\alpha}}$.
+% when $k_t=1$, and $\eta_t = \frac{1}{1+b(k_tN)^{\alpha}}$ when $k_t \geq 2$. 
+% Here $k_t$ is defined in \Cref{sec:setup}, $0<\alpha\leq 1$, and $b>0$.
+\end{definition}
+
+% \begin{definition}[Learning-rate schedule class] Fix $N$ and $K$, and let $t\in\{0,1,\dots,KN-1\}$ be the global iteration index. Define the (0-index) epoch and within-epoch indices \[ k_t:=\left\lfloor \frac{t}{N}\right\rfloor\in\{0,1,\dots,K-1\}, \qquad i_t:= t-k_t N \in \{0,1,\dots,N-1\}. \] Given parameters $\eta_0>0$, $b\ge 0$, and $\alpha>0$, we define the schedule $\Gamma(\eta_0,b,\alpha)=\{\eta_t\}_{t=0}^{KN-1}$ by \begin{equation} \label{eq:lr-class} \eta_t := \begin{cases} \dfrac{\eta_0}{1+b\,t^{\alpha}}, & k_t=0,\\[6pt] \dfrac{\eta_0}{1+b\,(k_t N)^{\alpha}}, & k_t\ge 1. \end{cases} \end{equation} \end{definition}
+
+\subsection{Sub-Optimality of One-Pass Training}
+
+\begin{theorem}[Sub-Optimality of One-Pass Training] \label{thm:sub-optimality-one-pass}
+    For one-pass SGD with dataset size of $N$, given any learning rate schedule $E\in \Gamma$, for some constant $C$, when $N$ is sufficiently large, we have 
+    \begin{align*}
+        \Bar{\cR}(1,N;E) \geq \frac{C\sigma^2d }{N}\cdot\kappa_{\mH}.
+    \end{align*}
+\end{theorem}
+
+\begin{proof}
+    This can be seen directly from the proof of Theorem 1, strongly convex case in~\citet{ge2019step}.
+\end{proof}
+\Cref{thm:sub-optimality-one-pass} gives a lower bound for one pass training that scales proportionally to the condition number $\kappa_{\mH}$, to be specific, $\Bar{\cR}(1,N;E) \gtrsim \frac{\sigma^2 d}{N}\cdot \kappa_{\mH}$. Since the condition number can be arbitrarily large, the lower bound indicates that one-pass training may be arbitrarily far from the minimax rate, showing its suboptimality. 
+
+\subsection{Optimality of Multi-Epoch Training}
+
+\Cref{thm:optimality-multi-epoch} shows that multi-epoch training can remove the dependency on the condition number and reach the statistical minimax rate.
+
+% Theorem~4.1 shows that the excess risk of one-pass training scales proportionally to the condition number $\kappa = \lambda_1 / \lambda_d$. 
+% In particular, the lower bound
+% \[
+
+% \]
+% implies that statistical efficiency deteriorates linearly with ill-conditioning. 
+% Since the condition number can in principle be arbitrarily large (for example, by choosing a data distribution whose covariance spectrum is highly skewed),  
+
+% This phenomenon highlights a fundamental limitation of single-pass SGD under learning-rate schedules: without multiple passes to progressively correct errors along poorly conditioned directions, the algorithm cannot fully exploit the available sample size $N$. 
+% In contrast, multi-epoch training can repeatedly average out noise across all eigendirections, thereby removing the explicit dependence on $\kappa$ and approaching the Cramér–Rao lower bound.
+
+% \begin{proof} Since the dataset $\{(x_t,\xi_t)\}_{t=0}^{N-1}$ is i.i.d.\ and $\pi_1$ is an independent uniform permutation, without loss of generality, we assume $\pi_1$ is an identity permutation. Let the estimation error be $e_t := w_t-w^*.$ Then the update becomes
+% \begin{equation}
+% \label{eq:err-rec}
+% e_{t+1}=(1-\eta_t x_t^2)e_t+\eta_t \xi_t x_t,\qquad t=0,1,\dots,N-1.
+% \end{equation}
+% Moreover, by the linear regression model,
+% \begin{equation}
+% \label{eq:excess-risk-1d}
+% \cR(w)=\cL(w)-\tfrac12\sigma^2=\frac{\lambda}{2}(w-w^*)^2=\frac{\lambda}{2}e^2.
+% \end{equation}
+% Hence it suffices to characterize $\E[e_N^2]$, since
+% \begin{equation}
+% \label{eq:Rbar-m}
+% \bar{\cR}(1,N;E)=\E[\cR(w_N)]=\frac{\lambda}{2}\E[e_N^2].
+% \end{equation}
+
+% \paragraph{Step 1: a second-moment recursion.}
+% Let $\cF_t:=\sigma\big((x_s,\xi_s):0\le s\le t-1\big)$.
+% Conditioned on $\cF_t$, the error $e_t$ is measurable and independent of $(x_t,\xi_t)$.
+% Squaring \eqref{eq:err-rec} and taking conditional expectation,
+% the cross term vanishes because $\E[\xi_t]=0$ and $\xi_t$ is independent of $x_t$:
+% \begin{align}
+% \E[e_{t+1}^2\mid\cF_t]
+% &=\E\big[(1-\eta_t x_t^2)^2\big]\; e_t^2 + \eta_t^2\,\E[\xi_t^2 x_t^2]
+% \nonumber\\
+% &=\Big(1-2\lambda\eta_t+\nu_4\,\eta_t^2\Big)e_t^2+\sigma^2\lambda\,\eta_t^2,
+% \label{eq:m-rec-cond}
+% \end{align}
+% where we denote $\nu_4:=\E[x_t^4]\le D^4$ (since $|x|\le D$).
+% Taking full expectation and letting $m_t:=\E[e_t^2]$ yields
+% \begin{equation}
+% \label{eq:m-rec}
+% m_{t+1}=\Big(1-2\lambda\eta_t+\nu_4\,\eta_t^2\Big)m_t+\sigma^2\lambda\,\eta_t^2.
+% \end{equation}
+
+% % \paragraph{Step 2: Taylor expansion of the schedule.}
+% % For one-pass SGD ($K=1$), Definition~H.1 gives
+% % \[
+% % \eta_t=\frac{\eta_0}{1+b\,t^{\alpha}}\qquad (t=0,1,\dots,N-1).
+% % \]
+% % To obtain the $1/N$ asymptotic in Theorem~H.1, we use the case $\alpha=1$
+% % (which is the regime where $\eta_t$ has a $1/t$ tail).
+% % For $t\to\infty$, a Taylor expansion gives
+% % \begin{equation}
+% % \label{eq:eta-taylor}
+% % \eta_t=\frac{\eta_0}{1+bt}
+% % =\frac{\eta_0}{bt}\cdot\frac{1}{1+\frac{1}{bt}}
+% % =\frac{\eta_0}{bt}\left(1-\frac{1}{bt}+O(t^{-2})\right)
+% % =\frac{c}{t}+O(t^{-2}),
+% % \qquad c:=\frac{\eta_0}{b}.
+% % \end{equation}
+% % Consequently,
+% % \begin{equation}
+% % \label{eq:eta-powers-taylor}
+% % 2\lambda\eta_t=\frac{a}{t}+O(t^{-2}),
+% % \qquad
+% % \eta_t^2=\frac{c^2}{t^2}+O(t^{-3}),
+% % \qquad
+% % \nu_4\eta_t^2=O(t^{-2}),
+% % \qquad a:=2\lambda c=\frac{2\lambda\eta_0}{b}.
+% % \end{equation}
+
+% % \paragraph{Step 3: asymptotics of $m_t$.}
+% % Assume $a>1$ (equivalently $2\lambda\eta_0>b$), which is the standard condition for the
+% % $1/t$-asymptotic in stochastic approximation.
+% % Using \eqref{eq:eta-powers-taylor} in \eqref{eq:m-rec} and the fact that $m_t=O(t^{-1})$
+% % in this regime (proved below), we obtain the refined expansion
+% % \begin{equation}
+% % \label{eq:m-rec-asymp}
+% % m_{t+1}
+% % =\left(1-\frac{a}{t}+O(t^{-2})\right)m_t+\frac{\sigma^2\lambda c^2}{t^2}+O(t^{-3}).
+% % \end{equation}
+
+% % We now solve \eqref{eq:m-rec-asymp} by the standard ``$t\,m_t$'' trick.
+% % Define $u_t:=t\,m_t$. Multiplying \eqref{eq:m-rec-asymp} by $(t+1)$ and using
+% % $(t+1)m_t = u_t + m_t$ and $m_t=u_t/t$, we get
+% % \begin{align}
+% % u_{t+1}
+% % &=(t+1)m_{t+1}
+% % =(t+1)\left(1-\frac{a}{t}+O(t^{-2})\right)\frac{u_t}{t}
+% % +(t+1)\left(\frac{\sigma^2\lambda c^2}{t^2}+O(t^{-3})\right)
+% % \nonumber\\
+% % &=\left(1+\frac{1-a}{t}+O(t^{-2})\right)u_t
+% % +\frac{\sigma^2\lambda c^2}{t}+O(t^{-2}).
+% % \label{eq:u-rec}
+% % \end{align}
+% % Let
+% % \[
+% % u_\infty:=\frac{\sigma^2\lambda c^2}{a-1}
+% % =\frac{\sigma^2\lambda (\eta_0/b)^2}{\frac{2\lambda\eta_0}{b}-1}.
+% % \]
+% % Subtract $u_\infty$ from both sides of \eqref{eq:u-rec} and set $v_t:=u_t-u_\infty$.
+% % Using $(1-a)u_\infty+\sigma^2\lambda c^2=0$, we obtain
+% % \begin{equation}
+% % \label{eq:v-rec}
+% % v_{t+1}=\left(1-\frac{a-1}{t}+O(t^{-2})\right)v_t+O(t^{-2}).
+% % \end{equation}
+% % Since $a-1>0$, a standard summation argument for \eqref{eq:v-rec} yields $v_t\to 0$,
+% % hence $u_t\to u_\infty$, and therefore
+% % \begin{equation}
+% % \label{eq:m-asymp}
+% % m_N=\frac{u_N}{N}
+% % =\frac{u_\infty}{N}\bigl(1+o_N(1)\bigr)
+% % =
+% % \frac{\sigma^2\lambda c^2}{a-1}\cdot\frac{1}{N}\bigl(1+o_N(1)\bigr).
+% % \end{equation}
+
+% % \paragraph{Step 4: conclude the excess risk.}
+% % Combining \eqref{eq:Rbar-m} and \eqref{eq:m-asymp},
+% % \begin{align}
+% % \bar{\cR}(1,N;E)
+% % &=\frac{\lambda}{2}m_N
+% % =\frac{\lambda}{2}\cdot
+% % \frac{\sigma^2\lambda c^2}{a-1}\cdot\frac{1}{N}\bigl(1+o_N(1)\bigr)
+% % \nonumber\\
+% % &=\frac{\sigma^2\lambda}{N}\left(
+% % \frac{\lambda c^2}{2(a-1)}
+% % \right)\bigl(1+o_N(1)\bigr)
+% % =
+% % \frac{\sigma^2\lambda}{N}\cdot C \cdot \bigl(1+o_N(1)\bigr),
+% % \label{eq:final}
+% % \end{align}
+% % where the constant $C$ can be taken as
+% % \[
+% % C:=\frac{\lambda c^2}{2(a-1)}
+% % =\frac{\lambda(\eta_0/b)^2}{2\left(\frac{2\lambda\eta_0}{b}-1\right)}
+% % =\frac{\lambda\eta_0^2}{2b(2\lambda\eta_0-b)}.
+% % \]
+% % This proves Theorem~H.1.
+
+% % \paragraph{Justification that $m_t=O(1/t)$.}
+% % From \eqref{eq:m-rec} and $\nu_4\eta_t^2\le \nu_4 D^{-4}$, for all large $t$ we have
+% % $m_{t+1}\le (1-\lambda\eta_t)m_t + \sigma^2\lambda\eta_t^2$.
+% % Using $\eta_t=c/t+O(t^{-2})$ and $a=2\lambda c>1$ implies $\lambda c>1/2$,
+% % one can verify by induction that there exists $M$ such that $m_t\le M/t$ for all $t$
+% % sufficiently large, which is enough to make the $O(t^{-3})$ remainder in
+% % \eqref{eq:m-rec-asymp} valid.
+% % \end{proof}
+
+% % \begin{remark}[On $\alpha\neq 1$]
+% % The above $1/N$ asymptotic uses the tail expansion $\eta_t=c/t+O(t^{-2})$, i.e., $\alpha=1$.
+% % If $\eta_t\asymp t^{-\alpha}$ with $\alpha\in(0,1)$, the same expansion method applied to
+% % \eqref{eq:m-rec} yields a different power law for $m_N$ (and hence for $\bar{\cR}$),
+% % with the last-iterate rate typically scaling as $N^{-\alpha}$ rather than $N^{-1}$.
+% % \end{remark}
+
+
+% % \begin{proof}[Proof of Theorem~H.1 (and the $\alpha$-dependent rate) via product--log--Taylor analysis]
+% % We work under the screenshot setup with $d=1$, $|x|\le D$, $|\xi|\le D'$, and
+% % $\lambda:=\E[x^2]>0$. Let $e_t:=w_t-w^*$.
+% % For one-pass SGD ($K=1$), we have $k_t\equiv 1$ and thus the schedule in Definition~H.1 reduces to
+% % \begin{equation}
+% % \label{eq:eta-def-op}
+% % \eta_t=\frac{\eta_0}{1+b t^\alpha},\qquad t=0,1,\dots,N-1,
+% % \qquad (0<\alpha\le 1,\ b>0).
+% % \end{equation}
+% % Since the training data are i.i.d.\ and $\pi_1$ is an independent uniform permutation, the visited sequence
+% % $\{(x_{j_t},\xi_{j_t})\}_{t=0}^{N-1}$ has the same joint law as $\{(x_t,\xi_t)\}_{t=0}^{N-1}$
+% % with i.i.d.\ $(x_t,\xi_t)\sim (x,\xi)$.
+% % The update becomes
+% % \begin{equation}
+% % \label{eq:err}
+% % e_{t+1}=(1-\eta_t x_t^2)e_t+\eta_t\xi_t x_t.
+% % \end{equation}
+% % Moreover the (population) excess risk in $d=1$ is
+% % \begin{equation}
+% % \label{eq:excess-risk}
+% % \cR(w)=\cL(w)-\tfrac12\sigma^2=\frac{\lambda}{2}(w-w^*)^2=\frac{\lambda}{2}e^2,
+% % \qquad\Rightarrow\qquad
+% % \bar{\cR}(1,N;E)=\frac{\lambda}{2}\E[e_N^2].
+% % \end{equation}
+
+% % % ------------------------------------------------------------
+% % \paragraph{Step 1: second-moment recursion.}
+% % Let $m_t:=\E[e_t^2]$. Expanding \eqref{eq:err} and conditioning on the past,
+% % the cross term vanishes since $\E[\xi]=0$ and $\xi$ is independent of $x$:
+% % \begin{align}
+% % m_{t+1}
+% % &=\E\big[(1-\eta_t x_t^2)^2\big]\,m_t + \eta_t^2\,\E[\xi_t^2 x_t^2]
+% % \nonumber\\
+% % &=\Bigl(1-2\lambda\eta_t+\nu_4\eta_t^2\Bigr)m_t + \sigma^2\lambda\,\eta_t^2,
+% % \label{eq:m-rec}
+% % \end{align}
+% % where $\nu_4:=\E[x^4]\le D^4$.
+
+% % ------------------------------------------------------------
+% \paragraph{Step 2: unroll the recursion into a product--sum form.}
+% Define
+% \[
+% a_t:=1-2\lambda\eta_t+\nu_4\eta_t^2 \in (0,2]\qquad(\text{for }\eta_t\le D^{-2}\ \text{and }\lambda\le D^2).
+% \]
+% Iterating \eqref{eq:m-rec} yields the exact representation
+% \begin{equation}
+% \label{eq:m-unroll}
+% m_N=m_0\prod_{t=0}^{N-1}a_t+\sigma^2\lambda\sum_{s=0}^{N-1}\eta_s^2\prod_{t=s+1}^{N-1}a_t.
+% \end{equation}
+
+% \paragraph{Step 3: a $D$-free lower bound on the contraction factors.}
+% Recall $a_t=1-2\lambda\eta_t+\nu_4\eta_t^2$ where $\nu_4:=\E[x^4]$.
+% By Jensen's inequality,
+% \[
+% \nu_4=\E[x^4]\ \ge\ (\E[x^2])^2=\lambda^2.
+% \]
+% Hence for every $t$,
+% \begin{equation}\label{eq:at-lb}
+% a_t \;=\; 1-2\lambda\eta_t+\nu_4\eta_t^2
+% \;\ge\; 1-2\lambda\eta_t+\lambda^2\eta_t^2
+% \;=\; (1-\lambda\eta_t)^2.
+% \end{equation}
+% Since $\eta_t\le D^{-2}$ and $\lambda=\E[x^2]\le D^2$, we have $0\le 1-\lambda\eta_t\le 1$.
+
+% Plugging \eqref{eq:at-lb} into the unrolled form \eqref{eq:m-unroll}, we obtain
+% \begin{equation}\label{eq:mN-lb-prod}
+% m_N
+% \;\ge\;
+% m_0\prod_{t=0}^{N-1}(1-\lambda\eta_t)^2
+% \;+\;
+% \sigma^2\lambda\sum_{s=0}^{N-1}\eta_s^2\prod_{t=s+1}^{N-1}(1-\lambda\eta_t)^2.
+% \end{equation}
+
+% \paragraph{Step 4: telescoping + Cauchy--Schwarz lower bound.}
+% Define
+% \[
+% B_t:=\prod_{i=t}^{N-1}(1-\lambda\eta_i),\qquad B_N:=1.
+% \]
+% Then \eqref{eq:mN-lb-prod} becomes
+% \begin{equation}\label{eq:mN-B}
+% m_N \;\ge\; m_0 B_0^2 \;+\; \sigma^2\lambda\sum_{t=0}^{N-1}\eta_t^2 B_{t+1}^2.
+% \end{equation}
+% Moreover, from $B_t=(1-\lambda\eta_t)B_{t+1}$ we have the identity
+% \[
+% B_{t+1}-B_t=\lambda\eta_t B_{t+1}.
+% \]
+% Summing over $t=0,1,\dots,N-1$ yields
+% \begin{equation}\label{eq:telescoping}
+% \sum_{t=0}^{N-1}\eta_t B_{t+1}=\frac{1-B_0}{\lambda}.
+% \end{equation}
+% By Cauchy--Schwarz,
+% \[
+% \sum_{t=0}^{N-1}\eta_t^2 B_{t+1}^2
+% \ \ge\
+% \frac{1}{N}\Big(\sum_{t=0}^{N-1}\eta_t B_{t+1}\Big)^2
+% \ =\
+% \frac{(1-B_0)^2}{\lambda^2 N}.
+% \]
+% Plugging this into \eqref{eq:mN-B} gives
+% \begin{equation}\label{eq:mN-master}
+% m_N \;\ge\; m_0 B_0^2 \;+\; \frac{\sigma^2}{\lambda N}(1-B_0)^2.
+% \end{equation}
+
+% \paragraph{Step 5: choosing a hard instance and concluding the $1/N$ bound.}
+% To make the bound uniform over all schedules, we consider a valid instance with initialization $w_0=0$
+% and choose $w^*:=\sigma/\sqrt{\lambda}$, so that
+% \[
+% m_0=\E[(w_0-w^*)^2]=(w^*)^2=\frac{\sigma^2}{\lambda}.
+% \]
+% Then \eqref{eq:mN-master} becomes
+% \[
+% m_N \;\ge\; \frac{\sigma^2}{\lambda}\Big(B_0^2+\frac{1}{N}(1-B_0)^2\Big).
+% \]
+% The convex function $g(B):=B^2+\frac{1}{N}(1-B)^2$ on $[0,1]$ attains its minimum
+% at $B=\frac{1}{N+1}$, and
+% \[
+% \min_{B\in[0,1]}g(B)=\frac{1}{N+1}\ \ge\ \frac{1}{2N}\qquad(N\ge 1).
+% \]
+% Hence
+% \begin{equation}\label{eq:mN-final}
+% m_N \;\ge\; \frac{\sigma^2}{\lambda(N+1)}\ \ge\ \frac{\sigma^2}{2\lambda N}.
+% \end{equation}
+% Finally, by \eqref{eq:Rbar-m},
+% \[
+% \bar{\cR}(1,N;E)=\frac{\lambda}{2}m_N
+% \ \ge\
+% \frac{\lambda}{2}\cdot \frac{\sigma^2}{\lambda(N+1)}
+% =
+% \frac{\sigma^2}{2(N+1)}
+% \ \ge\
+% \frac{\sigma^2}{4N}.
+% \]
+
+% \paragraph{Step 6: converting to the stated $\sigma^2\lambda/N$ form.}
+% Under the standard normalization $\lambda=\E[x^2]\le 1$ (e.g., $\|x\|\le 1$),
+% we have $\frac{\sigma^2}{4N}\ge \frac{\sigma^2\lambda}{4N}$, and therefore
+% \[
+% \bar{\cR}(1,N;E)\ \ge\ \frac{1}{4}\cdot\frac{\sigma^2\lambda}{N}.
+% \]
+% Thus the theorem holds with the universal constant $C=1/4$, which does not depend on $D$ or $D'$.
+
+% % ------------------------------------------------------------
+% \paragraph{Step 3: convert products to exponentials and Taylor-expand the log.}
+% Write
+% \[
+% \prod_{t=s+1}^{N-1}a_t=\exp\Big(\sum_{t=s+1}^{N-1}\log a_t\Big).
+% \]
+% Since $\eta_t\to 0$ and $\eta_t\le D^{-2}$, we may Taylor-expand
+% \[
+% \log a_t = \log\bigl(1-2\lambda\eta_t+\nu_4\eta_t^2\bigr).
+% \]
+% Let $u_t:=-2\lambda\eta_t+\nu_4\eta_t^2$. Then $a_t=1+u_t$ and $|u_t|\lesssim \eta_t$.
+% Using $\log(1+u)=u-\frac{u^2}{2}+O(u^3)$, we get the pointwise expansion
+% \begin{equation}
+% \label{eq:log-expand}
+% \log a_t
+% =
+% -2\lambda\eta_t + (\nu_4-2\lambda^2)\eta_t^2 + O(\eta_t^3).
+% \end{equation}
+% In particular, there exists an absolute constant $C_1<\infty$ (depending only on $D$) such that
+% for all $t$,
+% \begin{equation}
+% \label{eq:log-bound}
+% \log a_t = -2\lambda\eta_t + O(\eta_t^2),
+% \qquad\text{and}\qquad
+% \Big|\log a_t +2\lambda\eta_t\Big|\le C_1\eta_t^2.
+% \end{equation}
+% Therefore,
+% \begin{equation}
+% \label{eq:prod-exp}
+% \prod_{t=s+1}^{N-1}a_t
+% =
+% \exp\Big(
+% -2\lambda\sum_{t=s+1}^{N-1}\eta_t + O\!\Big(\sum_{t=s+1}^{N-1}\eta_t^2\Big)
+% \Big).
+% \end{equation}
+
+% % ------------------------------------------------------------
+% \paragraph{Step 4: asymptotics of the sums of $\eta_t$ and $\eta_t^2$.}
+% From \eqref{eq:eta-def-op}, for large $t$ we have the standard tail expansion
+% \begin{equation}
+% \label{eq:eta-tail}
+% \eta_t = \frac{\eta_0}{b}\,t^{-\alpha}\bigl(1+o(1)\bigr).
+% \end{equation}
+% Hence, for $0<\alpha<1$,
+% \begin{equation}
+% \label{eq:sum-eta-alpha<1}
+% \sum_{t=s+1}^{N-1}\eta_t
+% =
+% \frac{\eta_0}{b}\sum_{t=s+1}^{N-1}t^{-\alpha}\bigl(1+o(1)\bigr)
+% =
+% \frac{\eta_0}{b(1-\alpha)}\Big(N^{1-\alpha}-s^{1-\alpha}\Big)\bigl(1+o(1)\bigr),
+% \end{equation}
+% while for $\alpha=1$,
+% \begin{equation}
+% \label{eq:sum-eta-alpha=1}
+% \sum_{t=s+1}^{N-1}\eta_t
+% =
+% \frac{\eta_0}{b}\sum_{t=s+1}^{N-1}\frac{1}{t}\bigl(1+o(1)\bigr)
+% =
+% \frac{\eta_0}{b}\log\frac{N}{s}\bigl(1+o(1)\bigr).
+% \end{equation}
+% Similarly,
+% \begin{equation}
+% \label{eq:sum-eta2}
+% \sum_{t=s+1}^{N-1}\eta_t^2
+% =
+% \Big(\frac{\eta_0}{b}\Big)^2\sum_{t=s+1}^{N-1}t^{-2\alpha}\bigl(1+o(1)\bigr)
+% =
+% \begin{cases}
+% O\big(N^{1-2\alpha}\big), & \alpha<\frac12,\\
+% O(\log N), & \alpha=\frac12,\\
+% O(1), & \alpha>\frac12.
+% \end{cases}
+% \end{equation}
+
+% \begin{proof}
+% We prove the theorem in the one-dimensional case $d=1$. Since the statement claims a lower bound for any learning-rate schedule $E\in\Gamma$, it suffices to construct a simple problem instance satisfying the assumptions and establish the lower bound for arbitrary $\{\eta_t\}$; the bound will then hold uniformly over $\Gamma$.
+
+% \paragraph{Step 1: Constructing a simple instance and writing the excess risk.}
+
+% Let
+% \[
+% x \in \{+\sqrt{\lambda},-\sqrt{\lambda}\} \quad \text{with equal probability}, 
+% \qquad
+% \xi \in \{+\sigma,-\sigma\} \quad \text{with equal probability},
+% \]
+% with $x$ and $\xi$ independent. Then $\E[x^2]=\lambda$, $|x|=\sqrt{\lambda}\le D$ (since $\lambda\le D^2$), and $\E[\xi]=0$, $\E[\xi^2]=\sigma^2$, with $|\xi|\le D'$ by choosing $D'\ge\sigma$.
+
+% We initialize $w_0=0$ and choose
+% \[
+% w^* := \frac{\sigma}{\sqrt{\lambda}},
+% \qquad
+% v_0 := (w_0-w^*)^2 = \frac{\sigma^2}{\lambda}.
+% \]
+
+% For linear regression,
+% \[
+% \cL(w)
+% = \frac12 \E[(wx-y)^2]
+% = \frac12 \E[((w-w^*)x-\xi)^2]
+% = \frac{\lambda}{2}(w-w^*)^2 + \frac{\sigma^2}{2}.
+% \]
+% Hence the excess risk is
+% \[
+% \cR(w)=\cL(w)-\frac12\sigma^2
+% = \frac{\lambda}{2}(w-w^*)^2.
+% \]
+% Therefore, it suffices to lower bound $\E[(w_N-w^*)^2]$.
+
+% \paragraph{Step 2: Variance recursion (same structure as the reference proof).}
+
+% Let $e_t := w_t-w^*$ and define
+% \[
+% v_t := \E[e_t^2],
+% \]
+% where the expectation is taken over the dataset, label noise, and random shuffling (for one-pass, a single permutation).
+
+% In the one-pass case ($K=1$), $t=0,1,\dots,N-1$, and the update reads
+% \[
+% e_{t+1}
+% = (1-\eta_t x_{j_t}^2)e_t + \eta_t \xi_{j_t} x_{j_t}.
+% \]
+% In our construction, $x_{j_t}^2=\lambda$ almost surely. Since $\xi_{j_t}$ has zero mean and is independent of the past, the cross term vanishes in expectation, yielding
+% \begin{equation}\label{eq:rec}
+% v_{t+1}
+% = (1-\eta_t\lambda)^2 v_t + \lambda\sigma^2 \eta_t^2.
+% \end{equation}
+% Because $\eta_t\le D^{-2}$ and $\lambda\le D^2$, we have $0\le 1-\eta_t\lambda\le 1$.
+
+% Unrolling \eqref{eq:rec} gives
+% \begin{equation}\label{eq:unroll}
+% v_N
+% = v_0 \prod_{t=0}^{N-1}(1-\eta_t\lambda)^2
+% + \lambda\sigma^2 \sum_{t=0}^{N-1} \eta_t^2
+%   \prod_{i=t+1}^{N-1}(1-\eta_i\lambda)^2.
+% \end{equation}
+
+
+
+
+% \paragraph{Step 3: a $D$-free lower bound on the contraction factors.}
+% Recall $a_t=1-2\lambda\eta_t+\nu_4\eta_t^2$ where $\nu_4:=\E[x^4]$.
+% By Jensen's inequality,
+% \[
+% \nu_4=\E[x^4]\ \ge\ (\E[x^2])^2=\lambda^2.
+% \]
+% Hence for every $t$,
+% \begin{equation}\label{eq:at-lb}
+% a_t \;=\; 1-2\lambda\eta_t+\nu_4\eta_t^2
+% \;\ge\; 1-2\lambda\eta_t+\lambda^2\eta_t^2
+% \;=\; (1-\lambda\eta_t)^2.
+% \end{equation}
+% Since $\eta_t\le D^{-2}$ and $\lambda=\E[x^2]\le D^2$, we have $0\le 1-\lambda\eta_t\le 1$.
+
+% Plugging \eqref{eq:at-lb} into the unrolled form \eqref{eq:m-unroll}, we obtain
+% \begin{equation}\label{eq:mN-lb-prod}
+% m_N
+% \;\ge\;
+% m_0\prod_{t=0}^{N-1}(1-\lambda\eta_t)^2
+% \;+\;
+% \sigma^2\lambda\sum_{s=0}^{N-1}\eta_s^2\prod_{t=s+1}^{N-1}(1-\lambda\eta_t)^2.
+% \end{equation}
+
+% \paragraph{Step 4: telescoping + Cauchy--Schwarz lower bound.}
+% Define
+% \[
+% B_t:=\prod_{i=t}^{N-1}(1-\lambda\eta_i),\qquad B_N:=1.
+% \]
+% Then \eqref{eq:mN-lb-prod} becomes
+% \begin{equation}\label{eq:mN-B}
+% m_N \;\ge\; m_0 B_0^2 \;+\; \sigma^2\lambda\sum_{t=0}^{N-1}\eta_t^2 B_{t+1}^2.
+% \end{equation}
+% Moreover, from $B_t=(1-\lambda\eta_t)B_{t+1}$ we have the identity
+% \[
+% B_{t+1}-B_t=\lambda\eta_t B_{t+1}.
+% \]
+% Summing over $t=0,1,\dots,N-1$ yields
+% \begin{equation}\label{eq:telescoping}
+% \sum_{t=0}^{N-1}\eta_t B_{t+1}=\frac{1-B_0}{\lambda}.
+% \end{equation}
+% By Cauchy--Schwarz,
+% \[
+% \sum_{t=0}^{N-1}\eta_t^2 B_{t+1}^2
+% \ \ge\
+% \frac{1}{N}\Big(\sum_{t=0}^{N-1}\eta_t B_{t+1}\Big)^2
+% \ =\
+% \frac{(1-B_0)^2}{\lambda^2 N}.
+% \]
+% Plugging this into \eqref{eq:mN-B} gives
+% \begin{equation}\label{eq:mN-master}
+% m_N \;\ge\; m_0 B_0^2 \;+\; \frac{\sigma^2}{\lambda N}(1-B_0)^2.
+% \end{equation}
+
+% \paragraph{Step 5: choosing a hard instance and concluding the $1/N$ bound.}
+% To make the bound uniform over all schedules, we consider a valid instance with initialization $w_0=0$
+% and choose $w^*:=\sigma/\sqrt{\lambda}$, so that
+% \[
+% m_0=\E[(w_0-w^*)^2]=(w^*)^2=\frac{\sigma^2}{\lambda}.
+% \]
+% Then \eqref{eq:mN-master} becomes
+% \[
+% m_N \;\ge\; \frac{\sigma^2}{\lambda}\Big(B_0^2+\frac{1}{N}(1-B_0)^2\Big).
+% \]
+% The convex function $g(B):=B^2+\frac{1}{N}(1-B)^2$ on $[0,1]$ attains its minimum
+% at $B=\frac{1}{N+1}$, and
+% \[
+% \min_{B\in[0,1]}g(B)=\frac{1}{N+1}\ \ge\ \frac{1}{2N}\qquad(N\ge 1).
+% \]
+% Hence
+% \begin{equation}\label{eq:mN-final}
+% m_N \;\ge\; \frac{\sigma^2}{\lambda(N+1)}\ \ge\ \frac{\sigma^2}{2\lambda N}.
+% \end{equation}
+% Finally, by \eqref{eq:Rbar-m},
+% \[
+% \bar{\cR}(1,N;E)=\frac{\lambda}{2}m_N
+% \ \ge\
+% \frac{\lambda}{2}\cdot \frac{\sigma^2}{\lambda(N+1)}
+% =
+% \frac{\sigma^2}{2(N+1)}
+% \ \ge\
+% \frac{\sigma^2}{4N}.
+% \]
+
+% \paragraph{Step 6: converting to the stated $\sigma^2\lambda/N$ form.}
+% Under the standard normalization $\lambda=\E[x^2]\le 1$ (e.g., $\|x\|\le 1$),
+% we have $\frac{\sigma^2}{4N}\ge \frac{\sigma^2\lambda}{4N}$, and therefore
+% \[
+% \bar{\cR}(1,N;E)\ \ge\ \frac{1}{4}\cdot\frac{\sigma^2\lambda}{N}.
+% \]
+% Thus the theorem holds with the universal constant $C=1/4$, which does not depend on $D$ or $D'$.
+% \end{proof}
+
+
+% \paragraph{Step 3: Lower bounding the noise term (Cauchy--Schwarz + telescoping).}
+
+% Define
+% \[
+% B_t := \prod_{i=t}^{N-1}(1-\eta_i\lambda),
+% \qquad B_N=1.
+% \]
+% Then $B_t=(1-\eta_t\lambda)B_{t+1}$ and \eqref{eq:unroll} becomes
+% \begin{equation}\label{eq:Bform}
+% v_N
+% = v_0 B_0^2
+% + \lambda\sigma^2 \sum_{t=0}^{N-1}\eta_t^2 B_{t+1}^2.
+% \end{equation}
+
+% Observe that
+% \[
+% B_{t+1}-B_t
+% = \lambda\eta_t B_{t+1},
+% \]
+% and summing over $t$ yields
+% \[
+% \sum_{t=0}^{N-1} \eta_t B_{t+1}
+% = \frac{1}{\lambda}(1-B_0).
+% \]
+
+% By Cauchy--Schwarz,
+% \[
+% \sum_{t=0}^{N-1}\eta_t^2 B_{t+1}^2
+% \ge \frac{1}{N}
+% \Big(\sum_{t=0}^{N-1}\eta_t B_{t+1}\Big)^2
+% = \frac{(1-B_0)^2}{\lambda^2 N}.
+% \]
+% Substituting into \eqref{eq:Bform} gives
+% \begin{equation}\label{eq:lb}
+% v_N
+% \ge v_0 B_0^2
+% + \frac{\sigma^2}{\lambda N}(1-B_0)^2.
+% \end{equation}
+
+% \paragraph{Step 4: Plugging in the initialization and minimizing.}
+
+% Since $v_0=\sigma^2/\lambda$, \eqref{eq:lb} becomes
+% \[
+% v_N
+% \ge \frac{\sigma^2}{\lambda}
+% \Big(
+% B_0^2 + \frac{1}{N}(1-B_0)^2
+% \Big).
+% \]
+% Let
+% \[
+% g(B):=B^2+\frac{1}{N}(1-B)^2,
+% \qquad B\in[0,1].
+% \]
+% The function $g$ is convex, and its minimum over $[0,1]$ satisfies
+% \[
+% \min_{B\in[0,1]} g(B)
+% = \frac{1}{N+1}
+% \ge \frac{1}{2N} \quad (N\ge1).
+% \]
+% Therefore,
+% \[
+% v_N
+% \ge \frac{\sigma^2}{\lambda}\cdot\frac{1}{N+1}
+% \ge \frac{\sigma^2}{2\lambda N}.
+% \]
+
+% Finally, since
+% \[
+% \bar{\cR}(1,N;E)
+% = \E[\cR(w_N)]
+% = \frac{\lambda}{2} v_N,
+% \]
+% we obtain
+% \[
+% \bar{\cR}(1,N;E)
+% \ge \frac{\lambda}{2}\cdot\frac{\sigma^2}{2\lambda N}
+% = \frac{\sigma^2}{4N}.
+% \]
+% Because $\lambda\le D^2$, this can be written as
+% \[
+% \bar{\cR}(1,N;E)
+% \ge \frac{\sigma^2\lambda}{4D^2 N}.
+% \]
+% Hence the theorem holds with a universal constant (e.g., $C=1/(4D^2)$; if $D=1$, then $C=1/4$).
+% \end{proof}
+
+% \begin{proof}
+% We prove the claim by exhibiting a concrete 1D instance (satisfying the assumptions, including
+% $|\xi|\le D'$) on which the lower bound holds for \emph{any} one-pass schedule
+% $E=\{\eta_t\}_{t=0}^{N-1}$ with $\eta_t \lambda \le 1$.
+% (In particular, since $\eta_t\le D^{-2}$ and $\lambda=\E[x^2]\le D^2$, we indeed have $\eta_t\lambda\le 1$
+% under the stated stability condition.)
+
+% \paragraph{Step 1: A simple bounded instance.}
+% Let
+% \[
+% x \in \{+\sqrt{\lambda},-\sqrt{\lambda}\} \text{ with prob.\ }1/2,\qquad
+% \xi \in \{+\sigma,-\sigma\} \text{ with prob.\ }1/2,
+% \]
+% with $x$ and $\xi$ independent. Then $\E[x^2]=\lambda$, $\E[\xi]=0$, $\E[\xi^2]=\sigma^2$ and
+% $|\xi|\le \sigma\le D'$ (choose $D'\ge \sigma$).
+% Initialize $w_0=0$ and pick
+% \[
+% w^* := \frac{\sigma}{\sqrt{\lambda}},
+% \qquad\text{so that}\qquad
+% v_0 := (w_0-w^*)^2=\frac{\sigma^2}{\lambda}.
+% \]
+% For 1D least squares,
+% \[
+% \cR(w)=\cL(w)-\frac12\sigma^2=\frac{\lambda}{2}(w-w^*)^2.
+% \]
+% Hence $\bar{\cR}(1,N;E)=\frac{\lambda}{2}\E[(w_N-w^*)^2]$.
+
+% \paragraph{Step 2: A variance recursion under one-pass random shuffling.}
+% Let $e_t:=w_t-w^*$ and $v_t:=\E[e_t^2]$, where the expectation is over the i.i.d.\ dataset,
+% the label noise, and the random permutation (one-pass shuffling).
+% The SGD update is
+% \[
+% e_{t+1}=(1-\eta_t x_{j_t}^2)e_t+\eta_t\xi_{j_t}x_{j_t}.
+% \]
+% Crucially, because the dataset points are i.i.d.\ and the permutation is independent of the data,
+% for each $t$ the unseen sample $(x_{j_t},\xi_{j_t})$ is independent of the sigma-field generated by the
+% previously revealed samples and the permutation; moreover it has the same marginal law as $(x,\xi)$.
+% Therefore,
+% $\E[\xi_{j_t}x_{j_t}\mid \mathcal{F}_t]=0$ and $\E[x_{j_t}^2\mid \mathcal{F}_t]=\lambda$.
+% Using $x_{j_t}^2=\lambda$ almost surely in our construction, we obtain the exact recursion
+% \begin{equation}\label{eq:vt-rec-onepass}
+% v_{t+1}=(1-\eta_t\lambda)^2v_t+\lambda\sigma^2\eta_t^2.
+% \end{equation}
+
+% \paragraph{Step 3: Unrolling + a Cauchy--Schwarz lower bound.}
+% Define
+% \[
+% B_t:=\prod_{i=t}^{N-1}(1-\eta_i\lambda),\qquad B_N=1.
+% \]
+% Unrolling \eqref{eq:vt-rec-onepass} yields
+% \begin{equation}\label{eq:vN-unroll}
+% v_N=v_0B_0^2+\lambda\sigma^2\sum_{t=0}^{N-1}\eta_t^2 B_{t+1}^2.
+% \end{equation}
+% Note that $B_t=(1-\eta_t\lambda)B_{t+1}$ implies
+% \[
+% B_{t+1}-B_t=\lambda\eta_t B_{t+1}.
+% \]
+% Summing over $t=0,\dots,N-1$ gives
+% \[
+% \sum_{t=0}^{N-1}\eta_t B_{t+1}=\frac{1-B_0}{\lambda}.
+% \]
+% By Cauchy--Schwarz,
+% \[
+% \sum_{t=0}^{N-1}\eta_t^2 B_{t+1}^2
+% \ \ge\
+% \frac{1}{N}\Big(\sum_{t=0}^{N-1}\eta_t B_{t+1}\Big)^2
+% =
+% \frac{(1-B_0)^2}{\lambda^2 N}.
+% \]
+% Plugging into \eqref{eq:vN-unroll} gives
+% \begin{equation}\label{eq:vN-lb}
+% v_N
+% \ge
+% v_0B_0^2+\frac{\sigma^2}{\lambda N}(1-B_0)^2.
+% \end{equation}
+
+% \paragraph{Step 4: Balancing bias and variance.}
+% Using $v_0=\sigma^2/\lambda$,
+% \[
+% v_N\ge \frac{\sigma^2}{\lambda}\Big(B_0^2+\frac{1}{N}(1-B_0)^2\Big).
+% \]
+% The convex function $g(B):=B^2+\frac{1}{N}(1-B)^2$ on $[0,1]$ satisfies
+% \[
+% \min_{B\in[0,1]}g(B)=\frac{1}{N+1}\ \ge\ \frac{1}{2N}\qquad (N\ge 1).
+% \]
+% Hence
+% \[
+% v_N\ge \frac{\sigma^2}{\lambda(N+1)}\ \ge\ \frac{\sigma^2}{2\lambda N}.
+% \]
+% Therefore,
+% \[
+% \bar{\cR}(1,N;E)
+% =\frac{\lambda}{2}v_N
+% \ge
+% \frac{\sigma^2}{2(N+1)}
+% \ge
+% \frac{\sigma^2}{4N}.
+% \]
+
+% \paragraph{Step 5: Converting to the stated form.}
+% Under the standard normalization $\lambda=\E[x^2]\le 1$ (e.g., $\|x\|\le 1$),
+% we have $\frac{\sigma^2}{4N}\ge \frac{\sigma^2\lambda}{4N}$.
+% Thus,
+% \[
+% \bar{\cR}(1,N;E)\ \ge\ \frac{1}{4}\cdot\frac{\sigma^2\lambda}{N}.
+% \]
+% This proves the theorem with the universal constant $C=1/4$ (independent of $D,D'$).
+% \end{proof}
+
+% % ============================================================
+% \subparagraph{Case I: $0<\alpha<1$ (rate $N^{-\alpha}$).}
+% Let $\eta_N:=\eta_{N-1}$ for brevity. By \eqref{eq:eta-tail}, $\eta_N\asymp N^{-\alpha}$.
+% Define a window size $M_N:=\lceil \eta_N^{-1}\rceil$, so $M_N\asymp N^\alpha$ and $M_N=o(N)$.
+% We split the noise sum in \eqref{eq:m-unroll} into ``early'' and ``late'' parts:
+% \[
+% \sum_{s=0}^{N-1}(\cdots)=\sum_{s=0}^{N-1-M_N}(\cdots)\;+\;\sum_{s=N-M_N}^{N-1}(\cdots).
+% \]
+
+% \emph{Early part is negligible.}
+% For $s\le N-1-M_N$, we have $N^{1-\alpha}-s^{1-\alpha}\gtrsim N^{1-\alpha}-(N-M_N)^{1-\alpha}\asymp M_N N^{-\alpha}\asymp 1$,
+% hence \eqref{eq:sum-eta-alpha<1} and \eqref{eq:prod-exp} imply
+% \[
+% \prod_{t=s+1}^{N-1}a_t \le \exp(-c_0)
+% \quad\text{and in fact}\quad
+% \prod_{t=s+1}^{N-1}a_t \le \exp\!\big(-c_1 N^{1-\alpha}\big)
+% \ \text{when $s$ is a constant fraction of $N$},
+% \]
+% for some $c_0,c_1>0$. This makes the early contribution $o(\eta_N)$ (details omitted since it is exponentially small).
+
+% \emph{Late part gives the leading term.}
+% For $s=N-r$ with $0\le r\le M_N$, we have $r=o(N)$, hence $\eta_{N-r}=\eta_N(1+o(1))$ uniformly over this window.
+% Moreover, using \eqref{eq:log-bound} and that $\sum_{t=N-r+1}^{N-1}\eta_t^2\le r\eta_N^2=o(1)$,
+% \eqref{eq:prod-exp} yields the uniform approximation
+% \begin{equation}
+% \label{eq:prod-window}
+% \prod_{t=N-r+1}^{N-1}a_t
+% =
+% \exp\Big(-2\lambda\sum_{t=N-r+1}^{N-1}\eta_t + o(1)\Big)
+% =
+% \exp\Big(-2\lambda r\,\eta_N + o(1)\Big),
+% \qquad 0\le r\le M_N.
+% \end{equation}
+% Plugging this into the late part of \eqref{eq:m-unroll} gives
+% \begin{align}
+% m_N
+% &=
+% \sigma^2\lambda\sum_{r=0}^{M_N}\eta_{N-r}^2\prod_{t=N-r+1}^{N-1}a_t
+% \;+\;o(\eta_N)
+% \nonumber\\
+% &=
+% \sigma^2\lambda\,\eta_N^2
+% \sum_{r=0}^{M_N}\exp(-2\lambda r\,\eta_N)\,(1+o(1))
+% \;+\;o(\eta_N).
+% \label{eq:mN-geo}
+% \end{align}
+% Since $M_N\eta_N\to\infty$, the truncated sum approaches the infinite geometric sum, and
+% \[
+% \sum_{r=0}^{M_N}\exp(-2\lambda r\eta_N)
+% =
+% \frac{1-\exp(-2\lambda(M_N+1)\eta_N)}{1-\exp(-2\lambda\eta_N)}
+% =
+% \frac{1}{2\lambda\eta_N}\bigl(1+o(1)\bigr).
+% \]
+% Substituting into \eqref{eq:mN-geo} yields
+% \begin{equation}
+% \label{eq:mN-alpha<1}
+% m_N=\frac{\sigma^2}{2}\,\eta_N\,(1+o(1)).
+% \end{equation}
+% Finally, by \eqref{eq:excess-risk},
+% \begin{equation}
+% \label{eq:R-alpha<1}
+% \bar{\cR}(1,N;E)
+% =\frac{\lambda}{2}m_N
+% =\frac{\sigma^2\lambda}{4}\,\eta_N\,(1+o(1))
+% =\frac{\sigma^2\lambda}{4}\cdot\frac{\eta_0}{1+bN^\alpha}\,(1+o(1))
+% =
+% \frac{\sigma^2\lambda\,\eta_0}{4b}\cdot\frac{1}{N^\alpha}\,(1+o(1)).
+% \end{equation}
+% This gives the $\Theta(N^{-\alpha})$ rate for any $0<\alpha<1$.
+
+% % ============================================================
+% \subparagraph{Case II: $\alpha=1$ (polynomial product, and $1/N$ under a condition).}
+% Let $c:=\eta_0/b$ and $a:=2\lambda c=2\lambda\eta_0/b$.
+% From \eqref{eq:sum-eta-alpha=1} and \eqref{eq:prod-exp}, and using $\sum_{t=s+1}^{N-1}\eta_t^2=O(1)$ when $\alpha=1$,
+% we obtain
+% \begin{equation}
+% \label{eq:prod-alpha=1}
+% \prod_{t=s+1}^{N-1}a_t
+% =
+% \exp\Big(-2\lambda\sum_{t=s+1}^{N-1}\eta_t + O(1)\Big)
+% =
+% \Theta(1)\cdot\Big(\frac{s}{N}\Big)^{a},
+% \qquad 1\le s\le N-1,
+% \end{equation}
+% where the $\Theta(1)$ factor is bounded above and below by positive constants independent of $s,N$.
+
+% Using $\eta_s=c/s+O(s^{-2})$, the noise term in \eqref{eq:m-unroll} becomes
+% \begin{align}
+% \sigma^2\lambda\sum_{s=1}^{N-1}\eta_s^2\prod_{t=s+1}^{N-1}a_t
+% &=
+% \sigma^2\lambda\cdot \Theta(1)\cdot
+% \sum_{s=1}^{N-1}\frac{c^2}{s^2}\Big(\frac{s}{N}\Big)^{a}\bigl(1+o(1)\bigr)
+% \nonumber\\
+% &=
+% \sigma^2\lambda\,c^2\cdot \Theta(1)\cdot
+% N^{-a}\sum_{s=1}^{N-1}s^{a-2}\bigl(1+o(1)\bigr).
+% \label{eq:noise-sum-alpha=1}
+% \end{align}
+% Now we distinguish three sub-regimes:
+% \begin{itemize}
+% \item If $a>1$ (equivalently $2\lambda\eta_0>b$), then $\sum_{s=1}^{N-1}s^{a-2}=\frac{N^{a-1}}{a-1}(1+o(1))$,
+% so \eqref{eq:noise-sum-alpha=1} gives
+% \begin{equation}
+% \label{eq:mN-alpha=1-a>1}
+% m_N
+% =
+% \frac{\sigma^2\lambda\,c^2}{a-1}\cdot\frac{1}{N}\,(1+o(1)).
+% \end{equation}
+% Moreover, the initialization term $m_0\prod_{t=0}^{N-1}a_t=\Theta(1)\cdot m_0\,N^{-a}=o(1/N)$ since $a>1$.
+% Thus by \eqref{eq:excess-risk},
+% \begin{equation}
+% \label{eq:R-alpha=1-a>1}
+% \bar{\cR}(1,N;E)
+% =
+% \frac{\lambda}{2}m_N
+% =
+% \frac{\sigma^2\lambda}{N}\cdot
+% \underbrace{\frac{\lambda c^2}{2(a-1)}}_{=:C}
+% \cdot(1+o(1))
+% =
+% \frac{\sigma^2\lambda}{N}\cdot
+% \frac{\lambda\eta_0^2}{2b(2\lambda\eta_0-b)}\cdot(1+o(1)).
+% \end{equation}
+% This matches Theorem~H.1 (with an explicit constant $C$).
+
+% \item If $a=1$, then $\sum_{s=1}^{N-1}s^{-1}=\log N\,(1+o(1))$, hence
+% $m_N=\sigma^2\lambda c^2\,\Theta(1)\cdot \frac{\log N}{N}(1+o(1))$
+% and $\bar{\cR}(1,N;E)=\Theta\!\big(\sigma^2\lambda\,\frac{\log N}{N}\big)$.
+
+% \item If $a<1$, then $\sum_{s=1}^{N-1}s^{a-2}=\Theta(1)$, hence
+% $m_N=\Theta(\sigma^2\lambda)\,N^{-a}$ and $\bar{\cR}(1,N;E)=\Theta(\sigma^2\lambda)\,N^{-a}$.
+% (Here the initialization term is of the same order $N^{-a}$ and may affect the leading constant.)
+% \end{itemize}
+
+% \paragraph{Conclusion (all $\alpha\in(0,1]$).}
+% For one-pass SGD with schedule $\eta_t=\eta_0/(1+bt^\alpha)$:
+% \[
+% \bar{\cR}(1,N;E)
+% =
+% \begin{cases}
+% \displaystyle
+% \frac{\sigma^2\lambda\,\eta_0}{4b}\cdot N^{-\alpha}\,(1+o(1)), & 0<\alpha<1,\\[10pt]
+% \displaystyle
+% \frac{\sigma^2\lambda}{N}\cdot C\,(1+o(1)),\ \text{with }C=\frac{\lambda\eta_0^2}{2b(2\lambda\eta_0-b)}, & \alpha=1,\ 2\lambda\eta_0>b,
+% \end{cases}
+% \]
+% and for $\alpha=1$ the boundary/subcritical cases $2\lambda\eta_0\le b$ yield the corresponding
+% $\Theta\!\big(\frac{\log N}{N}\big)$ or $\Theta(N^{-2\lambda\eta_0/b})$ rates as shown above.
+% \end{proof}
+
+\begin{theorem}[Optimality of Multi-Epoch Training] \label{thm:optimality-multi-epoch}
+    For multi-epoch SGD with dataset size $N$, there exists a learning rate schedule $E=E(\frac{1}{D^2},1,1)\in\Gamma$ that satisfies $\Bar{\cR}(\infty,N;E) = \frac{\sigma^2d}{2N}(1+o(1))$.
+    % We consider the learning rate schedule $E(\frac{1}{D^2},1,1)$.
+\end{theorem}
+Before we begin our main part of the proof, we first give some additional notations, and introduce some technical lemmas.
+\paragraph{Additional Notations.}    We denote $\vw_{i_t}^{k_t}:=\vw_t$ and $\eta_{i_t}^{k_t}:=\eta_t$, where $i_t$ and $k_t$ are defined in \Cref{sec:setup}. We view the SGD training dynamics as an empirical risk minimization (ERM) problem. To be specific, we define $f_i(\vw)=\frac{1}{2}(y_i-\langle\vw, \vx_i\rangle)^2$, and the ERM problem can be written as \[\min_\vw\cF(\vw)=\frac{1}{N}\sum_{i=0}^{N-1}f_i(\vw).\]
+    % \kaifeng{there are two $1/2$ factors? is it correct?}
+    We write its solution as $\hat{\vw}$. Define the empirical covariance and its minimal eigenvalue $
+\widehat{\mH}:=\frac{1}{N}\sum_{i=1}^N \vx_i\vx_i^\top,
+\mu:=\lambda_{\min}(\widehat{\mH})$.Note that $\cF(\vw)$ is $\mu$-strongly convex. As $\mathds{P}(\mu=0)=0$, we assume that $\mu>0$. Also, $f_i(\vw)$ is quadratic and $L$-smooth with $L\leq D^2$, since $f_i$ is quadratic with its quadratic coefficient $\vx_i\vx_i^T\lesssim D^2\mI$. We write $\kappa=\frac{D^2}{\mu}=O\left(\mu^{-1}\right)$. Furthermore, we adopt the convention that $\vw_{N}^k = \vw_{0}^{k+1}$. 
+% Next, we take a constant $\alpha=5$, define $k_0=\alpha\kappa$. 
+    
+    % Setup
+% \[
+% \widehat{\mH}:=\frac1N\sum_{i=1}^N \vx_i\vx_i^\top,\qquad 
+% \Sigma:=\E[\vx\vx^\top],\qquad 
+% \mu:=\lambda_{\min}(\widehat{\mH}),\qquad 
+% \lambda_d:=\lambda_{\min}(\Sigma).
+% \]
+% Assume \(\|\vx_i\|\le D\) a.s.  Then \(0\preceq \vx_i\vx_i^\top\preceq D^2\mI\) and \(0\preceq \Sigma\preceq D^2\mI\), hence
+% \[
+% \mY_i:=\vx_i\vx_i^\top-\Sigma \quad\text{satisfies}\quad -D^2\mI\preceq \mY_i\preceq D^2\mI,\qquad \E[\mY_i]=0.
+% \]
+% Let \(\Delta:=\widehat{\mH}-\Sigma=\frac1N\sum_{i=1}^N \mY_i\). By Weyl,
+% \[
+% |\mu-\lambda_d|\le \|\Delta\|_{\op}.
+% \]
+
+% % Matrix Hoeffding (two-sided)
+% \[
+% \Pr\!\big(\|\Delta\|_{\op}\ge t\big)
+% \;\le\;
+% 2d\exp\!\Big(-\frac{N t^2}{8D^4}\Big)
+% \qquad (t\ge 0).
+% \]
+
+% % Convert tail to second moment
+% \[
+% \E(\mu-\lambda_d)^2 \le \E\|\Delta\|_{\op}^2
+% = \int_{0}^{\infty} \Pr\!\big(\|\Delta\|_{\op}^2\ge s\big)\,ds
+% = \int_{0}^{\infty} 2t\,\Pr\!\big(\|\Delta\|_{\op}\ge t\big)\,dt.
+% \]
+
+% % Choose t0 and bound
+% \[
+% t_0^2 := \frac{8D^4}{N}\log(2d)
+% \quad\Longrightarrow\quad
+% 2d\exp\!\Big(-\frac{N t_0^2}{8D^4}\Big)=1.
+% \]
+% Then
+% \begin{align*}
+% \E\|\Delta\|_{\op}^2
+% &\le t_0^2 + \int_{t_0}^{\infty} 2t\cdot 2d\exp\!\Big(-\frac{N t^2}{8D^4}\Big)\,dt \\
+% &= \frac{8D^4}{N}\log(2d)
+% \;+\;
+% \frac{16D^4}{N}.
+% \end{align*}
+
+% % Final bound
+% \[
+% \boxed{
+% \;\E(\mu-\lambda_d)^2
+% \;\le\;
+% \frac{8D^4}{N}\log(2d)\;+\;\frac{16D^4}{N}\; }.
+% \]
+
+% \begin{lemma}[Negative moments of the empirical covariance minimum eigenvalue]
+% \label{lem:eigenvalue-expectation-highd}
+% Let $\vx_1,\dots,\vx_N$ be i.i.d.\ $\R^d$-valued random vectors such that
+% \[
+% \|\vx_i\|\le D \quad \text{almost surely}.
+% \]
+% Assume $\vx$ admits a (Lebesgue) density $f_{\vx}$ on $\R^d$ and that this density is essentially bounded
+% on the support ball, i.e., there exists $M<\infty$ such that
+% \[
+% f_{\vx}(\vx)\le M \qquad \text{for all }\|\vx\|\le D.
+% \]
+% Define the empirical covariance and its minimum eigenvalue
+% \[
+% \widehat{\mH}:=\frac{1}{N}\sum_{i=1}^N \vx_i\vx_i^\top,
+% \qquad
+% \mu:=\lambda_{\min}(\widehat{\mH}).
+% \]
+% Then, for all
+% \[
+% p<\frac{N-d}{2},
+% \qquad\text{we have}\qquad
+% \E[\mu^{-p}]<\infty.
+% \]
+% (In particular, it suffices that $N>d+2p$.)
+% \end{lemma}
+
+
+% \begin{proof}
+% We control the lower tail of $\mu$ and then integrate.
+
+% \paragraph{Step 1: a small-ball bound for any 1D projection.}
+% Fix any unit vector $\vu\in\mathbb S^{d-1}$ and any $r\in(0,D]$. Since $f_{\vx}\le M$ on $\{\|\vx\|\le D\}$,
+% \begin{align}
+% \Pr\big(|\vu^\top \vx|\le r\big)
+% &=\int_{\{\|\vx\|\le D,\ |\vu^\top \vx|\le r\}} f_{\vx}(\vx)\,d\vx
+% \;\le\;
+% M\cdot \Vol_d\big(\{\|\vx\|\le D,\ |\vu^\top \vx|\le r\}\big).
+% \nonumber
+% \end{align}
+% The set $\{\|\vx\|\le D,\ |\vu^\top \vx|\le r\}$ is a slab of thickness $2r$ intersected with a radius-$D$ ball.
+% Its volume is at most $2r$ times the maximal $(d-1)$-dimensional cross-section of the ball, hence
+% \begin{equation}\label{eq:slab-volume}
+% \Vol_d\big(\{\|\vx\|\le D,\ |\vu^\top \vx|\le r\}\big)
+% \;\le\;
+% 2r\cdot \Vol_{d-1}\big(B_{d-1}(0,D)\big)
+% =2r\,V_{d-1}D^{d-1},
+% \end{equation}
+% where $V_{d-1}:=\Vol_{d-1}(B_{d-1}(0,1))$.
+% Combining gives the uniform small-ball estimate
+% \begin{equation}\label{eq:proj-smallball}
+% \Pr\big(|\vu^\top \vx|\le r\big)\ \le\ 2MV_{d-1}D^{d-1}\, r
+% \qquad \text{for all }\vu\in\mathbb S^{d-1},\ r\in(0,D].
+% \end{equation}
+
+% \paragraph{Step 2: lower tail bound for $\mu=\lambda_{\min}(\widehat{\mH})$.}
+% By the variational characterization,
+% \[
+% \mu=\lambda_{\min}(\widehat{\mH})
+% =\min_{\|\vu\|=1}\vu^\top \widehat{\mH}\,\vu
+% =\min_{\|\vu\|=1}\frac{1}{N}\sum_{i=1}^N (\vu^\top \vx_i)^2.
+% \]
+% Fix $t\in\bigl(0,\frac{D^2}{16N}\bigr]$ and define $r:=2\sqrt{Nt}$.
+% If $\mu\le t$, let $\vu_\star$ attain the minimum above; then
+% \[
+% \frac{1}{N}\sum_{i=1}^N (\vu_\star^\top \vx_i)^2 \le t
+% \quad\Longrightarrow\quad
+% (\vu_\star^\top \vx_i)^2 \le Nt
+% \quad\Longrightarrow\quad
+% |\vu_\star^\top \vx_i|\le \sqrt{Nt}=\frac{r}{2}
+% \quad \forall i.
+% \]
+% Let $\mathcal N_\varepsilon$ be an $\varepsilon$-net of $\mathbb S^{d-1}$ in Euclidean norm with
+% $|\mathcal N_\varepsilon|\le (3/\varepsilon)^d$.
+% Choose $\varepsilon:=\sqrt{Nt}/D$ (note $\varepsilon\le 1/4$ by the restriction on $t$).
+% Then there exists $\vu\in\mathcal N_\varepsilon$ such that $\|\vu-\vu_\star\|\le \varepsilon$, and for each $i$,
+% \[
+% |\vu^\top \vx_i|
+% \le |\vu_\star^\top \vx_i|+\|\vu-\vu_\star\|\,\|\vx_i\|
+% \le \sqrt{Nt}+\varepsilon D
+% =2\sqrt{Nt}=r.
+% \]
+% Therefore,
+% \[
+% \{\mu\le t\}
+% \subseteq
+% \bigcup_{\vu\in\mathcal N_\varepsilon}\ \bigcap_{i=1}^N \Big\{|\vu^\top \vx_i|\le r\Big\}.
+% \]
+% Using independence and \eqref{eq:proj-smallball} with $r=2\sqrt{Nt}\le D$ (since $t\le D^2/16$),
+% \begin{align}
+% \Pr(\mu\le t)
+% &\le
+% |\mathcal N_\varepsilon|\cdot \sup_{\vu\in\mathbb S^{d-1}}
+% \Pr\big(|\vu^\top \vx|\le r\big)^N
+% \nonumber\\
+% &\le
+% \Big(\frac{3}{\varepsilon}\Big)^d \cdot \big(2MV_{d-1}D^{d-1}\, r\big)^N
+% \nonumber\\
+% &=
+% \Big(\frac{3D}{\sqrt{Nt}}\Big)^d \cdot \big(2MV_{d-1}D^{d-1}\cdot 2\sqrt{Nt}\big)^N
+% \;\le\;
+% C_{N,d}\, t^{\frac{N-d}{2}},
+% \label{eq:mu-tail-highd}
+% \end{align}
+% for all $t\in(0,D^2/16]$, where $C_{N,d}<\infty$ is a finite constant (depending on $N,d,M,D$ but not on $t$).
+
+% \paragraph{Step 3: integrate the tail to get negative moments.}
+% Using the standard identity for nonnegative $Y$,
+% \[
+% \E[Y^{-p}]=p\int_{0}^{\infty} u^{-p-1}\Pr(Y\le u)\,du,
+% \]
+% and applying it to $Y=\mu$, split at $\varepsilon_0:=D^2/16$:
+% \[
+% \E[\mu^{-p}]
+% =
+% p\int_{0}^{\varepsilon_0} u^{-p-1}\Pr(\mu\le u)\,du
+% +
+% p\int_{\varepsilon_0}^{\infty} u^{-p-1}\Pr(\mu\le u)\,du.
+% \]
+% The second integral is finite since $\Pr(\mu\le u)\le 1$ and $\int_{\varepsilon_0}^{\infty}u^{-p-1}du<\infty$.
+% For the first integral, using \eqref{eq:mu-tail-highd} gives
+% \[
+% \int_{0}^{\varepsilon_0} u^{-p-1}\Pr(\mu\le u)\,du
+% \;\le\;
+% C_{N,d}\int_{0}^{\varepsilon_0} u^{-p-1+\frac{N-d}{2}}\,du,
+% \]
+% which converges if and only if $-p-1+\frac{N-d}{2}>-1$, i.e., $p<\frac{N-d}{2}$.
+% This proves $\E[\mu^{-p}]<\infty$ for all $p<\frac{N-d}{2}$.
+% \end{proof}
+
+% \begin{lemma}[Uniform upper bound on negative moments of $\lambda_{\min}(\widehat H)$ for large $N$]
+% \label{lem:uniform-negative-moments}
+% Let $x_1,\dots,x_N$ be i.i.d.\ $\R^d$-valued random vectors such that $\|x_i\|\le D$ a.s.
+% Assume $x$ admits a Lebesgue density $f$ and that $f(x)\le M$ for all $\|x\|\le D$.
+% Define
+% \[
+% \widehat H:=\frac1N\sum_{i=1}^N x_i x_i^\top,
+% \qquad
+% \mu:=\lambda_{\min}(\widehat H).
+% \]
+% Fix any $p>0$. Then there exist constants $N_0\in\N$ and $C<\infty$, depending only on
+% $(p,d,M,D)$ (in particular, \emph{independent of $N$}), such that for all $N\ge N_0$,
+% \[
+% \E[\mu^{-p}] \le C .
+% \]
+% One may take $N_0=\lceil d+2p+2\rceil$.
+% \end{lemma}
+
+% \begin{proof}
+% Let $V_{d-1}:=\Vol_{d-1}(B_{d-1}(0,1))$ and set
+% \[
+% A := 2M\,V_{d-1}\,D^{d-1}.
+% \]
+
+% \paragraph{Step 1: small-ball bound for 1D projections.}
+% Fix any unit vector $u\in\mathbb S^{d-1}$ and any $r\in(0,D]$. Since $f\le M$ on $\{\|x\|\le D\}$,
+% \[
+% \Pr\big(|u^\top x|\le r\big)
+% =\int_{\{\|x\|\le D,\ |u^\top x|\le r\}} f(x)\,dx
+% \le M\cdot \Vol_d\big(\{\|x\|\le D,\ |u^\top x|\le r\}\big).
+% \]
+% The set $\{\|x\|\le D,\ |u^\top x|\le r\}$ is a slab of thickness $2r$ intersected with a radius-$D$ ball,
+% so its volume is at most $2r$ times the maximal $(d-1)$-dimensional cross-section $V_{d-1}D^{d-1}$, hence
+% \begin{equation}\label{eq:sb}
+% \Pr\big(|u^\top x|\le r\big)\le A\,r \qquad (u\in\mathbb S^{d-1},\ r\in(0,D]).
+% \end{equation}
+% In particular, taking $r=D$ and using $|u^\top x|\le \|x\|\le D$ a.s.\ gives $1=\Pr(|u^\top x|\le D)\le AD$,
+% so $A\ge 1/D$.
+
+% \paragraph{Step 2: a deterministic lower bound on $\lambda_{\min}(\Sigma)$, $\Sigma:=\E[xx^\top]$.}
+% Let
+% \[
+% r_0:=\frac{1}{2A}\le \frac{D}{2},
+% \qquad
+% \kappa:=\frac{r_0^2}{2}=\frac{1}{8A^2}.
+% \]
+% Then by \eqref{eq:sb}, for any unit $u$,
+% \[
+% \Pr(|u^\top x|\le r_0)\le Ar_0=\frac12
+% \quad\Rightarrow\quad
+% \Pr(|u^\top x|\ge r_0)\ge \frac12,
+% \]
+% and hence
+% \[
+% u^\top \Sigma u = \E[(u^\top x)^2]
+% \ge r_0^2\,\Pr(|u^\top x|\ge r_0)
+% \ge \frac{r_0^2}{2}=\kappa.
+% \]
+% Taking the infimum over $\|u\|=1$ yields
+% \begin{equation}\label{eq:kappa}
+% \lambda_{\min}(\Sigma)\ge \kappa.
+% \end{equation}
+
+% \paragraph{Step 3: exponential lower-tail bound at scale $\kappa$ (matrix Chernoff).}
+% Let $X_i:=x_i x_i^\top$ so that $\widehat H=\frac1N\sum_{i=1}^N X_i$. Each $X_i$ is PSD and
+% $0\preceq X_i \preceq D^2 I$ a.s., with $\E[X_i]=\Sigma$.
+% A standard matrix Chernoff inequality for the minimum eigenvalue gives that for any $\delta\in(0,1)$,
+% \[
+% \Pr\!\Big(\lambda_{\min}\Big(\sum_{i=1}^N X_i\Big)\le (1-\delta)\,
+% \lambda_{\min}\Big(\sum_{i=1}^N \E X_i\Big)\Big)
+% \le
+% d\left(\frac{e^{-\delta}}{(1-\delta)^{1-\delta}}\right)^{\lambda_{\min}(\sum_i \E X_i)/D^2}.
+% \]
+% With $\delta=\tfrac12$ and $\lambda_{\min}(\sum_i \E X_i)=N\lambda_{\min}(\Sigma)\ge N\kappa$ by \eqref{eq:kappa},
+% we obtain
+% \begin{equation}\label{eq:chernoff}
+% \Pr(\mu\le \kappa/2)\le d\,\exp(-cN),
+% \qquad
+% c:=\frac{1-\ln 2}{2}\cdot\frac{\kappa}{D^2}.
+% \end{equation}
+
+% \paragraph{Step 4: very small $t$ bound via an $\varepsilon$-net and \eqref{eq:sb}.}
+% Fix $t\in\bigl(0,\kappa/(2N)\bigr]$ and set $r:=2\sqrt{Nt}$ and $\varepsilon:=\sqrt{Nt}/D$.
+% Then $r\le 2\sqrt{N\cdot \kappa/(2N)}=\sqrt{2\kappa}=r_0\le D$, and $\varepsilon\le r_0/(2D)\le 1/4$.
+
+% If $\mu\le t$, let $u_\star$ be a minimizer in the variational formula
+% $\mu=\min_{\|u\|=1}\frac1N\sum_{i=1}^N (u^\top x_i)^2$.
+% Then for all $i$,
+% \[
+% (u_\star^\top x_i)^2 \le \sum_{j=1}^N (u_\star^\top x_j)^2 \le Nt
+% \quad\Rightarrow\quad
+% |u_\star^\top x_i|\le \sqrt{Nt}=\frac r2.
+% \]
+% Let $\mathcal N_\varepsilon$ be an $\varepsilon$-net of $\mathbb S^{d-1}$ with $|\mathcal N_\varepsilon|\le (3/\varepsilon)^d$.
+% Pick $u\in\mathcal N_\varepsilon$ with $\|u-u_\star\|\le \varepsilon$. Using $\|x_i\|\le D$,
+% \[
+% |u^\top x_i|\le |u_\star^\top x_i|+\|u-u_\star\|\,\|x_i\|
+% \le \sqrt{Nt}+\varepsilon D = 2\sqrt{Nt}=r
+% \qquad \forall i.
+% \]
+% Therefore,
+% \[
+% \{\mu\le t\}\subseteq \bigcup_{u\in\mathcal N_\varepsilon}\ \bigcap_{i=1}^N \{|u^\top x_i|\le r\}.
+% \]
+% By independence and \eqref{eq:sb} (note $r\le D$),
+% \begin{equation}\label{eq:tiny-tail}
+% \Pr(\mu\le t)
+% \le |\mathcal N_\varepsilon|\cdot \sup_{\|u\|=1}\Pr(|u^\top x|\le r)^N
+% \le \Big(\frac{3D}{\sqrt{Nt}}\Big)^d \big(A r\big)^N
+% = (3D)^d(2A)^N (Nt)^{\frac{N-d}{2}}.
+% \end{equation}
+
+% \paragraph{Step 5: tail integration and uniformity in $N$.}
+% For $p>0$ and any nonnegative $Y$, one has the identity
+% \[
+% \E[Y^{-p}] = p\int_0^\infty t^{-p-1}\Pr(Y\le t)\,dt,
+% \]
+% (which follows from Tonelli/Fubini applied to $Y^{-p}=\int_0^\infty p\,t^{-p-1}\mathbf 1_{\{Y\le t\}}\,dt$).
+% Apply this with $Y=\mu$ and split the integral at $t_0:=\kappa/(2N)$ and $t_1:=\kappa/2$:
+% \[
+% \E[\mu^{-p}]
+% = p\int_0^{t_0} t^{-p-1}\Pr(\mu\le t)\,dt
+% + p\int_{t_0}^{t_1} t^{-p-1}\Pr(\mu\le t)\,dt
+% + p\int_{t_1}^{\infty} t^{-p-1}\Pr(\mu\le t)\,dt
+% =: I_1+I_2+I_3.
+% \]
+
+% \emph{Bound on $I_3$.} Since $\Pr(\mu\le t)\le 1$,
+% \[
+% I_3 \le p\int_{t_1}^\infty t^{-p-1}\,dt = t_1^{-p} = (\kappa/2)^{-p}.
+% \]
+
+% \emph{Bound on $I_2$.} For $t\le t_1$ we have $\Pr(\mu\le t)\le \Pr(\mu\le t_1)$, so by \eqref{eq:chernoff},
+% \[
+% I_2 \le p\,\Pr(\mu\le t_1)\int_{t_0}^{t_1} t^{-p-1}\,dt
+% \le \Pr(\mu\le t_1)\,t_0^{-p}
+% \le d\,e^{-cN}\Big(\frac{2N}{\kappa}\Big)^p.
+% \]
+
+% \emph{Bound on $I_1$.} Assume $N>d+2p$, so $\beta:=\frac{N-d}{2}-p>0$.
+% Using \eqref{eq:tiny-tail} on $(0,t_0]$ and integrating,
+% \[
+% \begin{aligned}
+% I_1
+% &\le p(3D)^d(2A)^N N^{\frac{N-d}{2}}
+% \int_0^{t_0} t^{\frac{N-d}{2}-p-1}\,dt
+% = p(3D)^d(2A)^N N^{\frac{N-d}{2}} \cdot \frac{t_0^{\beta}}{\beta}.
+% \end{aligned}
+% \]
+% Since $t_0=\kappa/(2N)=1/(16A^2N)$ and $\beta\ge 1$ whenever $N\ge d+2p+2$,
+% a direct simplification yields
+% \[
+% I_1 \le p(3D)^d\,A^{d+2p}\,2^{2d+4p}\,N^p\,2^{-N}.
+% \]
+
+% Finally, note that for any $a>0$, $\sup_{x\ge 0} x^p e^{-ax}=(p/(ae))^p$ (maximize $x\mapsto p\ln x-ax$),
+% so in particular
+% \[
+% \sup_{N\ge 1} N^p 2^{-N} <\infty,
+% \qquad
+% \sup_{N\ge 1} N^p e^{-cN} <\infty.
+% \]
+% Therefore, for $N\ge N_0:=\lceil d+2p+2\rceil$,
+% the bounds on $I_1,I_2,I_3$ imply
+% \[
+% \sup_{N\ge N_0}\E[\mu^{-p}] <\infty,
+% \]
+% with a finite constant depending only on $(p,d,M,D)$ (through $A,\kappa,c$), and not on $N$.
+% \end{proof}
+
+% \begin{lemma}[Uniform negative moments of $\lambda_{\min}(\widehat{\mH})$ for large $N$]
+% \label{lem:uniform-negative-moments}
+% Let $\vx_1,\dots,\vx_N$ be i.i.d.\ $\R^d$-valued random vectors such that
+% \[
+% \|\vx_i\|\le D \qquad \text{a.s.}
+% \]
+% Let
+% \[
+% \Sigma := \E[\vx\vx^\top], \qquad \lambda_d := \lambda_{\min}(\Sigma),
+% \]
+% and assume
+% \[
+% \lambda_d \ge c>0.
+% \]
+% Define the empirical covariance and its minimum eigenvalue
+% \[
+% \widehat{\mH}:=\frac{1}{N}\sum_{i=1}^N \vx_i\vx_i^\top,
+% \qquad
+% \mu:=\lambda_{\min}(\widehat{\mH}).
+% \]
+% Fix any $p>0$. Then there exist constants $N_0\in\N$ and $C<\infty$, depending only on
+% $(p,d,c,D)$ (in particular, independent of $N$), such that for all $N\ge N_0$,
+% \[
+% \E[\mu^{-p}] \le C.
+% \]
+% One may take $N_0=\lceil d+2p+2\rceil$.
+% \end{lemma}
+
+% \begin{proof}
+% We use tail integration and split the lower tail into a ``very small'' regime controlled by a net argument,
+% and a ``moderate'' regime controlled by matrix Chernoff.
+
+% \paragraph{Step 1: very small tail via $\varepsilon$-net.}
+% Fix $t\in(0,D^2/(16N)]$ and set $r:=2\sqrt{Nt}$ and $\varepsilon:=\sqrt{Nt}/D\le 1/4$.
+% If $\mu\le t$, let $\vu_\star\in\mathbb S^{d-1}$ attain the minimum in
+% \[
+% \mu=\min_{\|\vu\|=1}\frac1N\sum_{i=1}^N (\vu^\top \vx_i)^2.
+% \]
+% Then for every $i$,
+% \[
+% (\vu_\star^\top \vx_i)^2 \le \sum_{j=1}^N(\vu_\star^\top \vx_j)^2 \le Nt
+% \quad\Rightarrow\quad
+% |\vu_\star^\top \vx_i|\le \sqrt{Nt}=\frac r2.
+% \]
+% Let $\mathcal N_\varepsilon$ be an $\varepsilon$-net of $\mathbb S^{d-1}$ with
+% $|\mathcal N_\varepsilon|\le (3/\varepsilon)^d$. Pick $\vu\in\mathcal N_\varepsilon$ with
+% $\|\vu-\vu_\star\|\le \varepsilon$. Using $\|\vx_i\|\le D$,
+% \[
+% |\vu^\top \vx_i|
+% \le |\vu_\star^\top \vx_i|+\|\vu-\vu_\star\|\,\|\vx_i\|
+% \le \sqrt{Nt}+\varepsilon D
+% =2\sqrt{Nt}=r
+% \qquad \forall i.
+% \]
+% Hence
+% \[
+% \{\mu\le t\}\subseteq \bigcup_{\vu\in\mathcal N_\varepsilon}\ \bigcap_{i=1}^N \{|\vu^\top \vx_i|\le r\}.
+% \]
+% Since $\|\vx\|\le D$ a.s., for any unit $\vu$ and any $r\in(0,D]$ we have the crude bound
+% $\Pr(|\vu^\top \vx|\le r)\le r/D$ by comparing to the maximal possible support interval.\footnote{Any bound of
+% the form $\Pr(|\vu^\top \vx|\le r)\le K r$ for $r\le D$ suffices; if you assume a bounded density as in your
+% earlier lemma, one can take $K=2MV_{d-1}D^{d-1}$.}
+% Applying this with $r=2\sqrt{Nt}\le D/2$ gives $\Pr(|\vu^\top \vx|\le r)\le 1/2$, and thus by independence,
+% \begin{equation}\label{eq:tiny-tail-unif}
+% \Pr(\mu\le t)
+% \le |\mathcal N_\varepsilon|\cdot (1/2)^N
+% \le \Big(\frac{3D}{\sqrt{Nt}}\Big)^d 2^{-N}
+% \qquad\text{for all } t\in(0,D^2/(16N)].
+% \end{equation}
+
+% \paragraph{Step 2: moderate tail via matrix Chernoff.}
+% Let $\mX_i:=\vx_i\vx_i^\top$, so $\widehat{\mH}=\frac1N\sum_{i=1}^N \mX_i$ and
+% $0\preceq \mX_i \preceq D^2 \mI$ a.s., with $\E[\mX_i]=\Sigma$.
+% A standard matrix Chernoff bound for the minimum eigenvalue yields, for any $\delta\in(0,1)$,
+% \[
+% \Pr\!\Big(\lambda_{\min}\Big(\sum_{i=1}^N \mX_i\Big)\le (1-\delta)\,
+% \lambda_{\min}\Big(\sum_{i=1}^N \E \mX_i\Big)\Big)
+% \le
+% d\left(\frac{e^{-\delta}}{(1-\delta)^{1-\delta}}\right)^{\lambda_{\min}(\sum_i \E \mX_i)/D^2}.
+% \]
+% Taking $\delta=\tfrac12$ and using $\lambda_{\min}(\sum_i \E \mX_i)=N\lambda_d\ge Nc$ gives
+% \begin{equation}\label{eq:chernoff-unif}
+% \Pr(\mu\le \frac{\lambda_d}{2})\le d\,\exp(-\gamma N),
+% \qquad
+% \gamma:=\frac{1-\ln 2}{2}\cdot\frac{c}{D^2}.
+% \end{equation}
+
+% \paragraph{Step 3: tail integration and uniformity in $N$.}
+% For $p>0$ and any nonnegative random variable $Y$,
+% \[
+% \E[Y^{-p}] = p\int_0^\infty t^{-p-1}\Pr(Y\le t)\,dt,
+% \]
+% which follows from Tonelli's theorem.
+% Apply this to $Y=\mu$ and split at $t_0:=D^2/(16N)$ and $t_1:=\frac{\lambda_d}{2}$:
+% \[
+% \E[\mu^{-p}] = I_1+I_2+I_3,
+% \]
+% where
+% \[
+% I_1:=p\int_0^{t_0} t^{-p-1}\Pr(\mu\le t)\,dt,\quad
+% I_2:=p\int_{t_0}^{t_1} t^{-p-1}\Pr(\mu\le t)\,dt,\quad
+% I_3:=p\int_{t_1}^{\infty} t^{-p-1}\Pr(\mu\le t)\,dt.
+% \]
+% Using \eqref{eq:tiny-tail-unif},
+% \[
+% I_1 \le p\Big(\frac{3D}{\sqrt N}\Big)^d 2^{-N}\int_0^{t_0} t^{-p-1-d/2}\,dt
+% = \Big(\frac{3D}{\sqrt N}\Big)^d 2^{-N}\, t_0^{-p-d/2}
+% \lesssim N^{p}\,2^{-N},
+% \]
+% which is uniformly bounded over all $N$.
+% For $I_2$, we use monotonicity $\Pr(\mu\le t)\le \Pr(\mu\le t_1)$ and \eqref{eq:chernoff-unif}:
+% \[
+% I_2 \le p\,\Pr(\mu\le t_1)\int_{t_0}^{t_1} t^{-p-1}\,dt
+% \le \Pr(\mu\le t_1)\, t_0^{-p}
+% \lesssim N^p e^{-\gamma N},
+% \]
+% which is uniformly bounded over all $N$.
+% Finally,
+% \[
+% I_3 \le p\int_{t_1}^\infty t^{-p-1}\,dt = t_1^{-p} = (\frac{\lambda_d}{2})^{-p}.
+% \]
+% Combining the three bounds yields $\sup_{N\ge N_0}\E[\mu^{-p}]<\infty$ for any $N_0\ge d+2p+2$,
+% with a constant depending only on $(p,d,c,D)$.
+% \end{proof}
+\paragraph{Technical Lemmas.}
+\begin{lemma} \label{lem:small-tail-eigenvalue}
+Define two events $\mathcal G:=\Bigl\{\mu\ge \frac{\lambda_{\min}}{2}\Bigr\}, 
+\mathcal B:=\mathcal G^{c}$, and define $\delta_N:=2d\cdot \exp\!\Bigl(-\frac{N\lambda_{\min}^2}{32D^4}\Bigr)$. Then we have $\Pr(\mathcal B)\le \delta_N$.
+\end{lemma}
+\begin{proof}
+
+% The procedure then goes as follows:
+
+% \emph{Step 1: bound $\mathds{P}(\mathcal B)$ by matrix Hoeffding.}
+Let
+\[
+\widehat{\mH}-\mH=\frac{1}{N}\sum_{i=1}^N \mZ_i,
+\qquad
+\mZ_i:=\vx_i\vx_i^\top-\mH.
+\]
+Then $\E[\mZ_i]=0$, and since $\vx_i\vx_i^\top\succeq 0$ and $\|\vx_i\|^2\le D^2$,
+we have $\vx_i\vx_i^\top\preceq D^2\mI$, and also $\mH\preceq D^2\mI$ (because
+$\lambda_{\max}(\mH)\le \E\|\vx\|^2\le D^2$). Hence
+\[
+-D^2\mI\ \preceq\ \mZ_i\ \preceq\ D^2\mI,
+\qquad\Rightarrow\qquad
+\|\mZ_i\|\le D^2\ \text{a.s.}
+\]
+By Theorem 1.3 in \citep{tropp2012user},
+\begin{align}
+    \Pr\!\left(\left\|\frac{1}{N}\sum_{i=1}^N \mZ_i\right\|\ge t\right)
+\le
+2d\cdot \exp\!\left(-\frac{Nt^2}{8D^4}\right). \label{ineq:hatH-H-error-bound}
+\end{align}
+Substituding $t=\frac{\lambda_{\min}}{2}$,
+\[
+\Pr\!\left(\left\|\frac{1}{N}\sum_{i=1}^N \mZ_i\right\|\ge \frac{\lambda_{\min}}{2}\right)
+\le
+2d\cdot \exp\!\left(-\frac{N\lambda_{\min}^2}{32D^4}\right)
+=\delta_N.
+\]
+Finally, since
+\[
+\mu=\lambda_{\min}(\widehat{\mH})
+\ge \lambda_{\min}(\mH)-\|\widehat{\mH}-\mH\|
+=\lambda_{\min}-\|\widehat{\mH}-\mH\|,
+\]
+the event $\{\mu<\lambda_{\min}/2\}$ implies $\|\widehat{\mH}-\mH\|>\lambda_{\min}/2$.
+Therefore $\Pr(\mathcal B)\le \delta_N$.
+\end{proof}
+\begin{lemma}[Finite negative moments of $\mu$ for large $N$]
+% \label{lem:uniform-negative-moments}
+\label{lem:eigenvalue-expectation-highd}
+% Let $\vx_1,\dots,\vx_N$ be i.i.d.\ $\R^d$-valued random vectors such that
+% \[
+% \|\vx_i\|\le D \qquad \text{a.s.}
+% \]
+% Assume $\vx$ admits a Lebesgue density $f_{\vx}$ and that $f_{\vx}(\vx)\le M$ for all $\|\vx\|\le D$.
+% Let
+% \[
+% \Sigma:=\E[\vx\vx^\top], \qquad \lambda_d:=\lambda_{\min}(\Sigma),
+% \]
+% and assume
+% \[
+% \lambda_d \ge c>0.
+% \]
+% Define
+% \[
+% \widehat{\mH}:=\frac{1}{N}\sum_{i=1}^N \vx_i\vx_i^\top,
+% \qquad
+% \mu:=\lambda_{\min}(\widehat{\mH}).
+% \]
+Fix any $p>0$. Then there exist constants $N_0\in\N$ and $C<\infty$, depending only on
+$(p,d,c,D,M)$ (in particular, independent of $N$), such that for all $N\ge N_0$,
+\[
+\E[\mu^{-p}] \le C.
+\]
+\end{lemma}
+
+\begin{proof}
+Let $V_{d-1}:=\Vol_{d-1}(B_{d-1}(0,1))$ be the volume of $(d-1)$-dimension unit ball, and define
+\[
+A:=2M\,V_{d-1}\,D^{d-1}.
+\]
+
+% \paragraph{Step 1: a uniform small-ball bound for 1D projections.}
+Fix any $\vu\in\mathbb S^{d-1}$ and $r\in(0,D]$. Since $p(\vx)\le M$ on $\{\|\vx\|\le D\}$,
+\[
+\Pr\big(|\vu^\top \vx|\le r\big)
+=\int_{\{\|\vx\|\le D,\ |\vu^\top \vx|\le r\}} p(\vx)\,d\vx
+\le M \,\Vol_d\big(\{\|\vx\|\le D,\ |\vu^\top \vx|\le r\}\big).
+\]
+The set $\{\|\vx\|\le D,\ |\vu^\top \vx|\le r\}$ is a slab of thickness $2r$ intersected with the radius-$D$ ball,
+hence its volume is at most $2r$ times the maximal $(d-1)$-dimensional cross-section $V_{d-1}D^{d-1}$, so
+\begin{equation}\label{eq:proj-sb}
+\Pr\big(|\vu^\top \vx|\le r\big)\le A\,r
+\qquad (\vu\in\mathbb S^{d-1},\ r\in(0,D]).
+\end{equation}
+In particular, taking $r=D$ and using $|\vu^\top\vx|\le \|\vx\|\le D$ a.s.\ yields
+$1=\Pr(|\vu^\top\vx|\le D)\le AD$, hence $A\ge 1/D$.
+
+% \paragraph{Step 2: very small lower tail of $\mu$ via an $\varepsilon$-net.}
+Fix $t\in\bigl(0,\frac{1}{16A^2N}\bigr]$ and set
+\[
+r:=2\sqrt{Nt},\qquad \varepsilon:=\frac{\sqrt{Nt}}{D}.
+\]
+Since $A\ge 1/D$, we have $\frac{1}{16A^2N}\le \frac{D^2}{16N}$, hence $r\le D/2$ and $\varepsilon\le 1/4$.
+
+By the variational characterization,
+\[
+\mu=\min_{\|\vu\|=1}\frac1N\sum_{i=1}^N(\vu^\top\vx_i)^2.
+\]
+If $\mu\le t$, let $\vu_\star\in\mathbb S^{d-1}$ attain the minimum. Then for every $i$,
+\[
+(\vu_\star^\top\vx_i)^2\le \sum_{j=1}^N(\vu_\star^\top\vx_j)^2 \le Nt,
+\quad\text{so}\quad
+|\vu_\star^\top\vx_i|\le \sqrt{Nt}=\frac r2.
+\]
+Let $\mathcal N_\varepsilon$ be an $\varepsilon$-net of $\mathbb S^{d-1}$ in Euclidean norm with
+$|\mathcal N_\varepsilon|\le (3/\varepsilon)^d$. Pick $\vu\in\mathcal N_\varepsilon$ with
+$\|\vu-\vu_\star\|\le \varepsilon$. Using $\|\vx_i\|\le D$,
+\[
+|\vu^\top\vx_i|
+\le |\vu_\star^\top\vx_i|+\|\vu-\vu_\star\|\,\|\vx_i\|
+\le \sqrt{Nt}+\varepsilon D
+=2\sqrt{Nt}=r
+\qquad\forall i.
+\]
+Therefore,
+\[
+\{\mu\le t\}\subseteq \bigcup_{\vu\in\mathcal N_\varepsilon}\ \bigcap_{i=1}^N\{|\vu^\top\vx_i|\le r\}.
+\]
+Using independence and \eqref{eq:proj-sb} (note $r\le D$),
+\begin{align}
+\Pr(\mu\le t)
+&\le |\mathcal N_\varepsilon|\cdot \sup_{\|\vu\|=1}\Pr(|\vu^\top\vx|\le r)^N
+\le \Big(\frac{3}{\varepsilon}\Big)^d \,(A r)^N \nonumber\\
+&= \Big(\frac{3D}{\sqrt{Nt}}\Big)^d \,\bigl(2A\sqrt{Nt}\bigr)^N
+= (3D)^d (2A)^N \,N^{\frac{N-d}{2}}\, t^{\frac{N-d}{2}} .
+\label{eq:mu-tiny-tail}
+\end{align}
+
+% \paragraph{Step 3: moderate tail at scale $c$ via matrix Chernoff.}
+% Let $\mX_i:=\vx_i\vx_i^\top$, so $0\preceq \mX_i\preceq D^2\mI$ a.s.\ and $\E[\mX_i]=\Sigma$.
+% A matrix Chernoff inequality for the minimum eigenvalue (e.g.\ Tropp, 2012) yields that for any $\delta\in(0,1)$,
+% \[
+% \Pr\!\Big(\lambda_{\min}\Big(\sum_{i=1}^N\mX_i\Big)\le (1-\delta)\lambda_{\min}\Big(\sum_{i=1}^N\E\mX_i\Big)\Big)
+% \le d\left(\frac{e^{-\delta}}{(1-\delta)^{1-\delta}}\right)^{\lambda_{\min}(\sum_i \E\mX_i)/D^2}.
+% \]
+% With $\delta=\tfrac12$ and $\lambda_{\min}(\sum_i\E\mX_i)=N\lambda_d\ge Nc$,
+% \begin{equation}\label{eq:chernoff}
+% \Pr(\mu\le \frac{\lambda_d}{2})\le d\,\exp(-\gamma N),
+% \qquad
+% \gamma:=\frac{1-\ln 2}{2}\cdot\frac{c}{D^2}.
+% \end{equation}
+By \Cref{lem:small-tail-eigenvalue}, there exists a constant $\gamma$ such that $\Pr(\mu\le \lambda_d/2)\le d\,\exp(-\gamma N)$.
+% \paragraph{Step 4: tail integration and uniformity in $N$.}
+For $p>0$ and any nonnegative $Y$, we have
+\[
+\E[Y^{-p}] = p\int_0^\infty t^{-p-1}\Pr(Y\le t)\,dt.
+\]
+Apply this to $Y=\mu$. Let
+\[
+t_0:=\frac{1}{16A^2N}.
+\]
+Choose $N_0:=\left\lceil\max\{d+2p+2,\,(8A^2c)^{-1}\}\right\rceil$. Then when $N\geq N_0$, we have $N>d+2p$ and $t_0\le \frac{\lambda_d}{2}$.
+% for all $N\ge N_0:=\left\lceil\max\{d+2p+2,\,(8A^2c)^{-1}\}\right\rceil$.
+% For $N\ge N_0$, 
+We split the integral at $t_0$ and $\frac{\lambda_d}{2}$:
+\begin{align*}
+\E[\mu^{-p}]
+&= p\int_0^{t_0} t^{-p-1}\Pr(\mu\le t)\,dt
++ p\int_{t_0}^{\frac{\lambda_d}{2}} t^{-p-1}\Pr(\mu\le t)\,dt
++ p\int_{\frac{\lambda_d}{2}}^{D^2} t^{-p-1}\Pr(\mu\le t)\,dt \\
+&=: I_3+I_4+I_5.
+\end{align*}
+
+\emph{Bound on $I_5$.} Since $\Pr(\mu\le t)\le 1$,
+\[
+I_5 \le p\int_{\frac{\lambda_d}{2}}^{D^2} t^{-p-1}\,dt = (\frac{\lambda_d}{2})^{-p}.
+\]
+
+\emph{Bound on $I_4$.} For $t\le \frac{\lambda_d}{2}$, $\Pr(\mu\le t)\le \Pr(\mu\le \frac{\lambda_d}{2})$, hence by \Cref{lem:small-tail-eigenvalue},
+\[
+I_4 \le p\,\Pr(\mu\le \frac{\lambda_d}{2})\int_{t_0}^{\frac{\lambda_d}{2}} t^{-p-1}\,dt
+\le \Pr(\mu\le \frac{\lambda_d}{2})\,t_0^{-p}
+\le d\,e^{-\gamma N}\,(16A^2N)^p.
+\]
+
+\emph{Bound on $I_3$.} Using \eqref{eq:mu-tiny-tail} and $N>d+2p$,
+\[
+\begin{aligned}
+I_3
+&\le p(3D)^d (2A)^N N^{\frac{N-d}{2}}
+\int_0^{t_0} t^{\frac{N-d}{2}-p-1}\,dt
+= p(3D)^d (2A)^N N^{\frac{N-d}{2}} \cdot \frac{t_0^{\frac{N-d}{2}-p}}{\frac{N-d}{2}-p}.
+\end{aligned}
+\]
+Since $N\ge d+2p+2$ implies $\frac{N-d}{2}-p\ge 1$, and $t_0=\frac{1}{16A^2N}$, a direct simplification gives
+\[
+I_3 \le p(3D)^d \,2^{2d+4p}\,A^{d+2p}\,N^p\,2^{-N}.
+\]
+Combining the bounds for $I_3, I_4$ and $I_5$, we obtain the result.
+\end{proof}
+
+% \begin{corollary} \label{cor:Emu^{-1}-approx}
+%     $\E\mu^{-1} = \lambda_d^{-1}(1+o_N(1))$. 
+% \end{corollary}
+
+% \begin{proof}
+%     \begin{align*}
+%         |\E\mu^{-1}-\lambda_d^{-1}|\leq\E\left|\frac{\lambda_d-\mu}{\lambda_d\mu}\right|\leq\lambda_d^{-1}\left(\E\mu^{-2}\right)^{0.5}\left(\E\left(\mu-\lambda_d\right)^2\right)^{0.5}
+%     \end{align*}
+% \end{proof}
+% Finally, the elementary bound $\sup_{x>0} x^p e^{-ax}=(p/(ae))^p$ (by calculus) implies
+% \[
+% \sup_{N\ge 1} N^p 2^{-N}=\sup_{N\ge 1} N^p e^{-(\ln 2)N}\le \Big(\frac{p}{e\ln 2}\Big)^p,
+% \qquad
+% \sup_{N\ge 1} N^p e^{-\gamma N}\le \Big(\frac{p}{e\gamma}\Big)^p.
+% \]
+% Hence $\sup_{N\ge N_0} (I_1+I_2+I_3) <\infty$, and thus there exists $C=C(p,d,c,D,M)<\infty$
+% (independent of $N$) such that $\E[\mu^{-p}]\le C$ for all $N\ge N_0$.
+
+
+
+    \begin{lemma}[Chung-type lemma for $\alpha< \beta$]\label{lem:chung-alpha-le-beta}
+    Let $\{\xi_k\}_{k\ge 0}$ be a sequence of positive real numbers. Suppose there exist $k_0>0$, $A>0$ and
+    $\alpha>0,\beta>0$ with $\alpha\le \beta$ such that for all $k\ge 0$,
+    \begin{equation}\label{eq:rec-alpha-le-beta}
+    \xi_{k+1}
+    \;\le\;
+    \exp\!\Bigl(-\frac{\alpha}{k_0+k+1}\Bigr)\,\xi_k
+    \;+\;
+    \frac{A}{(k_0+k+1)^{\beta+1}}.
+    \end{equation}
+    Then for any $K\ge 1$,
+    \begin{equation}\label{eq:chung-master}
+    \xi_K
+    \;\le\;
+    \exp\!\Bigl(-\alpha\sum_{i=1}^K\frac{1}{k_0+i}\Bigr)\,\xi_0+
+    \frac{e^{\alpha/(k_0+1)}A}{(k_0+K)^{\alpha}}
+    \sum_{k=1}^K (k_0+k)^{\alpha-\beta-1}.
+    \end{equation}
+    Moreover, when $\alpha < \beta$, \Cref{eq:chung-master} can be further simplified to:
+    
+    % \paragraph{Case 1: $\alpha=\beta$.}
+    % \begin{equation}\label{eq:chung-alpha-eq-beta}
+    % \xi_K
+    % \;\le\;
+    % \Bigl(\frac{k_0+1}{k_0+K}\Bigr)^{\alpha}\xi_0
+    % \;+\;
+    % \frac{e^{\alpha/(k_0+1)}A}{(k_0+K)^{\alpha}}
+    % \Bigl(\log\frac{k_0+K}{k_0+1}+\frac{1}{k_0+1}\Bigr).
+    % \end{equation}
+    
+    % \paragraph{Case 2: $\alpha<\beta$.}
+    \begin{equation}\label{eq:chung-alpha-lt-beta}
+    \xi_K
+    \;\le\;
+    \Bigl(\frac{k_0+1}{k_0+K}\Bigr)^{\alpha}\xi_0
+    \;+\;
+    \frac{e^{\alpha/(k_0+1)}A}{\beta-\alpha}\cdot
+    \frac{\beta-\alpha+1}{(k_0+K)^{\alpha}}.
+    \end{equation}
+    \end{lemma}
+    
+    \begin{proof}
+    Define for $m\ge 1$
+    \[
+    a_m:=\exp\!\Bigl(-\frac{\alpha}{k_0+m}\Bigr),
+    \qquad
+    c_m:=\frac{A}{(k_0+m)^{\beta+1}}.
+    \]
+    Then we can reweite \eqref{eq:rec-alpha-le-beta} as $\xi_{k+1}\le a_{k+1}\xi_k+c_{k+1}$.
+    Unrolling the recursion gives
+    \[
+    \xi_K
+    \le
+    \xi_0\prod_{j=1}^K a_j
+    +
+    \Bigl(\prod_{j=1}^K a_j\Bigr)\sum_{k=1}^K
+    \Bigl(\prod_{j=1}^k a_j\Bigr)^{-1}c_k.
+    \]
+    Note $\prod_{j=1}^m a_j=\exp\!\bigl(-\alpha\sum_{i=1}^m\frac{1}{k_0+i}\bigr)$. Using the standard bound
+    \[
+    \log\frac{k_0+m}{k_0+1}
+    \;\le\;
+    \sum_{i=1}^m\frac{1}{k_0+i}
+    \;\le\;
+    \log\frac{k_0+m}{k_0+1}+\frac{1}{k_0+1},
+    \]
+    we obtain for all $m\ge 1$:
+    \[
+    e^{-\alpha/(k_0+1)}\Bigl(\frac{k_0+1}{k_0+m}\Bigr)^{\alpha}
+    \;\le\;
+    \prod_{j=1}^m a_j
+    \;\le\;
+    \Bigl(\frac{k_0+1}{k_0+m}\Bigr)^{\alpha}.
+    \]
+    Hence $(\prod_{j=1}^k a_j)^{-1}\le e^{\alpha/(k_0+1)}\bigl(\frac{k_0+k}{k_0+1}\bigr)^{\alpha}$ and therefore
+    \[
+    \sum_{k=1}^K\Bigl(\prod_{j=1}^k a_j\Bigr)^{-1}c_k
+    \le
+    e^{\alpha/(k_0+1)}\frac{A}{(k_0+1)^{\alpha}}
+    \sum_{k=1}^K (k_0+k)^{\alpha-\beta-1}.
+    \]
+    Multiplying by $\prod_{j=1}^K a_j\le \bigl(\frac{k_0+1}{k_0+K}\bigr)^{\alpha}$ yields \eqref{eq:chung-master}.
+    
+    % Now assume $\alpha\le \beta$.
+    
+    % \emph{If $\alpha=\beta$}, then $\sum_{k=1}^K (k_0+k)^{-1}\le \log\frac{k_0+K}{k_0+1}+\frac{1}{k_0+1}$,
+    % and also $\prod_{j=1}^K a_j\le \bigl(\frac{k_0+1}{k_0+K}\bigr)^\alpha$, giving \eqref{eq:chung-alpha-eq-beta}.
+    
+    When $\alpha<\beta$, since $x\mapsto x^{\alpha-\beta-1}$ is decreasing and convex,
+    \begin{align*}
+        \sum_{k=1}^K (k_0+k)^{\alpha-\beta-1}
+        &\le
+        (k_0+1)^{\alpha-\beta-1}+\int_{1}^{K}(k_0+x)^{\alpha-\beta-1}\,dx \\
+        &=(k_0+1)^{\alpha-\beta-1}+
+        \frac{(k_0+1)^{\alpha-\beta}-(k_0+K)^{\alpha-\beta}}{\beta-\alpha} \\
+        &<
+        (k_0+1)^{\alpha-\beta-1}+
+        \frac{(k_0+1)^{\alpha-\beta}}{\beta-\alpha}]\leq\frac{\beta-\alpha+1}{\beta-\alpha}.
+    \end{align*}
+    
+    Plugging this into \eqref{eq:chung-master} and using $\prod_{j=1}^K a_j\le \bigl(\frac{k_0+1}{k_0+K}\bigr)^\alpha$
+    gives \eqref{eq:chung-alpha-lt-beta}.
+    \end{proof}
+    
+    % \begin{corollary}[Schedule $E(\tfrac{2}{D^2},1,1)$]
+    % Under the setting of Proposition~16, assume in addition that
+    % \[
+    % \eta_t=\frac{2/D^2}{1+t}\le \frac{2}{L}\quad(\forall t\ge 0)
+    % \qquad\text{(e.g., it suffices that $D^2\ge L$).}
+    % \]
+    % Run $K$-epoch SGD with $N$ fresh samples per epoch (total updates $T:=NK$), and use the schedule
+    % \[
+    % \eta_{i+1}^k \;=\; \eta_{\,t}\quad\text{with }t:=N(k-1)+i,\qquad
+    % \eta_t=\frac{2/D^2}{1+t},\qquad i=0,\dots,N-1,\ k=1,\dots,K .
+    % \]
+    % Let
+    % \[
+    % a \;:=\; \frac{\mu}{D^2},
+    % \qquad
+    % B \;:=\; G^2\Bigl(\frac{12}{D^4}+\frac{32\,\kappa L}{D^6}\Bigr).
+    % \]
+    % If $a>1$, then for any $K\ge 1$,
+    % \[
+    % \mathbb E\bigl\|x_0^{K}-x^\star\bigr\|^2
+    % \;\le\;
+    % \frac{\|x_0-x^\star\|^2}{(NK)^{a}}
+    % \;+\;
+    % \frac{e^{a}}{a-1}\cdot \frac{B}{NK}
+    % \;+\;
+    % e^{a}\cdot \frac{B}{(NK)^2}.
+    % \]
+    % \end{corollary}
+    
+    % \begin{proof}
+    % Let $\zeta_t:=\mathbb E\|x_t-x^\star\|^2$ for the global iterates $\{x_t\}_{t=0}^{T}$ ($T=NK$).
+    % By Proposition~16 in \citep{ahn2020sgd}, for each update with stepsize $\eta_t$,
+    % \[
+    % \zeta_{t+1}
+    % \le \Bigl(1-\frac{\mu}{2}\eta_t\Bigr)\zeta_t
+    % +3\eta_t^2G^2+4\eta_t^3\kappa L G^2.
+    % \]
+    % Using $1-x\le e^{-x}$ and $\eta_t=\frac{2/D^2}{1+t}$, we get
+    % \[
+    % \zeta_{t+1}
+    % \le \exp\!\Bigl(-\frac{a}{1+t}\Bigr)\zeta_t
+    % +\frac{B}{(1+t)^2},
+    % \]
+    % where we used $\frac{1}{(1+t)^3}\le \frac{1}{(1+t)^2}$ to absorb the cubic term into $B$.
+    % Applying Lemma~18 (with $k_0=0$, $\alpha=a$, $\beta=1$, $A=B$) at $t=T-1$ yields the claim.
+    % \end{proof}
+
+    % \begin{corollary}[Schedule $E(\tfrac{2}{D^2},1,1)$ when $0<a<1$]\label{cor:schedule-211-a<1}
+    % Under the setting of Proposition~16, assume in addition that
+    % \[
+    % \eta_t=\frac{2/D^2}{1+t}\le \frac{2}{L}\quad(\forall t\ge 0)
+    % \qquad\text{(e.g., it suffices that $D^2\ge L$).}
+    % \]
+    % Run $K$-epoch SGD with $N$ fresh samples per epoch (total updates $T:=NK$) and use the schedule
+    % \[
+    % \eta_{i+1}^k \;=\; \eta_{\,t}\quad\text{with }t:=N(k-1)+i,\qquad
+    % \eta_t=\frac{2/D^2}{1+t},\qquad i=0,\dots,N-1,\ k=1,\dots,K .
+    % \]
+    % Let
+    % \[
+    % a \;:=\; \frac{\mu}{2D^2}\in(0,\frac{1}{2}),
+    % \qquad
+    % B \;:=\; G^2\Bigl(\frac{12}{D^4}+\frac{32\,\kappa L}{D^6}\Bigr).
+    % \]
+    % Then for any $K\ge 1$,
+    % \begin{align}
+    % \mathbb E\bigl\|x_0^{K}-x^\star\bigr\|^2
+    % &\le
+    % \frac{\|x_0-x^\star\|^2}{(NK+1)^{a}}
+    % \;+\;
+    % \frac{2e^{a}}{1-a}\cdot \frac{B}{(NK)^{a}}
+    % \label{eq:rate-a<1}\\
+    % &\le
+    % \frac{\|x_0-x^\star\|^2+\frac{2e^{a}}{1-a}B}{(NK)^{a}}.
+    % \nonumber
+    % \end{align}
+    % \end{corollary}
+    
+    % \begin{proof}
+    % Let $\zeta_t:=\mathbb E\|x_t-x^\star\|^2$ for the global iterates $\{x_t\}_{t=0}^{T}$ ($T=NK$).
+    % By Proposition~16 in \citep{ahn2020sgd}, for each update with stepsize $\eta_t$,
+    % \[
+    % \zeta_{t+1}
+    % \le \Bigl(1-\frac{\mu}{2}\eta_t\Bigr)\zeta_t
+    % +3\eta_t^2G^2+4\eta_t^3\kappa L G^2.
+    % \]
+    % Using $1-x\le e^{-x}$ and $\eta_t=\frac{2/D^2}{1+t}$, we obtain
+    % \[
+    % \zeta_{t+1}
+    % \le \exp\!\Bigl(-\frac{a}{1+t}\Bigr)\zeta_t
+    % +\frac{B}{(1+t)^2},
+    % \]
+    % where we used $\frac{1}{(1+t)^3}\le \frac{1}{(1+t)^2}$ to absorb the cubic term into $B$.
+    
+    % Now apply Lemma~\ref{lem:chung-alpha-le-beta} (the same proof works for $k_0=0$) with
+    % \[
+    % k_0=0,\qquad \alpha=a,\qquad \beta=1,\qquad A=B,
+    % \]
+    % at $K=T=NK$. This yields
+    % \begin{equation}\label{eq:apply-lemma}
+    % \zeta_T
+    % \le
+    % \exp\!\Bigl(-a\sum_{i=1}^{T}\frac{1}{i}\Bigr)\zeta_0
+    % +\frac{e^{a}B}{T^{a}}
+    % \sum_{k=1}^{T} k^{a-2}.
+    % \end{equation}
+    % For the first term, since $\sum_{i=1}^{T}\frac{1}{i}\ge \log(T+1)$,
+    % \[
+    % \exp\!\Bigl(-a\sum_{i=1}^{T}\frac{1}{i}\Bigr)\le (T+1)^{-a}.
+    % \]
+    % For the second term, because $0<a<1$, we have $a-2<-1$ and thus
+    % \[
+    % \sum_{k=1}^{T} k^{a-2}
+    % \le 1+\int_{1}^{T} x^{a-2}\,dx
+    % = 1+\frac{1-T^{a-1}}{1-a}
+    % \le 1+\frac{1}{1-a}
+    % \le \frac{2}{1-a}.
+    % \]
+    % Plugging the last two displays into \eqref{eq:apply-lemma} gives
+    % \[
+    % \zeta_T
+    % \le
+    % \frac{\zeta_0}{(T+1)^a}
+    % +\frac{2e^{a}}{1-a}\cdot\frac{B}{T^a}.
+    % \]
+    % Finally, note $T=NK$ and $\zeta_T=\mathbb E\|x_0^{K}-x^\star\|^2$ under the above indexing convention,
+    % which proves \eqref{eq:rate-a<1}.
+    % \end{proof}
+    \begin{lemma}
+        Define 
+        \[G := \sup_{\cF(\vw)\leq\cF(\vw_0)}\max_{i\in [n]}\|\nabla f_i(\vw)\|.\]
+        Then we have
+        \begin{align}
+            G\leq D\sup_{i\in[n]}|\xi_i|+D^2\left(\|\hat{\vw}-\vw^*\|+\sqrt{\frac{D^2}{2\mu}}\|\hat{\vw}\|\right). \label{ineq:G-bound}
+        \end{align}
+    \end{lemma}
+    \begin{proof}
+        By Section A.1 in \citep{ahn2020sgd}, we have 
+        \begin{align*}
+            \{\cF(\vw)\leq\cF(\vw_0)\}\subseteq \{\|\vw-\hat{\vw}\|^2\leq \frac{\cF(\vw_0)-\cF(\hat{\vw})}{2\mu}\}.
+        \end{align*}
+        Note that 
+        \begin{align*}
+            \cF(\vw_0)-\cF(\hat{\vw}) &=\frac{1}{2}\left(\vw_0-\hat{\vw}\right)^{\top}\hat{\mH}\left(\vw_0-\hat{\vw}\right) \\
+            &\leq \frac{D^2\|\hat{\vw}\|^2}{2}
+        \end{align*}
+        and
+        \begin{align*}
+            \|\nabla f_i(\vw)\|&=\|\left(y_i-\langle\vw, \vx_i\rangle\right) \vx_i\|=\|\langle\vw^*-\vw, \vx_i\rangle\vx_i+\xi_i\vx_i\| \\
+            &\leq D|\xi_i|+D^2\|\vw^*-\vw\|\leq D|\xi_i|+D^2\left(\|\vw^*-\hat{\vw}\|+\|\hat{\vw}-\vw\|\right).
+        \end{align*}
+        Therefore,
+        \begin{align*}
+            G&\leq\sup_{\|\vw-\hat{\vw}\|\leq\sqrt{\frac{D^2}{2\mu}}\|\hat{\vw}\|}\max_{i\in[n]}D|\xi_i|+D^2\left(\|\vw^*-\hat{\vw}\|+\|\hat{\vw}-\vw\|\right) \\
+            &\leq D\sup_{i\in[n]}|\xi_i|+D^2\left(\|\hat{\vw}-\vw^*\|+\sqrt{\frac{D^2}{2\mu}}\|\hat{\vw}\|\right).
+        \end{align*}
+    \end{proof}
+Combining \Cref{lem:chung-alpha-le-beta}, \Cref{ineq:G-bound} and Proposition~16 in \citep{ahn2020sgd}, we derive the following corollary.
+    \begin{corollary}
+    % [Schedule $E(\tfrac{1}{D^2},1,1)$]
+    \label{cor:schedule-111-a<1}
+    % Under the setting of Proposition~16, assume in addition that
+    % \[
+    % \eta_t=\frac{1/D^2}{1+t}\le \frac{2}{L}\quad(\forall t\ge 0).
+    % \]
+    % Run $K$-epoch SGD with $N$ fresh samples per epoch (total updates $T:=NK$) and use the schedule
+    % \[
+    % \eta_{i+1}^k \;=\; \eta_{\,t}\quad\text{with }t:=N(k-1)+i,\qquad
+    % \eta_t=\frac{1/D^2}{1+t},\qquad i=0,\dots,N-1,\ k=1,\dots,K .
+    % \]
+    % Let
+    
+    For any $K\ge 1$,
+    \begin{align}
+    \E_{\pi_1, \cdots, \pi_{K}}\left\|\vw_0^{K+1}-\hat{\vw}\right\|^2
+    &\le \frac{\|\hat{\vw}\|^2+\frac{12\sqrt{e}}{D^2}(3+4\kappa)\left(\left(\sup_{i\in[n]}|\xi_i|\right)^2+D^2\|\hat{\vw}-\vw^*\|^2+\frac{D^4}{2\mu}\|\hat{\vw}\|^2\right)}{(NK)^{a}}. \label{ineq:ERM-error-bound}
+    \end{align}
+    \end{corollary}
+    
+    \begin{proof}
+    Let $ a:=\; \frac{\mu}{2D^2}\in\Bigl(0,\frac{1}{2}\Bigr), B :=\; G^2\Bigl(\frac{3}{D^4}+\frac{4\,\kappa L}{D^6}\Bigr), \text{and} \ \zeta_t:=\mathbb E\|\vw_t-\vw^\star\|^2$ for the global iterates $\{x_t\}_{t=0}^{T}$ ($T=NK$).
+    By Proposition~16 in \citep{ahn2020sgd}, for each update with stepsize $\eta_t$,
+    \[
+    \zeta_{t+1}
+    \le \Bigl(1-\frac{\mu}{2}\eta_t\Bigr)\zeta_t
+    +3\eta_t^2G^2+4\eta_t^3\kappa L G^2.
+    \]
+    Using $1-x\le e^{-x}$ and $\eta_t=\frac{1/D^2}{1+t}$, we obtain
+    \[
+    \zeta_{t+1}
+    \le \exp\!\Bigl(-\frac{\mu}{2}\cdot \frac{1/D^2}{1+t}\Bigr)\zeta_t
+    +\frac{3G^2}{D^4(1+t)^2}+\frac{4\kappa L G^2}{D^6(1+t)^3}.
+    \]
+    With $a=\frac{\mu}{2D^2}$ and $\frac{1}{(1+t)^3}\le \frac{1}{(1+t)^2}$, this simplifies to
+    \[
+    \zeta_{t+1}
+    \le \exp\!\Bigl(-\frac{a}{1+t}\Bigr)\zeta_t
+    +\frac{B}{(1+t)^2},
+    \qquad
+    B:=G^2\Bigl(\frac{3}{D^4}+\frac{4\,\kappa L}{D^6}\Bigr).
+    \]
+    
+    Now apply Lemma~\ref{lem:chung-alpha-le-beta} with
+    \[
+    k_0=0,\qquad \alpha=a,\qquad \beta=1,\qquad A=B,
+    \]
+    at $K=T=NK$. This yields that
+    \begin{align*}
+    \E_{\pi_1, \cdots, \pi_{K}}\left\|\vw_0^{K+1}-\hat{\vw}\right\|^2
+    &\le
+    \frac{\|\vw_0-\hat{\vw}\|^2}{(NK)^{a}}+
+    \frac{2e^{a}}{1-a}\cdot \frac{B}{(NK)^{a}} \\     
+    &\le
+    \frac{\|\vw_0-\hat{\vw}\|^2+\frac{4\sqrt{e}G^2}{D^4}(3+4\kappa)}{(NK)^{a}}.
+    \end{align*}
+    Recall that $\vw_0 = 0$. Combining this inequality with \Cref{ineq:G-bound}, and note that $(a+b+c)^2\leq3(a^2+b^2+c^2)$, we have the result.
+    \end{proof}
+    
+        
+
+    \begin{lemma}
+\label{lem:bound-RHS-split}
+% Let $\vx_1,\dots,\vx_N\in\R^d$ be i.i.d.\ with $\|\vx\|\le D$ a.s., and let the population covariance be
+% \[
+% \mH:=\E[\vx\vx^\top]\in\mathbb S_+^d,\qquad 
+% \lambda_{\min}:=\lambda_{\min}(\mH)>0.
+% \]
+
+Define $a_0:=\frac{\lambda_{\min}}{4D^2}.$
+% If $\E[\mu^{-4}]<\infty$, then 
+Then there exists a constant $N_0$ such that when $N>N_0$, we have
+\begin{equation}\label{eq:exp-RHS-d}
+\E[\|\vw_T-\hat{\vw}\|^2]
+\;\le\;
+\frac{C_9}
+{(KN)^{a_0}}
+\;+\;
+C_{10}\delta_N^{\frac{1}{2}}.
+\end{equation}
+% where $C_0:=\|\vw_0-\hat{\vw}\bigr\|^2+\frac{12e^{1/2}G^2}{D^4}$ and
+% $C_1:=\frac{16e^{1/2}LG^2}{D^6}$.
+% In particular, the last two terms are exponentially small in $N$ (up to the prefactor $d$).
+\end{lemma}
+
+\begin{proof}
+    Define $\mX=\left(\vx_1, \cdots, \vx_N\right)^{\top}, \vy = \left(y_1, \cdots, y_N\right)^{\top}, \bm\xi = \left(\xi_1, \cdots, \xi_N\right)^{\top}$. We have 
+\begin{align}
+    \hat{\vw} &= \left(\mX^{\top}\mX\right)^{-1}\mX^{\top}\vy \nonumber \\
+    &= \left(\mX^{\top}\mX\right)^{-1}\mX^{\top}\left(\mX\vw^*+\bm\xi\right) \nonumber \\
+    &=\vw^*+\left(\mX^{\top}\mX\right)^{-1}\mX^{\top}\bm\xi. \label{equ:hat-w}
+\end{align}
+Thus
+\begin{align*}
+    \E_{\bm\xi}\|\hat{\vw}-\vw^*\|^2&=\sigma^2\tr\left(\mX^{\top}\mX\right)^{-1}\leq\frac{\sigma^2d}{\mu N},
+\end{align*}
+and
+\begin{align*}
+    \E_{\bm\xi}\|\hat{\vw}\|^2\leq 2\left(\|\hat{\vw}-\vw^*\|^2+\|\vw^*\|^2\right)\leq\frac{2\sigma^2d}{\mu N}+2\|\vw^*\|^2.
+\end{align*}
+Consequently, we have
+\begin{align*}
+    \E_{\bm\xi}\E_{\text{shuffle}}\left\|\vw_0^{K+1}-\hat{\vw}\right\|^2
+    &\le \frac{C_{11}\mu^{-2}+C_{12}\mu^{-1}+C_{13}}{(NK)^{a}}. 
+\end{align*}
+
+
+% \emph{Step 2: expectation bound.}
+% As in your scalar proof, using the crude bound $S^{-a}\le 1$ and $\frac{2e^a}{1-a}\le 4e^{1/2}$ for $a\in(0,1/2)$,
+% one obtains the deterministic domination
+% \[
+% \mathsf R \;\le\; C_0 + C_1\kappa,
+% \]
+% with the stated $C_0,C_1$.
+
+% On the good event $\mathcal G$, we have
+% \[
+% a=\frac{\mu}{2D^2}\ge \frac{\lambda_{\min}}{4D^2}=a_0,
+% \qquad
+% \kappa=\frac{D^2}{\mu}\le \frac{2D^2}{\lambda_{\min}},
+% \]
+% so the same algebra as in your 1D proof yields
+% \[
+% \mathsf R\,\mathbf 1_{\mathcal G}
+% \;\le\;
+% \frac{\|\vx_0-\vx^\star\|^2
+% +4e^{1/2}G^2\Bigl(\frac{3}{D^4}+\frac{8L}{\lambda_{\min}D^4}\Bigr)}
+% {S^{a_0}}\cdot \mathbf 1_{\mathcal G}.
+% \]
+Therefore,
+\begin{align*}
+    \E[\|\hat{\vw}-\vw^*\|^2]
+&=\E[\|\hat{\vw}-\vw^*\|^2\mathbf 1_{\mathcal G}]+\E[\|\hat{\vw}-\vw^*\|^2\mathbf 1_{\mathcal B}] \\
+&\le
+\frac{C_{11}\left(\frac{2}{\lambda_d}\right)^{2}+C_{12}\left(\frac{2}{\lambda_d}\right)+C_{13}}
+{(KN)^{a_0}}+\E[\left(C_{11}\mu^{-2}+C_{12}\mu^{-1}+C_{13}\right)\mathbf 1_{\mathcal B}].
+\end{align*}
+
+By \Cref{lem:eigenvalue-expectation-highd}, we have $\E[\mu^{-4}]<\infty$ when $N>d+8$.
+Thus by H\"older and $\Pr(\mathcal B)\le \delta_N$,
+\[
+\E[\kappa\mathbf 1_{\mathcal B}]
+\le (\E[\kappa^2])^{1/2}\,\Pr(\mathcal B)^{1-1/2}
+\]
+Plugging these bounds into the previous display proves \eqref{eq:exp-RHS-d}.
+\end{proof}
+Now we begin the main part of the proof of \Cref{thm:optimality-multi-epoch}.
+\begin{proof}[Proof of \Cref{thm:optimality-multi-epoch}]
+
+
+
+    % \kaifeng{it is very confusing to introduce lemmas in a proof... please move these lemmas outside}
+    
+
+
+    % \begin{equation}\label{eq:apply-lemma-111}
+    % \zeta_T
+    % \le
+    % \exp\!\Bigl(-a\sum_{i=1}^{T}\frac{1}{i}\Bigr)\zeta_0
+    % +\frac{e^{a}B}{T^{a}}
+    % \sum_{k=1}^{T} k^{a-2}.
+    % \end{equation}
+    % For the first term, since $\sum_{i=1}^{T}\frac{1}{i}\ge \log(T+1)$,
+    % \[
+    % \exp\!\Bigl(-a\sum_{i=1}^{T}\frac{1}{i}\Bigr)\le (T+1)^{-a}.
+    % \]
+    % For the second term, because $0<a<1$, we have $a-2<-1$ and thus
+    % \[
+    % \sum_{k=1}^{T} k^{a-2}
+    % \le 1+\int_{1}^{T} x^{a-2}\,dx
+    % = 1+\frac{1-T^{a-1}}{1-a}
+    % \le 1+\frac{1}{1-a}
+    % \le \frac{2}{1-a}.
+    % \]
+    % Plugging the last two displays into \eqref{eq:apply-lemma-111} gives
+    % \[
+    % \zeta_T
+    % \le
+    % \frac{\zeta_0}{(T+1)^a}
+    % +\frac{2e^{a}}{1-a}\cdot\frac{B}{T^a}.
+    % \]
+    % Finally, note $T=NK$ and $\zeta_T=\mathbb E\|x_0^{K}-x^\star\|^2$ under the above indexing convention,
+    % which proves \eqref{eq:rate-a<1-111}.
+
+
+% \begin{lemma}
+% % [Bounding the RHS via a ``good/bad'' split]
+% \label{lem:bound-RHS-split}
+% % Let $x_1,\dots,x_N$ be i.i.d. with $|x|\le D$ a.s., and define
+% % \[
+% % \lambda:=\E[x^2]>0,\qquad 
+% % \mu:=\frac{1}{N}\sum_{i=1}^N x_i^2,\qquad 
+% % a:=\frac{\mu}{2D^2}\in\Bigl(0,\frac12\Bigr),\qquad 
+% % \kappa:=\frac{D^2}{\mu}.
+% % \]
+% % Let $S:=NK\ge 1$ and
+% % \[
+% % B:=G^2\Bigl(\frac{3}{D^4}+\frac{4\kappa L}{D^6}\Bigr),\qquad 
+% % \mathsf{R}:=\frac{\|x_0-x^\star\|^2+\frac{2e^{a}}{1-a}B}{S^{a}}.
+% % \]
+% Set the threshold
+% \[
+% a_0:=\frac{\lambda}{4D^2}\qquad\Bigl(\text{equivalently } \mu\ge \frac{\lambda}{2}\Bigr),
+% \qquad 
+% \delta_N:=\exp\!\Bigl(-\frac{N\lambda^2}{2D^4}\Bigr).
+% \]
+% Then:
+
+% % \paragraph{(i) High-probability bound.}
+% % With probability at least $1-\delta_N$ (over the draw of $\{x_i\}_{i=1}^N$),
+% % \begin{equation}\label{eq:hp-RHS}
+% % \mathsf{R}
+% % \;\le\;
+% % \frac{\|x_0-x^\star\|^2
+% % +4e^{1/2}G^2\Bigl(\frac{3}{D^4}+\frac{8L}{\lambda D^4}\Bigr)}
+% % {S^{a_0}}
+% % \;=\;
+% % O\!\left(S^{-\lambda/(4D^2)}\right).
+% % \end{equation}
+
+% % \paragraph{(ii) Expectation bound (optional, requires an inverse-moment).}
+% If in addition there exists some $p>1$ such that $\E[\mu^{-p}]<\infty$ (equivalently $\E[\kappa^p]<\infty$),
+% then
+% \begin{equation}\label{eq:exp-RHS}
+% \E[\|x_T-x_0\|^2]
+% \;\le\;
+% \frac{\|x_0-x^\star\|^2
+% +4e^{1/2}G^2\Bigl(\frac{3}{D^4}+\frac{8L}{\lambda D^4}\Bigr)}
+% {(KN)^{a_0}}
+% \;+\;
+% C_0\,\delta_N
+% \;+\;
+% C_1\,\bigl(\E[\kappa^p]\bigr)^{1/p}\,\delta_N^{\,1-1/p},
+% \end{equation}
+% where $C_0:=\|x_0-x^\star\|^2+\frac{12e^{1/2}G^2}{D^4}$ and
+% $C_1:=\frac{16e^{1/2}LG^2}{D^6}$.
+% In particular, the last two terms are exponentially small in $N$.
+
+% \end{lemma}
+
+% \begin{proof}
+% Define the ``good'' event
+% \[
+% \mathcal G:=\Bigl\{\mu\ge \frac{\lambda}{2}\Bigr\}
+% \qquad\text{and}\qquad
+% \mathcal B:=\mathcal G^{c}.
+% \]
+% \emph{Step 1: bound $\mathds{P}(\mathcal B)$ by Hoeffding.}
+% Since $x_i^2\in[0,D^2]$ and $\E[x_i^2]=\lambda$, Hoeffding's inequality gives
+% \[
+% \mathds{P}(\mathcal B)
+% =\mathds{P}\left(\mu-\lambda\le -\frac{\lambda}{2}\right)
+% \le \exp\!\left(-\frac{2N(\lambda/2)^2}{(D^2-0)^2}\right)
+% =\exp\!\Bigl(-\frac{N\lambda^2}{2D^4}\Bigr)
+% =\delta_N.
+% \]
+
+% % \emph{Step 2: bound $\mathsf R$ on $\mathcal G$.}
+% % On $\mathcal G$ we have $\mu\ge \lambda/2$, hence
+% % \[
+% % a=\frac{\mu}{2D^2}\ge \frac{\lambda}{4D^2}=a_0,
+% % \qquad
+% % \kappa=\frac{D^2}{\mu}\le \frac{2D^2}{\lambda}.
+% % \]
+% % Also $a\in(0,1/2)$ implies $e^{a}\le e^{1/2}$ and $\frac{1}{1-a}\le 2$, hence
+% % \[
+% % \frac{2e^{a}}{1-a}\le 4e^{1/2}.
+% % \]
+% % Therefore, on $\mathcal G$,
+% % \[
+% % \mathsf R
+% % \le
+% % \frac{\|x_0-x^\star\|^2+4e^{1/2}B}{S^{a}}
+% % \le
+% % \frac{\|x_0-x^\star\|^2
+% % +4e^{1/2}G^2\Bigl(\frac{3}{D^4}+\frac{4(\frac{2D^2}{\lambda})L}{D^6}\Bigr)}
+% % {S^{a_0}},
+% % \]
+% % which is exactly \eqref{eq:hp-RHS}. Together with $\P(\mathcal G)\ge 1-\delta_N$, this proves (i).
+
+% \emph{Step 3: (ii) expectation bound.}
+% Using the crude upper bound $S^{-a}\le 1$ and the same bound
+% $\frac{2e^a}{1-a}\le 4e^{1/2}$, we have
+% \[
+% \mathsf R
+% \le \frac{\|x_0-x^\star\|^2+4e^{1/2}B}{S^{a}}
+% \le C_0 + C_1\kappa,
+% \]
+% with the stated $C_0,C_1$. Hence
+% \[
+% \E[\mathsf R]
+% =\E[\mathsf R\mathbf 1_{\mathcal G}]+\E[\mathsf R\mathbf 1_{\mathcal B}]
+% \le
+% \frac{\|x_0-x^\star\|^2
+% +4e^{1/2}G^2(\frac{3}{D^4}+\frac{8L}{\lambda D^4})}{S^{a_0}}
+% \;+\;
+% C_0\P(\mathcal B)+C_1\E[\kappa\mathbf 1_{\mathcal B}].
+% \]
+% Finally, by H\"older,
+% \[
+% \E[\kappa\mathbf 1_{\mathcal B}]
+% \le (\E[\kappa^p])^{1/p}\,\P(\mathcal B)^{1-1/p}
+% \le (\E[\kappa^p])^{1/p}\,\delta_N^{\,1-1/p}.
+% \]
+% Plugging $\P(\mathcal B)\le \delta_N$ yields \eqref{eq:exp-RHS}.
+% \end{proof}
+
+
+
+
+    % We consider a learning rate schedule as follows:
+    % \[
+    % \Tilde{\eta}_i^{1} = \frac{2\alpha/\mu}{k_0 + i} \quad \text{for } i \in [n],
+    % \qquad
+    % \Tilde{\eta}_i^{k} = \frac{2\alpha/\mu}{k_0 + n k}
+    % \quad \text{for } k \in \{2,\dots,K\},\ i \in [n].
+    % \]
+    % By the SGD training dynamics, 
+    % \begin{align*}
+    %    \vw_{i+1}^k=\vw_{i}^k-\eta_{i}^k\nabla f_{\pi_k(i)}(\vw_i^k)=\vw_{i}^k+\eta_{i}^k(y_i-\vw \vx_i)\vx_i
+    % \end{align*}
+
+    % Taking norm squared and using the strong convexity of $F$, we have
+    % \begin{align*}
+    %     \|\vw_{i+1}^k-\hat{\vw}\|^2=\|\vw_{i}^k-\hat{\vw}\|^2 - 2\eta_{i}^{k}\langle \vw_i^k-\hat{\vw}, \nabla
+    % \end{align*}
+    % Then, by Theorem 4 in \citep{ahn2020sgd}, we have
+    % \begin{align}
+    % \E_{\text{shuffle}}\cF(\vw_{T})-\cF(\hat{\vw})&= \E_{\text{shuffle}}\frac{\mu}{2}(\vw_T-\hat{\vw})^2  \nonumber \\
+    % &\leq \frac{c_1\mu^{-4}}{(\alpha\mu^{-1}+KN)^2}+\frac{c_2\mu^{-6}N^2}{(\alpha\mu^{-1}+KN)^3}+\frac{c_3\mu^{-\alpha}(\vw_0-\hat{\vw})^2}{(\alpha\mu^{-1}+KN)^{\alpha}} \label{equ:thm4-error-bound},
+    % \end{align}
+    % where $c_1, c_2, c_3$ only depend on $D,\eta_0,b,\alpha$.
+    
+    Note that through a direct calculation, we have $\cL(\vw)=\frac{\lambda}{2}(\vw_T-\vw^*)^2$. Then we can upper bound $\Bar{\cR}(K,N;E)$:
+    \begin{align*}
+        \Bar{\cR}(K,N;E)&=\E\frac{(\vw_T-\vw^*)^{\top}\mH(\vw_T-\vw^*)}{2} \\
+        &=\E\frac{(\vw_T-\hat{\vw}+\hat{\vw}-\vw^*)^{\top}\mH(\vw_T-\hat{\vw}+\hat{\vw}-\vw^*)}{2} \nonumber \\
+        &= \E\frac{1}{2}\langle\mH,(\hat{\vw}-\vw^*)(\hat{\vw}-\vw^*)^{\top}\rangle+\E\frac{1}{2}\langle\mH,(\vw_T-\hat{\vw})(\vw_T-\hat{\vw})^{\top}\rangle  \\
+        &+\E{(\vw_T-\hat{\vw})^{\top}\mH(\hat{\vw}-\vw^*)}  \\
+        % &\leq \lambda \E\frac{\sigma^2d}{N\mu}+\lambda\left(\frac{C_9}{(KN)^{a_0}}+C_{10}\delta_N^{\frac{1}{2}}\right).
+        &=I_6+I_7+I_8.
+    \end{align*}
+    % Let $N\to\infty$, and note that $\delta_N^{0.5}=o\left(N^{-1}\right)$, we obtain the result.
+    Next, we characterize $I_6, I_7$ and $I_8$ separately.
+    
+    By \Cref{equ:hat-w}, we have \[I_6=\E\frac{\sigma^2d}{2N}\langle\mH, \hat{\mH}^{-1}\rangle=\frac{\sigma^2d}{2N}\left(1+\E\langle\mH,\hat{\mH}^{-1}-\mH^{-1}\rangle\right).\]
+    We view $\frac{\sigma^2d}{2N}$ as the main term, and view $\frac{\sigma^2d}{2N}\E\langle\mH,\hat{\mH}^{-1}-\mH^{-1}\rangle$ as the error term. A naive bound of the error term can be given as follows:
+    \begin{align*}
+        \E\langle\mH,\hat{\mH}^{-1}-\mH^{-1}\rangle&\leq \E D^2\|\hat{\mH}^{-1}-\mH^{-1}\|=\E D^2\left\|\mH^{-1}\left(\mH-\hat{\mH}\right)\hat{\mH}^{-1}\right\| \\
+        &\leq \E\frac{D^2}{\lambda_d\mu} \|\mH-\hat{\mH}\|\leq\frac{D^2}{\lambda_d}\sqrt{\E\mu^{-2}}\sqrt{\E\|\mH-\hat{\mH}\|^2}.
+    \end{align*}
+    By \Cref{lem:eigenvalue-expectation-highd}, $\E\mu^{-2}\leq C$ for some constant $C$ independent of $N$; by \Cref{ineq:hatH-H-error-bound} and Proposition 2.5.2 in \citep{vershynin2018high}, we have $\E\|\mH-\hat{\mH}\|^2\leq \Tilde{C}N^{-0.5}$ for some constant $\Tilde{C}$. Therefore, we have $I_6=\frac{\sigma^2d}{2N}(1+o(1))$.
+    
+    By \Cref{lem:bound-RHS-split}, we can derive an upper bound for $I_7$:
+    \begin{align*}
+        I_7\leq \frac{D^2}{2}\E\left\|\vw_T-\hat{\vw}\right\|^2\leq \frac{D^2}{2}\left(\frac{C_9}{(KN)^{a_0}}+C_{10}\sqrt{\delta_N}\right),
+    \end{align*}
+    where $\delta_N=o\left(N^{-1}\right)$.
+
+    $I_8$ can be bounded by $I_6$ and $I_7$ using the Cauchy-Schwarz inequality:
+    \begin{align*}
+        I_8&=\langle{\mH^{0.5}(\vw_T-\hat{\vw}), \mH^{0.5}(\hat{\vw}-\vw^*)}\rangle\leq\sqrt{2I_7}\sqrt{2I_6}=2\sqrt{I_6I_7}.
+    \end{align*}
+    By letting $K\to\infty$ and combining the characterizations of $I_6,I_7$ and $I_8$, we obtain the result.
+\end{proof}
+    % Next, to obtain the final result, we only need to bound $\E(\vw_T-\hat{\vw})^2$ and $\E(\hat{\vw}-\vw^*)^2$ separately.
+    % We introduce the following lemma.
+    
+    % \begin{lemma}[Negative moments of the empirical second moment]
+    % \label{lem:eigenvalue-expectation}
+    % Let $X_1,\dots,X_n$ be i.i.d.\ real-valued random variables with
+    % \[
+    % |X_i|\le D \quad \text{almost surely},
+    % \]
+    % and assume that $X$ admits a probability density $f_X$ which is bounded in a neighborhood of zero, i.e.,
+    % there exist constants $\delta>0$ and $M<\infty$ such that
+    % \[
+    % f_X(x)\le M \qquad \text{for all } x\in[-\delta,\delta].
+    % \]
+    % Define the empirical second moment
+    % \[
+    % \mu := \frac{1}{n}\sum_{i=1}^n X_i^2.
+    % \]
+    % Then, for all $p<\frac{n}{2}$,
+    % \[
+    % \E[\mu^{-p}] < \infty.
+    % \]
+    % % In particular,
+    % % \[
+    % % \E[\mu^{-2}]<\infty \ \text{ for } n>4,
+    % % \qquad
+    % % \E[\mu^{-3}]<\infty \ \text{ for } n>6.
+    % % \]
+    % \end{lemma}
+    
+    % \begin{proof}
+    % We first control the lower tail of $\mu$.
+    % For any $t>0$, the event $\{\mu\le t\}$ implies
+    % \[
+    % \frac{1}{n}\sum_{i=1}^n X_i^2 \le t
+    % \quad\Longrightarrow\quad
+    % |X_i|\le \sqrt{nt} \quad \text{for all } i=1,\dots,n.
+    % \]
+    % Hence,
+    % \begin{align}
+    % \Pr(\mu\le t)
+    % &\le \Pr\big(|X|\le \sqrt{nt}\big)^n.
+    % \end{align}
+    % For $t$ small enough such that $\sqrt{nt}\le \delta$, the density bound yields
+    % \[
+    % \Pr(|X|\le \sqrt{nt})
+    % =
+    % \int_{-\sqrt{nt}}^{\sqrt{nt}} f_X(x)\,dx
+    % \le 2M\sqrt{nt}.
+    % \]
+    % Therefore, there exists a constant $C>0$ such that for all sufficiently small $t$,
+    % \begin{equation}
+    % \label{eq:mu-small-ball}
+    % \Pr(\mu\le t) \le C\, t^{n/2}.
+    % \end{equation}
+    
+    % Next, we compute the negative moment using the standard tail integral representation.
+    % For any nonnegative random variable $Y$ and $p>0$,
+    % \[
+    % \E[Y^{-p}] = p \int_0^\infty u^{-p-1}\Pr(Y\le u)\,du.
+    % \]
+    % Applying this identity with $Y=\mu$ and splitting the integral at a small constant $\varepsilon>0$, we obtain
+    % \[
+    % \E[\mu^{-p}]
+    % =
+    % p\int_0^\varepsilon u^{-p-1}\Pr(\mu\le u)\,du
+    % +
+    % p\int_\varepsilon^\infty u^{-p-1}\Pr(\mu\le u)\,du.
+    % \]
+    % The second integral is finite since $\Pr(\mu\le u)\le 1$ and $\int_\varepsilon^\infty u^{-p-1}du<\infty$.
+    % Using \eqref{eq:mu-small-ball} to bound the first integral yields
+    % \[
+    % \int_0^\varepsilon u^{-p-1}\Pr(\mu\le u)\,du
+    % \;\le\;
+    % C\int_0^\varepsilon u^{-p-1+n/2}\,du,
+    % \]
+    % which converges if and only if $-p-1+n/2>-1$, i.e., $p<n/2$.
+    
+    % This proves the claimed necessary and sufficient condition.
+    % \end{proof}
+
+
+    % By definition, 
+    % \begin{align*}
+    %     \hat{\vw}=\frac{\sum_{i=0}^{N-1}x_iy_i}{\sum_{i=0}^{N-1}x_i^2}=\frac{\sum_{i=0}^{N-1}x_i(x_i\vw^*+\xi_i)}{\sum_{i=0}^{N-1}x_i^2}=\vw^*+\frac{\sum_{i=0}^{N-1}x_i\xi_i}{\sum_{i=0}^{N-1}x_i^2}.
+    % \end{align*}
+    % Thus, utilizing \Cref{lem:eigenvalue-expectation}, we have 
+    % \begin{align}
+    %     \E(\hat{\vw}-\vw^*)^2=\E_{x_0,\cdots,x_{N-1}}\frac{\sigma^2}{\sum_{i=0}^{N-1}x_i^2}=\frac{1}{N}\E_{x_0,\cdots,x_{N-1}}\frac{\sigma^2}{\left(\sum_{i=0}^{N-1}x_i^2\right)/N}\leq \frac{C'\sigma^2}{N\lambda} \label{equ:CR-upper-bound}
+    % \end{align}
+    % for some constant $C'$.
+    % By \Cref{equ:thm4-error-bound}, we have
+    % \begin{align*}
+    %     \E_{\text{shuffle}}\frac{1}{2}(\vw_T-\hat{\vw})^2\leq\frac{c_1\mu^{-5}}{(KN)^2}+\frac{c_2\mu^{-7}N^2}{(KN)^3}+\frac{2c_3\mu^{-6}\left((\vw^*-\hat{\vw})^2+(\vw_0-\vw^*)^2\right)}{(KN)^5}.
+    % \end{align*}
+    % Invoking \Cref{lem:eigenvalue-expectation}, we have
+    % \begin{align}
+    %     \E(\vw_T-\hat{\vw})^2=\E_{\cD}\E_{\text{shuffle}}(\vw_T-\hat{\vw})^2=O\left(K^{-2}N^{-2}\right)+O\left(K^{-3}N^{-1}\right). \label{equ:error-upper-bound}
+    % \end{align}
+    % Substituding \Cref{equ:CR-upper-bound,equ:error-upper-bound} into \Cref{equ:upper-bound-ME-LRS} and we get the result.
+
+
+
+% \begin{lemma}[Bounding $\E[S^{-a}]$ for $a=\frac{1}{ND^2}\sum_{i=1}^N x_i^2$]\label{lem:ES-a}
+% Let $x_1,\dots,x_N$ be i.i.d. with $|x_i|\le D$ a.s., and define
+% \[
+% a:=\frac{1}{ND^2}\sum_{i=1}^N x_i^2\in[0,1],\qquad 
+% \bar a:=\E[a]=\frac{\E[x^2]}{D^2},\qquad S:=NK\ge 1.
+% \]
+% Then
+% \begin{equation}\label{eq:ES-exact}
+% \E[S^{-a}]
+% =\Bigl(\E\exp\!\Bigl(-\frac{\log S}{N}\cdot \frac{x^2}{D^2}\Bigr)\Bigr)^N.
+% \end{equation}
+% Moreover, for all $S\ge 1$,
+% \begin{equation}\label{eq:ES-sandwich}
+% S^{-\bar a}
+% \;\le\;
+% \E[S^{-a}]
+% \;\le\;
+% S^{-\bar a}\cdot \exp\!\Bigl(\frac{\log^2 S}{8N}\Bigr).
+% \end{equation}
+% \end{lemma}
+
+% \begin{proof}
+% Let $Y:=x^2/D^2\in[0,1]$ and $Y_1,\dots,Y_N$ be i.i.d. copies. Then
+% $a=\frac1N\sum_{i=1}^N Y_i$ and
+% \[
+% S^{-a}=\exp\!\Bigl(-\frac{\log S}{N}\sum_{i=1}^N Y_i\Bigr).
+% \]
+% Independence yields \eqref{eq:ES-exact} immediately.
+
+% For the lower bound, since $g(u)=\exp(-u\log S)$ is convex in $u$, Jensen gives
+% \[
+% \E[S^{-a}]=\E[g(a)]\ge g(\E[a])=S^{-\bar a}.
+% \]
+
+% For the upper bound, set $c:=\frac{\log S}{N}\ge 0$ and $m:=\E[Y]=\bar a$.
+% By Hoeffding's lemma for $Y\in[0,1]$,
+% \[
+% \E\exp\bigl(-c(Y-m)\bigr)\le \exp\Bigl(\frac{c^2}{8}\Bigr).
+% \]
+% Hence
+% \[
+% \E[e^{-cY}]
+% =e^{-cm}\E[e^{-c(Y-m)}]
+% \le e^{-cm}\exp\Bigl(\frac{c^2}{8}\Bigr).
+% \]
+% Raising both sides to power $N$ and using \eqref{eq:ES-exact} gives
+% \[
+% \E[S^{-a}]
+% \le \exp\Bigl(-cmN+\frac{Nc^2}{8}\Bigr)
+% =\exp\Bigl(-\bar a\log S+\frac{\log^2 S}{8N}\Bigr)
+% =S^{-\bar a}\exp\Bigl(\frac{\log^2 S}{8N}\Bigr),
+% \]
+% which is \eqref{eq:ES-sandwich}.
+
+\Cref{thm:optimality-multi-epoch} together with \Cref{thm:sub-optimality-one-pass} gives a characterization for $E(\infty,N)$. Specifically, we solve \[\frac{\sigma^2d}{2N}(1+o(1))=\bar{\cR}(\infty, N, E)=\bar{\cR}(1, N',E)\geq\frac{C\sigma^2d\kappa_{\mH}}{N'}.\] 
+% By \Cref{thm:sub-optimality-one-pass}, we have \[\bar{\cR}(1, N',E)\geq\frac{C\sigma^2d\lambda_1}{N\lambda_d};\]
+% By \Cref{thm:optimality-multi-epoch}, we have \[\bar{\cR}(\infty, N,E)=\frac{\sigma^2d}{2N}(1+o(1)).\]
+Thus we have 
+\[E(\infty, N)\geq 2C\kappa_{\mH}.\]
+$E(\infty, N)$ grows linearly with the condition number $\kappa_{\mH}$, which can be arbitrarily large. This proves that under practical training setups using polynomial learning rate schedules, multi-epoch training shows a significant advantage over one-pass training.
+% \kaifengclaw{Typo/style: 'multi epoch' -> 'multi-epoch' and 'one pass' -> 'one-pass'. Math-check: this conclusion is from a lower bound; consider wording it as 'can show a significant advantage' unless matching upper bounds are also established in this setting.}
+

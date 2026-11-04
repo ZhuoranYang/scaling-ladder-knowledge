@@ -1,0 +1,1078 @@
+\section{Proof of Main Results for the Solvable Case with Zipf-distributed Data}
+Similar to the proof insights in \Cref{sec:strongly_convex}, the first move to get the formula of the effective reuse rate is to get an accurate proxy of the excess risk. Here, leveraging the simplicity of the setting, we can derive a general closed formula for the excess risk.
+
+\begin{lemma} \label{thm:one-hot-loss-estimate}
+    Under \Cref{asp:parameter-prior}, the excesss risk for $K$-epoch training over $N$ fresh data , with learning rate $\eta$ can be given by
+    \begin{align*}
+        \Bar{\cR}(K,N;\eta) = \frac{1}{2}\inp{\mP\Lambda}{\left(\mI-\mP+\mP\left(\mI-\eta\Lambda\right)^{2K}\right)^N},
+    \end{align*}
+    where the expectation is over the randomness of $\vw^*$ and training datasets $\{\vx_i,y_i\}_{i=0}^{N-1}$.
+\end{lemma}
+The above lemma states that we can explicitly write out the exact expression for the excess risk. From the above expression for the excess risk, we can observe that, in the absence of label noise interference, and under the condition that the absolute values of all elements of the diagonal matrix $\mI-\eta\Lambda$ are less than $1$, the optimal learning rate can be of the constant order. Therefore, in the subsequent study of the effective reuse rate, we consider using the same learning rate $\eta = \Theta(1)$ for both multi-epoch and one-pass SGD.
+% In this setting, we employ a constant learning rate $\eta = \Theta(1)$ for both the multi-epoch and one-pass case since the system is noiseless. However, $\eta$ cannot be chosen arbitrarily large due to stability constraints. We also denote $E_{\eta, \eta}(K, N)$ as $E(K, N)$. \haodong{Maybe we should not say that we denote $E_{\eta,\eta}$ as $E$, too confusing and maybe not well define}
+
+It is worth noting that here we are actually describing a more general problem setting than the Zipf law, as we only impose constraints on the power spectrum of the Hessian matrix $\mH$. In contrast, the probability matrix $\mP$ can follow Zipf's law or any other law. In the remainder of this section, we first consider the classic Zipf's law setting, where $\mP$ follows a power law, and the data matrix $\Lambda$ also follows a power law, which is consistent with the previous power law analysis. In \Cref{sec:log-power-spectrum}, we explore the case where $\mP$ follows a log-power spectrum~\citep{lin2024scaling}, and investigate the impact of changing the spectrum's properties on the resulting effective reuse rate formula.
+\subsection{A Closed Formula for the Excess Risk: Proof of \Cref{thm:one-hot-loss-estimate}}
+We first write out the update of parameter after $K$ epochs  
+\begin{align*}    \vtheta_{KN}&=\mA^{(K)}\cdots\mA^{(1)}\vtheta_0=\prod_{l=K}^1 \mA^{(l)}\vtheta_0 \\
+&=\left(\mI-\eta \vx_{N-1}\vx_{N-1}^{\top}\right)^K\cdots\left(\mI-\eta \vx_{0}\vx_{0}^{\top}\right)^K\vtheta_0.
+\end{align*}
+Then we get the excess risk expression as
+\begin{align*}
+    \Bar{\cR}(K, N;\eta) &= \E\frac{1}{2}\vtheta_{K,N}^{\top}\mH\vtheta_{K,N} \\
+    &=\E\frac{1}{2}\vtheta_0^T\mP\Lambda\left(\mI-\eta \vx_{N-1}\vx_{N-1}^{\top}\right)^{2K}\cdots\left(\mI-\eta \vx_{0}\vx_{0}^{\top}\right)^{2K}\vtheta_0.
+\end{align*}
+\Cref{asp:parameter-prior} gives
+\begin{align*}
+    \Bar{\cR}(K, N;\eta) &=\E\frac{1}{2}\inp{\vtheta_0\vtheta_0^T}{\mP\Lambda\left(\mI-\eta \vx_{N-1}\vx_{N-1}^{\top}\right)^{2K}\cdots\left(\mI-\eta \vx_{0}\vx_{0}^{\top}\right)^{2K}} \\
+    &=\frac{1}{2}\inp{\mI}{\mP\Lambda\left(\E\left(\mI-\eta \vx\vx^{\top}\right)^{2K}\right)^N}.
+\end{align*}
+Direct calculation gives 
+\begin{align*}
+    \E \left(\vx\vx^{\top}\right)^{j}=\sum_{i=1}^d\mu_i^{2j-2}p_i\mu_i^2e_ie_i^{\top}=\mP\Lambda^j,
+\end{align*}
+and 
+\begin{align*}
+    \E\left[\left(\mI-\eta \vx\vx^{\top}\right)^{2K}\right]=\mI+\sum_{j=1}^{2K}\binom{2K}{j}(-1)^j\eta^j\mP\Lambda^j =\mI-\mP+\mP(\mI-\eta\Lambda)^{2K}.
+\end{align*}
+Then we can write out the excess risk as
+\begin{align*}
+    \Bar{\cR}(K, N;\eta)&=\frac{1}{2}\inp{\mP\Lambda}{\left(\mI-\mP+\mP(\mI-\eta\Lambda)^{2K}\right)^N}.
+\end{align*}
+The above equation completes the proof.
+
+
+
+
+% Next we prove two lemmas,
+% \begin{lemma}
+%     Under the assumptions in \Cref{thm:one-hot-E_K-v2}, and given $K = o(N^{\frac{b}{a-b}})$, then we have:
+%     \begin{enumerate}[leftmargin=*]
+%         \item when $\eta \in [1, 2-\omega\left(\frac{\log KN}{KN}\right)]$, $S_1=o\left(\frac{1}{(KN)^{\frac{a-1}{a}}}\right)$;
+%         \item when $\eta \in [2-O\left(\frac{\log KN}{KN}\right), 2]$, $S_1=\Omega\left(\frac{1}{(KN)^{\frac{a-1}{a}}}\right)$.
+%     \end{enumerate}
+% \end{lemma}
+% From \Cref{lem:one-hot-loss-estimate-small-K}, we obtain a direct corollary:
+% \begin{corollary} \label{cor:one-hot-small-K-refined-loss-estimate}
+%     Suppose the assumptions in \Cref{thm:one-hot-E_K-v2} hold. When $K = o(N^{\frac{b}{a-b}})$ and $\eta = 2-o(1)$, we define the estimator of $\Tilde{\cR}(K, N;\eta)$ as
+%     \begin{align*}
+%         \Tilde{\cR}(K, N;\eta) &:= \frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}.
+%     \end{align*}
+%     Then we have $\Bar{\cR}(K, N;\eta)=\Tilde{\cR}(K, N;\eta)(1+o(1))$, and 
+%     $\Tilde{\cR}(K, N;\eta) \eqsim \frac{1}{(KN)^{\frac{a-1}{a}}}$.
+% \end{corollary}
+
+
+% Next we prove two lemmas,
+% \begin{lemma}
+%     Under the assumptions in \Cref{thm:one-hot-E_K-v2}, and given $K = o(N^{\frac{b}{a-b}})$, then we have:
+%     \begin{enumerate}[leftmargin=*]
+%         \item when $\eta \in [1, 2-\omega\left(\frac{\log KN}{KN}\right)]$, $S_1=o\left(\frac{1}{(KN)^{\frac{a-1}{a}}}\right)$;
+%         \item when $\eta \in [2-O\left(\frac{\log KN}{KN}\right), 2]$, $S_1=\Omega\left(\frac{1}{(KN)^{\frac{a-1}{a}}}\right)$.
+%     \end{enumerate}
+% \end{lemma}
+% From \Cref{lem:one-hot-loss-estimate-small-K}, we obtain a direct corollary:
+% \begin{corollary} \label{cor:one-hot-small-K-refined-loss-estimate}
+%     Suppose the assumptions in \Cref{thm:one-hot-E_K-v2} hold. When $K = o(N^{\frac{b}{a-b}})$ and $\eta = 2-o(1)$, we define the estimator of $\Tilde{\cR}(K, N;\eta)$ as
+%     \begin{align*}
+%         \Tilde{\cR}(K, N;\eta) &:= \frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}.
+%     \end{align*}
+%     Then we have $\Bar{\cR}(K, N;\eta)=\Tilde{\cR}(K, N;\eta)(1+o(1))$, and 
+%     $\Tilde{\cR}(K, N;\eta) \eqsim \frac{1}{(KN)^{\frac{a-1}{a}}}$.
+% \end{corollary}
+
+\subsection{Scaling Laws for Power-Law Spectrum: Proof of \Cref{thm:one-hot-scaling-law}}\label{sec:proof-one-hot-scaling-law-power-spectrum}
+% \haodong{give an interpretation paragraph of our proof, as we did in the strongly convex case}
+
+Before we begin our main part of the proof, note that for all $\eta=\Theta(1)$ and $\eta\leq 2$, there exists $d_1=\Theta(1)>0$ such that $1-\frac{\eta}{i^b}>0$ when $i>d_1$. Then we divide the expected excess risk into two parts:
+\begin{align*}
+    \Bar{\cR}(K, N;\eta)&=\frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}\left(1-\left(1-\frac{\eta}{i^b}\right)^{2K}\right)\right)^N \\
+    &=\underbrace{\frac{1}{2}\sum_{i=1}^{d_1}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}\left(1-\left(1-\frac{\eta}{i^b}\right)^{2K}\right)\right)^N}_{S_1(K, N; \eta)} \\
+    &+\underbrace{\frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}\left(1-\left(1-\frac{\eta}{i^b}\right)^{2K}\right)\right)^N}_{S_2(K, N; \eta)}.
+\end{align*}
+% First, we observe in \Cref{thm:one-hot-E_K-v2} that the expression for $E_{\eta,\eta}(K,N)$ does not explicitly depend on $\eta$; it holds for all $\eta = \Theta(1)$. The effect of $\eta $ on $E_{\eta, \eta}(K, N)$ can be incorporated into the error bound. Therefore, for convenience in the proof, we can omit the subscripts of $E_{\eta, \eta}(K, N)$ and abbreviate it as $E(K, N)$. Also, since in \Cref{sec:one_hot}, learning rate is always denoted by $\eta$, so in the remainder of the proof, we write the parameter as $\vw_{KN}$ for the ME case and $\vw_T$ for the OP case, omitting the notation of $\eta$. We use $\E \cR(\cdot)$ and $\E[\cR(\cdot)]$ exchanglably.
+
+% \haodong{more explanations}
+
+The intuition behind our proof here is quite similar to what we do in Appendix~\ref{sec:proof-convex-Ek}. We first separately simplify the expression of the excess risk when $K=o(N^{\frac{b}{a-b}})$ and $K=\omega(N^{\frac{b}{a-b}})$. The proofs for both the small-$K$ and large-$K$ regimes proceed in parallel. We first control $S_2(K,N;\eta)$ over a broad range of learning rates and identify a near-optimal $\eta'$ for which $S_1$ is negligible compared to $S_2$. This allows us to approximate $\Bar{\cR}^*(K,N)$ via $\Bar{\cR}(K,N;\eta')$ and $S_2(K,N;\eta^*)$. 
+
+% The computation of $E(K,N)$ then follows by simplifying the excess risk separately in the two regimes and applying appropriate bounds on $T'$.
+
+% Finally, we compute $E(K,N)$, whose intuition is quite similar to what we do in . We first separately simplify the expression of the excess risk when $K=o(N^{\frac{b}{a-b}})$ and $K=\omega(N^{\frac{b}{a-b}})$, and then apply fine-grained and loose bounds for $T'$ separately.
+
+\subsubsection{Proof of \Cref{thm:one-hot-scaling-law}: Small-$K$ Case} \label{sec:proof-power-spectrum-Ek-small}
+
+% \tingkai{Proof sketch: First prove that $T' \eqsim T$, remember that T' small: take $d=\infty$. Then we have the loss estimate. T large: \Cref{asp:large-dimension} holds.}
+\paragraph{The Expected Excess Risk Approximation.}
+\begin{lemma} \label{lem:one-hot-loss-estimate-small-K}
+    Suppose the assumptions in \Cref{thm:one-hot-E_K-v2} hold. When $K = o(N^{\frac{b}{a-b}})$ and $\eta = \Theta(1)$, we define the estimator of $S_2(K, N;\eta)$ as
+    \begin{align*}
+        \Tilde{S_2}(K, N;\eta) &:= \frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}.
+    \end{align*}
+    Then we have $S_2(K, N;\eta)=\Tilde{S_2}(K, N;\eta)(1+o(1))$, and 
+    $\Tilde{S_2}(K, N;\eta) \eqsim \frac{1}{(KN)^{\frac{a-1}{a}}}$.
+\end{lemma}
+
+% \subsubsection{Proof of \Cref{lem:one-hot-loss-estimate-small-K}}
+%     \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})
+%     &\geq\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a+b}}}^{3(KN)^{\frac{1}{a+b}}}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}\left(1-\left(1-\frac{\eta}{i^b}\right)^{2K}\right)\right)^N \\
+%     &\geq \frac{1}{2}\frac{2(KN)^{\frac{1}{a+b}}c}{3^{a+b}KN}\left(1-\frac{c}{(KN)^{\frac{a}{a+b}}}\left(1-\left(1-\frac{\eta}{(KN)^{\frac{b}{a+b}}}\right)^{2K}\right)\right)^N \\
+%     &\gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}\left(1-\frac{c}{(KN)^{\frac{a}{a+b}}}\left(1-\left(1-\frac{2K\eta}{(KN)^{\frac{b}{a+b}}}(1+o(1))\right)\right)\right)^N \\
+%     &=\frac{1}{(KN)^{\frac{a+b-1}{a+b}}}\left(1-\frac{2c\eta}{N}\left(1+o(1)\right)\right)^N \\
+%     &\gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}
+% \end{align*}
+\begin{proof}
+By the fact that $K = o(N^{\frac{b}{a-b}})$, there exists a constant $N_2$ such that when $N \geq N_2$, $K\leq N^{\frac{b}{a-b}}$.
+And we define $F(x) := \frac{c}{x^{a}}\left(1-\frac{c}{x^{a-b}}\left(1-\left(1-\frac{\eta}{x^b}\right)^{2K}\right)\right)^N$. Direct observation gives us that under \Cref{asp:prior-probability-and-norm}, $\Bar{\cR}(K, N;\eta) \propto \sum_{i=1}^d F(i)$. Next we take the derivative of $F$ and analyze its maximizer.
+\begin{align*}
+    F'(x) &= -\frac{ac}{x^{a+1}}\left(1-\frac{c}{x^{a-b}}+\frac{c}{x^{a-b}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)^N \\
+    &+\frac{cN}{x^{a}}\left(1-\frac{c}{x^{a-b}}+\frac{c}{x^{a-b}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)^{N-1} \cdot \Phi(x) \\
+    &=\frac{c}{x^{a}}\left(1-\frac{c}{x^{a-b}}+\frac{c}{x^{a-b}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)^{N-1} \\
+    &\left(-\frac{a}{x}\left(1-\frac{c}{x^{a-b}}+\frac{c}{x^{a-b}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)+N\Phi(x)\right) \\
+    &=\frac{c}{x^{2a-b+1}}\left(1-\frac{c}{x^{a-b}}+\frac{c}{x^{a-b}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)^{N-1}\cdot G(x).
+\end{align*}
+where we define 
+\begin{align*}
+    G(x) &:= -a\left(x^{a-b}-c+c\left(1-\frac{\eta}{x^b}\right)^{2K}\right) \\
+    &+N\left((a-b)c-(a-b)c\left(1-\frac{\eta}{x^b}\right)^{2K}+\frac{2cKb\eta}{x^b}\left(1-\frac{\eta}{x^b}\right)^{2K-1}\right),
+\end{align*}
+and
+\begin{align*}
+    \Phi(x):=\left(\frac{(a-b)c}{x^{a-b+1}}-\frac{(a-b)c}{x^{a-b+1}}\left(1-\frac{\eta}{x^b}\right)^{2K}+\frac{2cKb\eta}{x^{a+1}}\left(1-\frac{\eta}{x^b}\right)^{2K-1}\right).
+\end{align*}
+We denote the maximizer of $F(x)$ by $x_0$, so $G(x_0) = 0$. We claim that:
+\begin{quote}
+    when $N\geq N_2$, $x_0\geq \min\left(\left(\frac{KN(a-b)c\eta}{2a}\right)^{\frac{1}{a}}, 6^{\frac{1}{b}}(KN)^{\frac{1}{a}}\right)=:x_1$.
+\end{quote}
+\begin{proof}[Proof of the claim.]
+    Notice that when $N\geq N_2$, 
+    \begin{align*}
+        \frac{\eta}{x^b}\leq \frac{1}{6(KN)^{\frac{b}{a}}}\leq \frac{1}{6K}.
+    \end{align*}
+    We assume that the claim is wrong, then
+    \begin{align*}
+        G(x_0)&\geq N\left((a-b)c-(a-b)c\left(1-\frac{\eta}{x^b}\right)^{2K}\right)-ax^{a-b}  \\
+        &\geq \frac{KN(a-b)c\eta-ax^{a}}{x^b}  \\
+        &\geq \frac{KN(a-b)c\eta}{2x_1^b}  \\
+        &> 0, 
+    \end{align*}
+    which is a contradiction. The third inequality comes from \Cref{lem:numerical-power-minus}.
+\end{proof}
+So $x_0 = \Omega\left((KN)^{\frac{1}{a}}\right)$.
+% \kaifengclaw{Readability breakpoint: the transition from the crude lower bound on $x_0$ to the refined equation for $G(x_0)=0$ implicitly drops several terms as $o(1)$. Consider briefly listing which terms are negligible (and under which $K,N$ scaling) before the simplified balance is written.} 
+Further pluging this into $G(x_0)=0$ that
+\begin{align*}
+    G(x_0) = -ax_0^{a-b}(1+o(1))+N\left(\frac{2K(a-b)c\eta}{x_0^b}(1+o(1))+\frac{2K(a-b)c\eta}{x_0^b}(1+o(1))\right) = 0.
+\end{align*}
+gives
+\begin{align*}
+    x_0 = \Theta\left((KN)^{\frac{1}{a}}\right), \quad F(x_0)=\Theta\left(\frac{1}{KN}\right).
+\end{align*}
+Then we have
+\begin{align*}
+    S_2(K, N;\eta)
+    &=\frac{1}{2}\sum_{i=d_1+1}^{K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}+\frac{c}{i^{a-b}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N \\
+    &+\frac{1}{2}\sum_{K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}+1}^{d}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}+\frac{c}{i^{a-b}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N \\
+    &:=J_1+J_2.
+\end{align*}
+% Here we use a fact that $K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}\leq(KN)^{\frac{1}{a}}$ when $N\geq N_2$. 
+Furthermore, we have
+\begin{align*}
+    J_1&\lesssim K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}F(x_0)\lesssim \frac{K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}}{KN} ,
+\end{align*}
+and
+\begin{align*}
+    J_2&=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}+1}^{d}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}+\frac{c}{i^{a-b}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N \\
+    &=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}+1}^{d}\frac{c}{i^{a}}\left(1-\frac{2Kc\eta}{i^{a}}+O\left(\frac{K^2}{i^{a+b}}\right)\right)^N \\
+    &=\frac{1}{2}\sum_{K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}+1}^{d}\frac{c}{i^{a}}e^{N\log \left(1-\frac{2Kc\eta}{i^{a}}+O\left(\frac{K^2}{i^{a+b}}\right)\right)} \\
+    &=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}+O\left(\frac{K^2N}{i^{a+b}}\right)} \\
+    &=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}(1+o(1)). \\
+\end{align*}
+We define $K_1(x) = \frac{c}{x^{a}}e^{\frac{-2KNc\eta}{x^{a}}}$.
+We can derive that $\arg\max K_1(x) = \Theta\left((KN)^{\frac{1}{a}}\right)$, and $\max K_1(x) = \Theta\left(\frac{1}{KN}\right)$.
+So when $d\geq 3(KN)^{\frac{1}{a}}$, we have
+\begin{align*}
+    J_2&\geq \frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}}^{3(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}(1+o(1)) \\
+    &\gtrsim (KN)^{\frac{1}{a}}\times\frac{ce^{-2c\eta}}{KN}\gtrsim\frac{(KN)^{\frac{1}{a}}}{KN}.
+\end{align*}
+We can verify that $J_1 = o(J_2)$ as a direct consequence.
+We define 
+\begin{align*}
+    \Tilde{S_2}(K, N;\eta) &= \frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+    &=\frac{1}{2}\sum_{i=d_1+1}^{K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+    &:=\Tilde{J_1}+\Tilde{J_2}.
+\end{align*}
+We have $J_2 = \Tilde{J_2}(1+o(1))$, and
+\begin{align*}
+    \Tilde{J_1}&\leq K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}\times \max K_1(x)\lesssim \frac{K^{\frac{0.5}{a+0.5b}}(KN)^{\frac{1}{a+0.5b}}}{KN} = o(\Tilde{J_2}). \\
+\end{align*}
+So $S_2(K, N;\eta)=\Tilde{S_2}(K, N;\eta)(1+o(1))$.
+
+% Finally, we derive a matching upper and lower bound for $\Tilde{\cR}_{\ME}(\vw_{K, N})$ and conclude the proof:
+% \begin{align*}
+%     \Tilde{\cR}_{\ME}(\vw_{K, N}) &\geq \Tilde{J_2} \gtrsim J_2 \gtrsim \frac{1}{(KN)^{\frac{a-1}{a}}}. \\
+%     \Tilde{\cR}_{\ME}(\vw_{K, N}) &=\frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+%     &\leq \frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}+1}^{d}\frac{c}{i^{a}} \\
+%     &\lesssim \frac{(KN)^{\frac{1}{a}}}{KN}+\frac{1}{\left(KN\right)^{\frac{a-1}{a}}} \lesssim \frac{1}{\left(KN\right)^{\frac{a-1}{a}}}.
+% \end{align*}
+The matching upper and lower bounds for $\Tilde{S_2}(K, N;\eta)$ comes directly from \Cref{lem:loss-matching-upper-lower-bound}.
+\end{proof}
+
+By combining the expression of $\Tilde{S_2}(K, N; \eta)$ with \Cref{lem:loss-matching-upper-lower-bound}, we get another lemma:
+\begin{lemma} \label{lem:power-S_2-derivative}
+    Suppose the assumptions in \Cref{thm:one-hot-E_K-v2} hold, and the expression of $\Tilde{S_2}(K,N;\eta)$ is given in \Cref{lem:one-hot-loss-estimate-small-K}. Then we have $\frac{\partial}{\partial\eta}\Tilde{S_2}(K,N;\eta)\eqsim-\frac{1}{(KN)^{\frac{a-1}{a}}}$.
+\end{lemma}
+\begin{proof}
+\begin{align*}
+    \frac{\partial}{\partial\eta}\Tilde{S_2}(K,N;\eta)&=-KN\sum_{i=d_1+1}^{d}\frac{c}{i^{2a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+    &\eqsim-\frac{1}{(KN)^{\frac{a-1}{a}}},
+\end{align*}
+where the second line comes from \Cref{lem:loss-matching-upper-lower-bound}.
+\end{proof}
+% Combining \Cref{lem:one-hot-loss-estimate-small-K}, \Cref{lem:power-S_2-derivative} and Lagrange's Mean Value Theorem, we get another corollary:
+\begin{lemma} \label{cor:one-hot-power-eta-approx}
+ Suppose the assumptions in \Cref{thm:one-hot-E_K-v2} hold, and the expression of $\Tilde{S_2}(K,N;\eta)$ is given in \Cref{lem:one-hot-loss-estimate-small-K}. Consider two learning rate options $\eta, \eta' = \Theta(1)$that satisfy $\eta-\eta'=o(1)$. Then we have $\Tilde{S_2}(K,N;\eta)=\Tilde{S_2}(K,N;\eta')(1+o(1))$.
+\end{lemma}
+\begin{proof}
+    \begin{align*}
+        \left|\Tilde{S_2}(K,N;\eta)-\Tilde{S_2}(K,N;\eta')\right|&=\left|\frac{\partial}{\partial\eta}\Tilde{S_2}(K,N;\Tilde{\eta})\right|\left|(\eta-\eta')\right| \\
+        &\eqsim \frac{1}{(KN)^{\frac{a-1}{a}}}\left|(\eta-\eta')\right| \\
+        &=\Tilde{S_2}(K,N;\eta')o(1),
+    \end{align*}
+    where $\Tilde{\eta}\in\left[\min(\eta, \eta'), \max(\eta,\eta')\right]=\Theta(1)$, and the first line comes from Lagrange's Mean Value Theorem. The secome line comes from \Cref{lem:power-S_2-derivative}, and the last line comes from \Cref{lem:one-hot-loss-estimate-small-K}.
+\end{proof}
+% \haodong{I recommend that we change Corollary F.1 to a lemma and give a brief proof}
+
+% Then we are ready to start our proof. \haodong{delete this sentence or rephrase, we are in the middle of a proof, it's so confusing to say that "we are ready to start our proof"}
+\paragraph{The Range of Optimal Learning Rate.}
+First, take $\eta' = 2-\frac{(a-1)d_1^{a-b}}{ac}\frac{\log KN}{KN}$, and we have
+    \begin{align*}
+        S_1(K, N; \eta') &\leq \frac{d_1c}{2}\left(1-\frac{c}{d_1^{a-b}}+\frac{c}{d_1^{a-b}}\left(1-\frac{(a-1)d_1^{a-b}}{ac}\frac{\log KN}{KN}\right)^{2K}\right)^N. \\
+    \end{align*}
+By a Taylor expansion argument, we have
+    \begin{align*}
+        S_1(K, N; \eta')&=\frac{d_1c}{2}\left(1-\frac{2Kc}{d_1^{a-b}}\times\frac{(a-1)d_1^{a-b}}{ac}\frac{\log KN}{KN}(1+o(1))\right)^N \\
+        &=\frac{d_1c}{2}\left(1-\frac{2(a-1)}{a}\frac{\log KN}{N}(1+o(1))\right)^N \\
+        &=\frac{d_1c}{2}e^{N\log\left(1-\frac{2(a-1)}{a}\frac{\log KN}{N}(1+o(1))\right)} \\
+        &\eqsim \frac{1}{(KN)^{\frac{2(a-1)}{a}}} =o(S_2(K, N;\eta')),
+    \end{align*}
+    where the last inequality comes from \Cref{lem:one-hot-loss-estimate-small-K}. Then we have
+    \begin{align*}
+        \Bar{\cR}(K, N;\eta')&=S_1(K, N;\eta')+S_2(K, N;\eta') \\
+        &=\Tilde{S_2}(K, N;\eta')(1+o(1)) \\
+        &=\Tilde{S_2}(K, N;2)(1+o(1)) \\
+        &=\left(\frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}e^{\frac{-4KNc}{i^{a}}}\right)(1+o(1)).
+    \end{align*}
+    Then we prove that $\eta^* \in [2-o(1), 2]$.
+    We prove by contradiction, and assume that there exist a constant $\epsilon>0$ and a sequence $(N_i)_{i=1}^{\infty}\to \infty$ such that $\eta^*(N_i)\leq 2-\epsilon$ for all $i\geq 1$. As we only analyze with respect to the sequence $(N_i)_{i=1}^{\infty}$, without loss of generality, we take $(N_i)_{i=1}^{\infty}=\mathds{N}$. By \Cref{lem:one-hot-loss-estimate-small-K} and the convexity of $\Tilde{S_2}(K, N;\eta)$ with respect to $\eta$, we have 
+    \begin{align*}
+        \Bar{\cR}^*(K, N)\geq S_2(K, N;\eta^*)&=\Tilde{S_2}(K, N; \eta^*)(1+o(1)) \\
+        &\geq\left[\Tilde{S_2}(K, N;2)+\epsilon\frac{\partial}{\partial \eta}\Tilde{S_2}(K, N; 2)\right](1+o(1))>\Bar{\cR}(K, N;\eta')
+    \end{align*}
+    % \kaifengclaw{Readability breakpoint: the inequality above uses a first-order comparison in $\eta$ at $2$; adding a one-line Mean Value Theorem justification (or an explicit pointer to \Cref{cor:one-hot-power-eta-approx}) would make this contradiction step easier to follow.}
+    when $N$ is sufficiently large, which is a contradiction.
+    So
+    \begin{align*}
+        \Bar{\cR}^*(K, N)&=S_1(K, N;\eta^*)+S_2(K, N;\eta^*) \\
+        &=S_1(K, N;\eta^*)+\Tilde{S_2}(K, N;\eta^*)(1+o(1)) \\
+        &=S_1(K, N;\eta^*)+\Tilde{S_2}(K, N;2)(1+o(1))\leq\Bar{\cR}(K, N;\eta').
+    \end{align*}
+    Thus, $S_1(K, N;\eta^*)=o\left(\Tilde{S_2}(K, N;2)\right)$, and $\Bar{\cR}^*(K, N)=\Tilde{S_2}(K, N;2)(1+o(1))$.
+    
+By \Cref{lem:one-hot-loss-estimate-small-K} and \Cref{lem:loss-matching-upper-lower-bound}, there exist two constants $C_1$ and $C_2$ such that $\Bar{\cR}^*(K, N)\leq \frac{C_1}{(KN)^{\frac{a-1}{a}}}$ and $\Bar{\cR}^*(K, N)\geq \frac{C_2}{(KN)^{\frac{a-1}{a}}}$ when the condition $d = \Omega(T^{\frac{1}{a}})$ holds. For one-pass case, by \Cref{lem:one-hot-loss-estimate-small-K} and \Cref{lem:loss-matching-upper-lower-bound}, we have
+\begin{align}
+    \Bar{\cR}^*(1, T')&=\Bar{\cR}(1, T';\left.\eta^*(1,T')\right|_{d=d}) \notag\\&\leq\Bar{\cR}(1, T';\left.\eta^*(1,T')\right|_{d=\infty}) \notag\\
+    &= \left.\Bar{\cR}^*(1, T')\right|_{d = \infty} =\frac{1}{2}\sum_{i=d_1+1}^{\infty}\frac{c}{i^a}e^{-\frac{4KNc}{i^a}}(1+o(1)) \leq \frac{C_3}{T'^{\frac{a-1}{a}}} \label{ineq:one-hot-small-K-upper-bound}
+\end{align}
+and
+\begin{align}
+    \Bar{\cR}^*(1, T')&= \frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^a}e^{-\frac{4KNc}{i^a}}(1+o(1))\geq \frac{C_4}{T'^{\frac{a-1}{a}}} ~~\text{when} ~~d = \Omega\left(T'^{\frac{1}{a}}\right). \label{ineq:one-hot-small-K-lower-bound}
+\end{align}
+
+
+% \paragraph{Derivation of $E(K,N)$ when $K$ is small.}
+%  Next we solve $\Bar{\cR}^*(K, N) = \Bar{\cR}^*(1, T')$, and we claim that $\left(\frac{C_4}{C_1}\right)^{\frac{a}{a-1}}T\leq T'\leq \left(\frac{C_3}{C_2}\right)^{\frac{a}{a-1}}T$. 
+% Otherwise, if $T'> \left(\frac{C_3}{C_2}\right)^{\frac{a}{a-1}}T$, then $\Bar{\cR}^*(1, T')<\Bar{\cR}^*(K, N)$, which is a contradiction; and if $T'<\left(\frac{C_4}{C_1}\right)^{\frac{a}{a-1}}T$, then \Cref{asp:large-dimension} implies $d = \Omega(T'^{\frac{1}{a}})$, and we have $\Bar{\cR}^*(1, T')>\Bar{\cR}^*(K, N)$, which is another contradiction. Then the characterization for $E(K, N)$ yields directly from \Cref{lem:E_K}.
+\subsubsection{Proof of \Cref{thm:one-hot-scaling-law}: Large-$K$ Case}
+\paragraph{The Expected Excess Risk Approximation.}
+\begin{lemma} \label{lem:one-hot-loss-estimate-large-K}
+    Suppose the assumptions in \Cref{thm:one-hot-E_K-v2} hold. When $K = \omega(N^{\frac{b}{a-b}})$ and $\eta = \Theta(1)$, we have $S_2(K, N;\eta) \eqsim \frac{1}{N^{\frac{a-1}{a-b}}}$.
+\end{lemma}
+\begin{proof}
+
+There exists $N_3$ such that when $N\geq N_3$, we have $K\geq N^{\frac{b}{a-b}}$. Then when $d\geq 3(KN)^{\frac{1}{a}}\geq 3N^{\frac{1}{a-b}}$, we give the lower bound of the loss:
+\begin{align*}
+    S_2(K,N;\eta)&\geq \frac{1}{2}\sum_{i=N^{\frac{1}{a-b}}}^{3N^{\frac{1}{a-b}}}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}\right)^N \\
+    &\geq \frac{1}{2}\frac{2N^{\frac{1}{a-b}}}{(3N^{\frac{1}{a-b}})^{a}}(1-\frac{c}{N})^N \\
+    &\gtrsim \frac{1}{N^{\frac{a-1}{a-b}}}.
+\end{align*}
+Then we derive the upper bound of the loss:
+\begin{align*}
+    S_2(K,N;\eta)&\leq \frac{1}{2}\sum_{i=1}^{\infty}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}+\frac{c}{i^{a-b}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N \\
+    &\leq \frac{1}{2}\sum_{i=1}^{N^{\frac{1}{a-b}}}\frac{c}{i^{a}}\left(1-\frac{c}{i^{a-b}}+\frac{c}{i^{a-b}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N+\frac{1}{2}\sum_{i=N^{\frac{1}{a-b}}+1}^{\infty}\frac{c}{i^{a}}. \\
+\end{align*}
+When $K = \omega(N^{\frac{b}{a-b}})$ and $i\leq N^{\frac{1}{a-b}}$, 
+\begin{align*}
+    \left(1-\frac{\eta}{i^b}\right)^{2K} &\leq \left(1-\frac{\eta}{N^{\frac{b}{a-b}}}\right)^{2K} = e^{2K\log \left(1-\frac{\eta}{N^{\frac{b}{a-b}}}\right)} \\
+    &\leq e^{-2K\frac{\eta}{N^{\frac{b}{a-b}}}} = o(1).
+\end{align*}    
+Then there exists $N_4$ such that $\left(1-\frac{\eta}{i^b}\right)^{2K}\leq\frac{1}{2}$ when $N\geq N_4$. So when $N\geq \max(N_3, N_4)$, we have
+\begin{align*}
+    S_2(K,N;\eta)&\leq \frac{1}{2}\sum_{i=1}^{N^{\frac{1}{a-b}}}\frac{c}{i^{a}}\left(1-\frac{c}{2i^{a-b}}\right)^N+\frac{1}{2}\sum_{i=N^{\frac{1}{a-b}}+1}^{\infty}\frac{c}{i^{a}}. \\
+\end{align*} 
+One can derive that $\max \frac{c}{i^{a}}\left(1-\frac{c}{2i^{a-b}}\right)^N = \Theta\left(\frac{1}{N^{\frac{a}{a-b}}}\right)$. So
+\begin{align*}
+    \Bar{\cR}^*(K, N)
+    &\lesssim \frac{1}{N^{\frac{a-1}{a-b}}}+\frac{1}{N^{\frac{a-1}{a-b}}}\\
+    &\lesssim \frac{1}{N^{\frac{a-1}{a-b}}}.
+\end{align*}
+And we complete the proof.
+\end{proof}
+\paragraph{The Range of Optimal Learning Rate.}
+First, take $\eta' = 1.5$, and we have
+    \begin{align*}
+        S_1(K, N; \eta') &\leq \frac{d_1c}{2}\left(1-\frac{c}{d_1^{a-b}}+\frac{c}{d_1^{a-b}}\left(\max\left(0.5, 1-\frac{1.5}{d_1^{b}}\right)\right)^{2K}\right)^N \\
+        &=\frac{d_1c}{2}\left(1-\Theta(1)\right)^N \\
+        &=o(S_2(K, N;\eta')),
+    \end{align*}
+    where the last inequality comes from \Cref{lem:one-hot-loss-estimate-large-K}. Then we have
+    \begin{align*}
+        \Bar{\cR}(K, N;\eta')&=S_1(K, N;\eta')+S_2(K, N;\eta') \\
+        &=S_2(K, N;\eta')(1+o(1)) 
+        % &=\Tilde{S_2}(K, N;2)(1+o(1)) \\
+        % &=\left(\frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}e^{\frac{-4KNc}{i^{a}}}\right)(1+o(1)).
+    \end{align*}
+    It is obvious that $\eta^* \in [1, 2]$. We know that
+    \begin{align*}
+        \Bar{\cR}^*(K, N)&=S_1(K, N;\eta^*)+S_2(K, N;\eta^*) \leq\Bar{\cR}(K, N;\eta')=S_2(K, N, \eta')(1+o(1)).
+    \end{align*}
+    
+% \paragraph{Derivation of $E(K,N)$ when $K$ is large.}
+
+% \haodong{reorganize the following paragraph, add more details, and do not use a single paragraph }
+
+% By \Cref{lem:one-hot-loss-estimate-large-K}, $S_2(K, N;\eta^*),S_2(K, N, \eta')=\Theta\left(\frac{1}{N^{\frac{a-1}{a-b}}}\right)$.
+% So $S_1(K, N;\eta^*)=O\left(\frac{1}{N^{\frac{a-1}{a-b}}}\right)$, and $\Bar{\cR}^*(K, N)=\Theta\left(\frac{1}{N^{\frac{a-1}{a-b}}}\right)$, which means that there exist two constants $C_5$ and $C_6$ such that $\Bar{\cR}^*(K, N)\leq \frac{C_5}{N^{\frac{a-1}{a-b}}}$ and $\Bar{\cR}^*(K, N)\geq \frac{C_6}{N^{\frac{a-1}{a-b}}}$ when \Cref{asp:large-dimension} holds. We solve $\Bar{\cR}^*(K, N) = \Bar{\cR}^*(1, T')$, and we claim that $\left(\frac{C_4}{C_5}\right)^{\frac{a}{a-1}}N^{\frac{a}{a-b}}\leq T'\leq \left(\frac{C_3}{C_6}\right)^{\frac{a}{a-1}}N^{\frac{a}{a-b}}$. 
+% Otherwise, if $T'> \left(\frac{C_3}{C_6}\right)^{\frac{a}{a-1}}N^{\frac{a}{a-b}}$, then $\Bar{\cR}^*(1, T')<\Bar{\cR}^*(K, N)$, which is a contradiction; and if $T'<\left(\frac{C_4}{C_5}\right)^{\frac{a}{a-1}}N^{\frac{a}{a-b}}$, then \Cref{asp:large-dimension} implies $d = \Omega(N^{\frac{1}{a-b}})=\Omega(T'^{\frac{1}{a}})$, and we have $\Bar{\cR}^*(1, T')>\Bar{\cR}^*(K, N)$, which is another contradiction. The characterization for $E(K, N)$ is then derived directly.
+
+
+% \section{Proof of \Cref{thm:one-hot-E_K-v2}}
+
+% To prove \Cref{thm:one-hot-E_K-v2}, we need the following two lemmas.
+% \begin{lemma} \label{lem:one-hot-loss-estimate-small-K}
+%     Suppose the assumptions in \Cref{thm:one-hot-loss-estimate} holds. When $K = o(N^{\frac{b}{a}})$, we define the estimate of $\cR_{\ME}(\vw_{KN})$ as
+%     \begin{align*}
+%         \Tilde{\cR}_{\ME}(\vw_{K, N}) &= \frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}}.
+%     \end{align*}
+%     Then we have $\cR_{\ME}(\vw_{K, N})=\Tilde{\cR}_{\ME}(\vw_{K, N})(1+o(1))$, and 
+%     $\Tilde{\cR}_{\ME}(\vw_{KN}) \eqsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}$.
+% \end{lemma}
+
+% \begin{lemma} \label{lem:one-hot-loss-estimate-large-K}
+%     Suppose the assumptions in \Cref{thm:one-hot-loss-estimate} holds. When $K = \omega(N^{\frac{b}{a}})$, we have $\cR_{\ME}(\vw_{KN}) \eqsim \frac{1}{N^{\frac{a+b-1}{a}}}$.
+% \end{lemma}
+
+
+% \subsection{Proof of \Cref{lem:one-hot-loss-estimate-small-K}}
+% %     \begin{align*}
+% %     \cR_{\ME}(\vw_{K, N})
+% %     &\geq\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a+b}}}^{3(KN)^{\frac{1}{a+b}}}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}\left(1-\left(1-\frac{\eta}{i^b}\right)^{2K}\right)\right)^N \\
+% %     &\geq \frac{1}{2}\frac{2(KN)^{\frac{1}{a+b}}c}{3^{a+b}KN}\left(1-\frac{c}{(KN)^{\frac{a}{a+b}}}\left(1-\left(1-\frac{\eta}{(KN)^{\frac{b}{a+b}}}\right)^{2K}\right)\right)^N \\
+% %     &\gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}\left(1-\frac{c}{(KN)^{\frac{a}{a+b}}}\left(1-\left(1-\frac{2K\eta}{(KN)^{\frac{b}{a+b}}}(1+o(1))\right)\right)\right)^N \\
+% %     &=\frac{1}{(KN)^{\frac{a+b-1}{a+b}}}\left(1-\frac{2c\eta}{N}\left(1+o(1)\right)\right)^N \\
+% %     &\gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}
+% % \end{align*}
+% We define $F(x) = \frac{c}{x^{a+b}}\left(1-\frac{c}{x^{a}}\left(1-\left(1-\frac{\eta}{x^b}\right)^{2K}\right)\right)^N$.
+% \begin{align*}
+%     F'(x) &= -\frac{(a+b)c}{x^{a+b+1}}\left(1-\frac{c}{x^{a}}+\frac{c}{x^{a}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)^N \\
+%     &+\frac{cN}{x^{a+b}}\left(1-\frac{c}{x^{a}}+\frac{c}{x^{a}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)^{N-1}\left(\frac{ac}{x^{a+1}}-\frac{ac}{x^{a+1}}\left(1-\frac{\eta}{x^b}\right)^{2K}+\frac{2cKb\eta}{x^{a+b+1}}\left(1-\frac{\eta}{x^b}\right)^{2K-1}\right) \\
+%     &=\frac{c}{x^{a+b}}\left(1-\frac{c}{x^{a}}+\frac{c}{x^{a}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)^{N-1} \\
+%     &\left(-\frac{a+b}{x}\left(1-\frac{c}{x^{a}}+\frac{c}{x^{a}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)+N\left(\frac{ac}{x^{a+1}}-\frac{ac}{x^{a+1}}\left(1-\frac{\eta}{x^b}\right)^{2K}+\frac{2cKb\eta}{x^{a+b+1}}\left(1-\frac{\eta}{x^b}\right)^{2K-1}\right)\right) \\
+%     &=\frac{c}{x^{2a+b+1}}\left(1-\frac{c}{x^{a}}+\frac{c}{x^{a}}\left(1-\frac{\eta}{x^b}\right)^{2K}\right)^{N-1} \\
+%     &\left(-(a+b)\left(x^a-c+c\left(1-\frac{\eta}{x^b}\right)^{2K}\right)+N\left(ac-ac\left(1-\frac{\eta}{x^b}\right)^{2K}+\frac{2cKb\eta}{x^b}\left(1-\frac{\eta}{x^b}\right)^{2K-1}\right)\right) \\
+% \end{align*}
+% We define \[G(x) = -(a+b)\left(x^a-c+c\left(1-\frac{\eta}{x^b}\right)^{2K}\right)+N\left(ac-ac\left(1-\frac{\eta}{x^b}\right)^{2K}+\frac{2cKb\eta}{x^b}\left(1-\frac{\eta}{x^b}\right)^{2K-1}\right), \]
+% and $x_0$ is the maximum of $F(x)$, so $G(x_0) = 0$.\tingkai{The first equality needs to use a motonocity of $N\left(ac-ac\left(1-\frac{\eta}{x^b}\right)^{2K}\right)-(a+b)x^a$.}
+% \begin{align*}
+%     G(x)&\geq N\left(ac-ac\left(1-\frac{\eta}{x^b}\right)^{2K}\right)-(a+b)x^a \\
+%     &=\frac{2KNac\eta}{x^b}(1+o(1))-(a+b)x^a \\
+%     &\geq \frac{KNac\eta-(a+b)x^{a+b}}{x^b} ~~\text{when} ~~N\geq N_0 ~~\text{for some constant} ~N_0 \\
+%     &> 0 ~~\text{when} ~~x\leq c_1(KN)^{a+b} ~~\text{for some constant} ~c_1.
+% \end{align*}
+% So $x_0 = \Omega\left((KN)^{\frac{1}{a+b}}\right)$.
+% and 
+% \begin{align*}
+%     G(x_0) = -(a+b)x_0^a(1+o(1))+N\left(\frac{2Kac\eta}{x_0^b}(1+o(1))+\frac{2Kac\eta}{x_0^b}(1+o(1))\right) = 0
+% \end{align*}
+% So
+% \begin{align*}
+%     x_0 &= \Theta\left((KN)^{\frac{1}{a+b}}\right) \\
+%     F(x_0)&=\Theta\left(\frac{1}{KN}\right).
+% \end{align*}
+% \tingkai{Finish the proof.}
+% \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})
+%     &=\frac{1}{2}\sum_{i=1}^{K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}+\frac{c}{i^{a}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N \\
+%     &+\frac{1}{2}\sum_{K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}^{d}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}+\frac{c}{i^{a}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N \\
+%     &:=J_1+J_2
+% \end{align*}
+% \begin{align*}
+%     J_1&\lesssim \frac{K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}{KN} \\
+%     J_2&=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}^{d}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}+\frac{c}{i^{a}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N \\
+%     &=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}^{d}\frac{c}{i^{a+b}}\left(1-\frac{2Kc\eta}{i^{a+b}}+O\left(\frac{K^2}{i^{a+2b}}\right)\right)^N \\
+%     &=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}^{d}\frac{c}{i^{a+b}}e^{N\log \left(1-\frac{2Kc\eta}{i^{a+b}}+O\left(\frac{K^2}{i^{a+2b}}\right)\right)} \\
+%     &=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}^{d}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}+O\left(\frac{K^2N}{i^{a+2b}}\right)} \\
+%     &=\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}^{d}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}}(1+o(1)) \\
+% \end{align*}
+% We define $K_1(x) = \frac{c}{x^{a+b}}e^{\frac{-2KNc\eta}{x^{a+b}}}$.
+% We can derive that \tingkai{fix this part}$\arg\max K_1(x) = \Theta\left((KN)^{\frac{1}{a+b}}\right)$, and $\max K_1(x) = \Theta\left(\frac{1}{KN}\right)$.
+% So 
+% \begin{align*}
+%     J_2&\geq \frac{1}{2}\sum_{i=(KN)^{\frac{1}{a+b}}}^{3(KN)^{\frac{1}{a+b}}}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}}(1+o(1)) \\
+%     &\gtrsim \frac{(KN)^{\frac{1}{a+b}}}{KN}
+% \end{align*}
+% We can verify that $J_1 = o(J_2)$ as a direct consequence.
+% We define 
+% \begin{align*}
+%     \Tilde{\cR}_{\ME}(\vw_{K, N}) &= \frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}} \\
+%     &=\frac{1}{2}\sum_{i=1}^{K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}}+\frac{1}{2}\sum_{i=K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}^{d}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}} \\
+%     &:=\Tilde{J_1}+\Tilde{J_2}
+% \end{align*}
+% We have $J_2 = \Tilde{J_2}(1+o(1))$, and
+% \begin{align*}
+%     \Tilde{J_1}&\lesssim \frac{K^{\frac{0.5}{a+1.5b}}(KN)^{\frac{1}{a+1.5b}}}{KN} = o(\Tilde{J_2}). \\
+% \end{align*}
+% So $\cR_{\ME}(\vw_{K, N})=\Tilde{\cR}_{\ME}(\vw_{K, N})(1+o(1))$.
+
+% Finally, we derive a matching upper and lower bound for $\Tilde{\cR}_{\ME}(\vw_{K, N})$ and conclude the proof:
+% \begin{align*}
+%     \Tilde{\cR}_{\ME}(\vw_{K, N}) &\geq \Tilde{J_2} \gtrsim J_2 \gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}. \\
+%     \Tilde{\cR}_{\ME}(\vw_{K, N}) &=\frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a+b}}}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a+b}}+1}^{d}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}} \\
+%     &\leq \frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a+b}}}\frac{c}{i^{a+b}}e^{\frac{-2KNc\eta}{i^{a+b}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a+b}}+1}^{d}\frac{c}{i^{a+b}} \\
+%     &\lesssim \frac{(KN)^{\frac{1}{a+b}}}{KN}+\frac{1}{\left(KN\right)^{\frac{a+b-1}{a+b}}} \lesssim \frac{1}{\left(KN\right)^{\frac{a+b-1}{a+b}}}
+% \end{align*}
+
+
+
+
+% \subsection{Proof of \Cref{lem:one-hot-loss-estimate-large-K}}
+
+% \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})&\geq \frac{1}{2}\sum_{i=N^{\frac{1}{a}}}^{3N^{\frac{1}{a}}}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}\right)^N \\
+%     &\geq \frac{1}{2}\frac{2N^{\frac{1}{a}}}{(3N^{\frac{1}{a}})^{a+b}}(1-\frac{c}{N})^N \\
+%     &\gtrsim \frac{1}{N^{\frac{a+b-1}{a}}}.
+% \end{align*}
+% \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})&\leq \frac{1}{2}\sum_{i=1}^{\infty}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}+\frac{c}{i^{a}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N \\
+%     &\leq \frac{1}{2}\sum_{i=1}^{N^{\frac{1}{a}}}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}+\frac{c}{i^{a}}\left(1-\frac{\eta}{i^b}\right)^{2K}\right)^N+\frac{1}{2}\sum_{i=N^{\frac{1}{a}}+1}^{\infty}\frac{c}{i^{a+b}} \\
+% \end{align*}
+% When $K = \omega(N^{\frac{b}{a}})$ and $i\leq N^{\frac{1}{a}}$, 
+% \begin{align*}
+%     \left(1-\frac{\eta}{i^b}\right)^{2K} &\leq \left(1-\frac{\eta}{N^{\frac{b}{a}}}\right)^{2K} = e^{2K\log \left(1-\frac{\eta}{N^{\frac{b}{a}}}\right)} \\
+%     &\leq e^{-2K\frac{\eta}{N^{\frac{b}{a}}}} = o(1).
+% \end{align*}    
+% So \tingkai{derive the maximum.}
+% \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})
+%     &\lesssim \frac{1}{N^{\frac{a+b-1}{a}}}+\frac{1}{N^{\frac{a+b-1}{a}}}\\
+%     &\lesssim \frac{1}{N^{\frac{a+b-1}{a}}}.
+% \end{align*}
+
+
+By \Cref{lem:one-hot-loss-estimate-large-K}, we have
+\[
+S_2(K,N;\eta^*)=\Theta\!\left(N^{-\frac{a-1}{a-b}}\right)
+\quad\text{and}\quad
+S_2(K,N;\eta')=\Theta\!\left(N^{-\frac{a-1}{a-b}}\right),
+\]
+which directly implies that
+\[
+S_1(K,N;\eta^*)=O\!\left(N^{-\frac{a-1}{a-b}}\right),
+\qquad
+\Bar{\cR}^*(K,N)=\Theta\!\left(N^{-\frac{a-1}{a-b}}\right).
+\]
+\subsection{$E(K,N)$ for Power-Law Spectrum: Proof of \Cref{thm:one-hot-E_K-v2}} \label{sec:proof-one-hot-Ek-power-spectrum}
+\subsubsection{Proof of \Cref{thm:one-hot-E_K-v2}, small-$K$ case}
+ Let $T'$ be defined implicitly by equating the averaged risks at their optimal step sizes:
+\begin{equation}\label{eq:equal-risk}
+\Bar{\cR}^*(1, T')=\Bar{\cR}^*(K, N).
+\end{equation}
+
+We claim that 
+\begin{equation} \label{eq:Tprime-band}
+\left(\frac{C_4}{C_1}\right)^{\!\frac{a}{a-1}} \, T
+\;\;\le\;\;
+T'
+\;\;\le\;\;
+\left(\frac{C_3}{C_2}\right)^{\!\frac{a}{a-1}} \, T.
+\end{equation}
+
+\begin{proof}
+We argue by contradiction, considering two exclusive violations of \Cref{eq:Tprime-band}.
+
+\begin{enumerate}
+\item \textbf{Case 1: $T' > \bigl(\tfrac{C_3}{C_2}\bigr)^{\frac{a}{a-1}} T$.}
+By the risk bounds encoded by $(C_2,C_3)$ for one-pass training with $T'$ fresh data and by $(C_1,C_4)$ for K-epoch training with $N$ fresh data, this inequality forces
+\[
+\Bar{\cR}^*(1, T')<\Bar{\cR}^*(K, N),
+\]
+which contradicts the defining equality \Cref{eq:equal-risk}.
+
+\item \textbf{Case 2: $T' < \bigl(\tfrac{C_4}{C_1}\bigr)^{\frac{a}{a-1}} T$.}
+given $d =\Omega(T^{\frac{1}{a}})$ we still have $d=\Omega\!\bigl((T')^{1/a}\bigr)$.
+The same risk comparisons then yield
+\[
+\Bar{\cR}^*(1, T')>\Bar{\cR}^*(K, N),
+\]
+again contradicting \Cref{eq:equal-risk}.
+\end{enumerate}
+Both contradictions rule out violations; hence \Cref{eq:Tprime-band} holds. 
+\end{proof}
+
+Therefore, the desired characterization of $E(K,N)$ follows directly from \Cref{lem:E_K}.
+
+\subsubsection{Proof of \Cref{thm:one-hot-E_K-v2}, Large-$K$ Case}
+By \Cref{thm:one-hot-scaling-law}, there exist constants $C_5,C_6>0$ such that, given $d = \Omega(T^{\frac{1}{a}})$,
+\begin{equation}\label{eq:largeK-two-sided}
+\frac{C_6}{N^{\frac{a-1}{a-b}}}
+\;\le\;
+\Bar{\cR}^*(K,N)
+\;\le\;
+\frac{C_5}{N^{\frac{a-1}{a-b}}}.
+\end{equation}
+
+Let $T'$ be defined by equating the averaged risks at their optimal step sizes:
+\begin{equation}\label{eq:equal-risk-largeK}
+\Bar{\cR}^*(K,N)
+\;=\;
+\Bar{\cR}^*(1,T').
+\end{equation}
+% In the one-pass case, when $d=\Omega((T')^{1/a})$, there exist constants $C_3,C_4>0$ such that
+% \begin{equation}\label{eq:baseline-two-sided}
+% \frac{C_4}{(T')^{\frac{a-1}{a}}}
+% \;\le\;\Bar{\cR}^*(1,T')
+% \;\le\;
+% \frac{C_3}{(T')^{\frac{a-1}{a}}}.
+% \end{equation}
+
+Combining \Cref{eq:largeK-two-sided}, \Cref{eq:equal-risk-largeK} with \Cref{ineq:one-hot-small-K-upper-bound}, \Cref{ineq:one-hot-small-K-lower-bound}, we claim that
+\begin{equation}\label{eq:Tprime-band-largeK}
+\left(\frac{C_4}{C_5}\right)^{\!\frac{a}{a-1}}\, N^{\frac{a}{a-b}}
+\;\;\le\;\;
+T'
+\;\;\le\;\;
+\left(\frac{C_3}{C_6}\right)^{\!\frac{a}{a-1}}\, N^{\frac{a}{a-b}}.
+\end{equation}
+
+\begin{proof}[Proof of the claim]
+We argue by contradiction.
+
+\begin{enumerate}
+\item \textbf{Upper violation.} If 
+$T' > \bigl(\tfrac{C_3}{C_6}\bigr)^{\frac{a}{a-1}} N^{\frac{a}{a-b}}$,
+then by \Cref{ineq:one-hot-small-K-upper-bound} and \Cref{eq:largeK-two-sided} (lower bound),
+\[
+\Bar{\cR}^*(1,T')
+\;\le\;
+\frac{C_3}{(T')^{\frac{a-1}{a}}}
+\;<\;
+\frac{C_6}{N^{\frac{a-1}{a-b}}}
+\;\le\;
+\Bar{\cR}^*(K,N),
+\]
+which contradicts \Cref{eq:equal-risk-largeK}.
+
+\item \textbf{Lower violation.} If 
+$T' < \bigl(\tfrac{C_4}{C_5}\bigr)^{\frac{a}{a-1}} N^{\frac{a}{a-b}}$,
+then the condition $d = \Omega(T^{\frac{1}{a}})$ gives
+\[
+d=\Omega\!\left(N^{\frac{1}{a-b}}\right)=\Omega\!\left((T')^{\frac{1}{a}}\right).
+\]
+Using \Cref{ineq:one-hot-small-K-lower-bound} and \Cref{eq:largeK-two-sided} (upper bound),
+\[
+\Bar{\cR}^*(1,T')
+\;\ge\;
+\frac{C_4}{(T')^{\frac{a-1}{a}}}
+\;>\;
+\frac{C_5}{N^{\frac{a-1}{a-b}}}
+\;\ge\;
+\Bar{\cR}^*(K,N),
+\]
+again contradicting \Cref{eq:equal-risk-largeK}.
+\end{enumerate}
+Both contradictions are impossible; hence \Cref{eq:Tprime-band-largeK} holds. 
+\end{proof}
+% \medskip
+% \noindent\textbf{Conclusion (scaling of $E(K,N)$).}
+% The bound \Cref{eq:Tprime-band-largeK} shows that, in the large-$K$ regime and under \Cref{asp:large-dimension},
+% the equivalent baseline horizon satisfies $T'=\Theta\!\bigl(N^{\frac{a}{a-b}}\bigr)$ (up to fixed constants).
+The characterization of $E(K,N)$ follows directly by the claim.
+
+
+\subsection{Scaling Laws for Logarithmic Power-Law Spectrum: Proof of \Cref{thm:one-hot-log-scaling-law}}\label{sec:proof-one-hot-scaling-law-log-spectrum}
+Similar to the proof of \Cref{thm:one-hot-scaling-law}, the proof of \Cref{thm:one-hot-E_K-log-spectrum} consists of two parts:  First part is the case when $K = o(\log^b N)$, and the second part is the case when $K = \omega(\log^b N)$.
+
+Before we begin our main part of the proof, note that for all $\eta=\Theta(1)$ and $\eta\leq 2$, there exists $d_2=\Theta(1)>0$ such that $1-\frac{\eta}{\log^b (i+1)}>0$ when $i>d_2$. Then we divide the loss into two parts:
+\begin{align*}
+    \Bar{\cR}(K, N;\eta)&=\frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{i^{a}} + \frac{c\log^b (i+1)}{i^{a}}\left(1-\left(1-\frac{\eta}{\log^b (i+1)}\right)^{2K}\right)\right)^N  \\
+    &=\underbrace{\frac{1}{2}\sum_{i=1}^{d_2}\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{i^{a}} + \frac{c\log^b (i+1)}{i^{a}}\left(1-\left(1-\frac{\eta}{\log^b (i+1)}\right)^{2K}\right)\right)^N }_{V_1(K, N; \eta)} \\
+    &+\frac{1}{2}\underbrace{\sum_{i=d_2 +1}^d\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{i^{a}} + \frac{c\log^b (i+1)}{i^{a}}\left(1-\left(1-\frac{\eta}{\log^b (i+1)}\right)^{2K}\right)\right)^N }_{V_2(K, N; \eta)}.
+\end{align*}
+% \kaifengclaw{Math-check: the leading line has a prefactor $\\frac12$, but in this split only $V_1$ keeps it while $V_2$ does not. Unless $V_2$ is intentionally redefined with doubled scale, this loses a factor of $2$ and can propagate into constants in later bounds.}
+
+% \begin{itemize}
+%     \item First part is the case when $K = o(\log^b N)$. In this case, we first separate the expected excess risk into two parts, and then we show that one dominates the other in a range of learning rate
+% \end{itemize}
+% To prove \Cref{thm:one-hot-E_K-log-spectrum}, we need the following two lemmas.
+
+\subsubsection{Proof of \Cref{thm:one-hot-log-scaling-law}: Small-$K$ Case}
+\paragraph{The Expected Excess Risk Approximization.}
+\begin{lemma} \label{lem:one-hot-log-loss-estimate-small-K}
+    Suppose the assumptions in \Cref{thm:one-hot-E_K-log-spectrum} hold. When $K = o(\log^b N)$, we define the estimate of $V(K,N;\eta)$ as
+    \begin{align*}
+        \Tilde{V}_2(K,N;\eta) &:= \frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}.
+    \end{align*}
+    Then we have $V_2(K,N;\eta) = \Tilde{V}(K,N;\eta)(1 + o(1))$, and 
+    $\Tilde{V}_2(K,N;\eta) \eqsim \frac{1}{(KN)^{\frac{a-1}{a}}}$.
+\end{lemma}
+
+\begin{proof}[Proof of \Cref{lem:one-hot-log-loss-estimate-small-K}]
+%     \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})
+%     &\geq\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a+b}}}^{3(KN)^{\frac{1}{a+b}}}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}\left(1-\left(1-\frac{\eta}{i^b}\right)^{2K}\right)\right)^N \\
+%     &\geq \frac{1}{2}\frac{2(KN)^{\frac{1}{a+b}}c}{3^{a+b}KN}\left(1-\frac{c}{(KN)^{\frac{a}{a+b}}}\left(1-\left(1-\frac{\eta}{(KN)^{\frac{b}{a+b}}}\right)^{2K}\right)\right)^N \\
+%     &\gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}\left(1-\frac{c}{(KN)^{\frac{a}{a+b}}}\left(1-\left(1-\frac{2K\eta}{(KN)^{\frac{b}{a+b}}}(1+o(1))\right)\right)\right)^N \\
+%     &=\frac{1}{(KN)^{\frac{a+b-1}{a+b}}}\left(1-\frac{2c\eta}{N}\left(1+o(1)\right)\right)^N \\
+%     &\gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}
+% \end{align*}
+We first define a function
+\begin{align*}
+    W(x) := \frac{c}{x^{a}}\left(1-\frac{c\log^b (x+1)}{x^{a}}\left(1-\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right)\right)^N.
+\end{align*}
+Direct observation gives us that under \Cref{asp:log-power-decay-prior}, $\bar\cR(K,N;\eta) \propto \sum_{i=1}^d W(i)$. Simliarly we take the derivative of $W$.
+\begin{align*}
+    W'(x) &= -\frac{ac}{x^{a+1}}\left(1-\frac{c\log^b (x+1)}{x^{a}}+\frac{c\log^b (x+1)}{x^{a}}\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right)^N \\
+    &+\frac{cN}{x^{a}}\left(1-\frac{c\log^b (x+1)}{x^{a}}+\frac{c\log^b (x+1)}{x^{a}}\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right)^{N-1}\\
+    &\left(\left(\frac{ac\log^b (x+1)}{x^{a+1}}-\frac{bc\log^{b-1}(x+1)}{x^{a}(x+1)}\right)\left(1-\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right) \right. \\
+    &\left.+\frac{2cK\log^b (x+1)}{x^{a}}\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K-1}\frac{b\eta}{(x+1)\log^{b+1}(x+1)}\right) \\
+    &=\frac{c}{x^{2a+1}}\left(1-\frac{c\log^b (x+1)}{x^{a}}+\frac{c\log^b (x+1)}{x^{a}}\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right)^{N-1} \\
+    &\left(-a\left(x^a-c\log^b (x+1)+c\log^b (x+1)\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right)\right. \\
+    &\left.+N\left(\left(ac\log^b (x+1)-bc\log^{b-1}(x+1)\frac{x}{x+1}\right)\left(1-\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right)\right.\right. \\
+    &\left.\left.+\frac{2cKb\eta}{\log (x+1)}\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K-1}\frac{x}{x+1}\right)\right).
+\end{align*}
+We define 
+\begin{align*}
+    G(x)&=-a\left(x^a-c\log^b (x+1)+c\log^b (x+1)\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right) \\
+    &+N\left(\left(ac\log^b (x+1)-bc\log^{b-1}(x+1)\frac{x}{x+1}\right)\left(1-\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right)\right. \\
+    &\left.+\frac{2cKb\eta}{\log (x+1)}\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K-1}\frac{x}{x+1}\right),
+\end{align*}
+and $x_0$ is defined to be the maximum of $W(x)$, so $G(x_0) = 0$.
+\begin{align*}
+    G(x)&\geq N\log^b (x+1)\left(ac-\frac{bc}{\log (x+1)}\frac{x}{x+1}\right)\left(1-\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)-ax^a\\
+    &\geq N(a-b)c\log^b (x+1)\left(1-\left(1-\frac{\eta}{\log^b (x+1)}\right)^{2K}\right)-ax^a \\
+    &= N(a-b)c\log^b (x+1)\times\frac{\eta}{\log^b (x+1)}\left(\sum_{i=0}^{2K-1}\left(1-\frac{\eta}{\log^b (x+1)}\right)^i\right)-ax^a\\
+    &\geq N(a-b)c\eta-ax^a. 
+\end{align*}
+So $x_0 = \Omega\left(N^{\frac{1}{a}}\right)$ is an direct conclusion by $G(x_0) = 0$. Also , by solving $G(x_0)=0$, we can get the approximation of $x_0$ as 
+\begin{align*}
+    G(x_0) &= -ax_0^a(1+o(1)) \\
+    &+N\left(ac\log^b (x_0+1)(1+o(1))\times\frac{2K\eta}{\log^b (x_0+1)}(1+o(1))
+    +O\left(\frac{K}{\log N}\right)\right) \\
+    &=-ax_0^a(1+o(1))+2KNac\eta(1+o(1))=0,
+\end{align*}
+thus we have
+\begin{align*}
+    x_0 = \Theta\left((KN)^{\frac{1}{a}}\right), \quad W(x_0)=\Theta\left(\frac{1}{KN}\right).
+\end{align*}
+There exists a constant $N_5$ such that $K\leq\log^b N$ when $N\geq N_5$. So when $N\geq N_5$ and $d\geq 3(KN)^{\frac{1}{a}}\geq 3(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}$, we have
+\begin{align*}
+    V_2(K,N;\eta)
+    &=\frac{1}{2}\sum_{i=d_2 + 1}^{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{i^{a}}\left(1-\left(1-\frac{\eta}{\log^b (i+1)}\right)^{2K}\right)\right)^N \\
+    &+\frac{1}{2}\sum_{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{i^{a}}\left(1-\left(1-\frac{\eta}{\log^b (i+1)}\right)^{2K}\right)\right)^N \\
+    &:=\psi_1+\psi_2.
+\end{align*}
+Furthermore, 
+\begin{align*}
+    \psi_1&\lesssim (KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}\times W(x_0)\lesssim\frac{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}{KN},
+\end{align*}
+and 
+\begin{align*}
+    \psi_2&=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}\left(1-\frac{c\log^b(i+1)}{i^{a}}+\frac{c\log^b (i+1)}{i^{a}}\left(1-\frac{\eta}{\log^b (i+1) }\right)^{2K}\right)^N \\
+    &=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}\left(1-\frac{2Kc\eta}{i^{a}}+O\left(\frac{K^2}{i^{a}\log^b (i+1)}\right)\right)^N \\
+    &=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}e^{N\log \left(1-\frac{2Kc\eta}{i^{a}}+O\left(\frac{K^2}{i^{a}\log^b (i+1)}\right)\right)} \\
+    &=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}+O\left(\frac{K^2N}{i^{2a}}\right)+O\left(\frac{K^2N}{i^{a}\log^b (i+1)}\right)} \\
+    &=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}(1+o(1)). 
+\end{align*}
+We recall $K_1(x) = \frac{c}{x^{a}}e^{\frac{-2KNc\eta}{x^{a}}}$.
+We can verify that $\arg\max K_1(x) = \Theta\left((KN)^{\frac{1}{a}}\right)$ and $\max K_1(x) = \Theta\left(\frac{1}{KN}\right)$ through a direct calculation.
+So for $\psi_2$ we have
+\begin{align*}
+    \psi_2&\geq \frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}}^{3(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}(1+o(1)) \\
+    &\gtrsim \frac{(KN)^{\frac{1}{a}}}{KN}.
+\end{align*}
+We can verify that $\psi_1 = o(\psi_2)$ as a direct consequence.
+We define 
+\begin{align*}
+    \Tilde{V}_2(K,N;\eta) &= \frac{1}{2}\sum_{i=d_2 + 1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+    &=\frac{1}{2}\sum_{i=d_2 + 1}^{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+    &:=\Tilde{\psi_1}+\Tilde{\psi_2}.
+\end{align*}
+We have $\psi_2 = \Tilde{\psi_2}(1+o(1))$, and
+\begin{align*}
+    \Tilde{\psi_1}&\lesssim \frac{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}{KN} = o(\Tilde{\psi_2}). \\
+\end{align*}
+So $V_2(K,N;\eta)=\Tilde{V}_2(K,N;\eta)(1+o(1))$.
+
+Finally, we derive a matching upper and lower bound for $\Tilde{V}_2(K,N;\eta)$ and conclude the proof:
+\begin{align*}
+    \Tilde{V}_2(K,N;\eta) &\geq \Tilde{J_2} \gtrsim J_2 \gtrsim \frac{1}{(KN)^{\frac{a-1}{a}}}. \\
+    \Tilde{V}_2(K,N;\eta) &=\frac{1}{2}\sum_{i=d_2 + 1}^{(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+    &\leq \frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}+1}^{d}\frac{c}{i^{a}} \\
+    &\lesssim \frac{(KN)^{\frac{1}{a}}}{KN}+\frac{1}{\left(KN\right)^{\frac{a-1}{a}}} \lesssim \frac{1}{\left(KN\right)^{\frac{a-1}{a}}}.
+\end{align*}
+Then we complete the proof.
+\end{proof}
+Notice that $\Tilde{V}_2(K,N;\eta)$ and $V_2(K,N;\eta)$ are identical to each other, so we can directly apply \Cref{lem:power-S_2-derivative} and \Cref{cor:one-hot-power-eta-approx} in the remainding proof of \Cref{thm:one-hot-E_K-log-spectrum}.
+
+\paragraph{The Range of Optimal Learning Rate.}
+
+First, take $\eta' = 2 \log^b(2)-\epsilon$, where $\epsilon := \frac{(a-1)d_2^{a}}{ac}\frac{\log KN}{KN}$, and we have
+    \begin{align*}
+        V_1(K, N; \eta') &\leq \frac{d_2c}{2}\left(1-\frac{c\log^b(2)}{d_2^{a}}+\frac{c\log^b(2)}{d_2^{a}}\left(1-\frac{\epsilon}{\log^b(2)}\right)^{2K}\right)^N \\
+        &=\frac{d_2c}{2}\left(1-\frac{2Kc\log^b(2)}{d_2^{a}}\times\frac{\epsilon}{\log^b(2)}(1+o(1))\right)^N \\
+        &=\frac{d_2c}{2}\left(1-\frac{2(a-1)}{a}\frac{\log KN}{N}(1+o(1))\right)^N \\
+        &=\frac{d_2c}{2}e^{N\log\left(1-\frac{2(a-1)}{a}\frac{\log KN}{N}(1+o(1))\right)} \\
+        &\eqsim \frac{1}{(KN)^{\frac{2(a-1)}{a}}} =o(V_2(K, N;\eta')),
+    \end{align*}
+    where the last inequality comes from \Cref{lem:one-hot-log-loss-estimate-small-K}. Then we have
+    \begin{align*}
+        \Bar{\cR}(K, N;\eta')&=V_1(K, N;\eta')+V_2(K, N;\eta') \\
+        &=\Tilde{V_2}(K, N;\eta')(1+o(1)) \\
+        &=\Tilde{V_2}(K, N;2)(1+o(1)) \\
+        &=\left(\frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}e^{\frac{-4\log^b(2)KNc}{i^{a}}}\right)(1+o(1)).
+    \end{align*}
+    Then we prove that $\eta^* \in [2 \log^b(2)-o(1), 2 \log^b(2)]$.
+    We prove by contradiction, and assume that there exist a constant $\epsilon>0$ and a sequence $(N_i)_{i=1}^{\infty}\to \infty$ such that $\eta^*(N_i)\leq 2 \log^b(2)-\epsilon$ for all $i\geq 1$. As we only analyze with respect to the sequence $(N_i)_{i=1}^{\infty}$, without loss of generality, we take $(N_i)_{i=1}^{\infty}=\mathds{N}$. By \Cref{lem:one-hot-loss-estimate-small-K}, we have 
+    \begin{align*}
+        \Bar{\cR}^*(K, N)\geq V_2(K, N;\eta^*)&=\Tilde{V_2}(K, N; \eta^*)(1+o(1)) \\
+        &\geq\left[\Tilde{V_2}(K, N;2)+\epsilon\frac{\partial}{\partial \eta}\Tilde{V_2}\left(K, N; 2 \log^b(2)\right)\right](1+o(1))>\Bar{\cR}(K, N;\eta')
+    \end{align*}
+    when $N$ is sufficiently large, which is a contradiction.
+    So
+    \begin{align*}
+        \Bar{\cR}^*(K, N)&=V_1(K, N;\eta^*)+V_2(K, N;\eta^*) \\
+        &=V_1(K, N;\eta^*)+\Tilde{V_2}(K, N;\eta^*)(1+o(1)) \\
+        &=V_1(K, N;\eta^*)+\Tilde{V_2}\left(K, N;2 \log^b(2)\right)(1+o(1))\leq\Bar{\cR}(K, N;\eta').
+    \end{align*}
+    So $V_1(K, N;\eta^*)=o\left(\Tilde{V_2}\left(K, N;2 \log^b(2)\right)\right)$, and $\Bar{\cR}^*(K, N)=\Tilde{V_2}(K, N;2\log^b(2))(1+o(1)) \eqsim \frac{1}{(KN)^{\frac{a-1}{a}}}$.
+
+\subsubsection{Proof of \Cref{thm:one-hot-log-scaling-law}, Large-$K$ case}
+\paragraph{The Expected Excess Risk Approximation.}
+\begin{lemma} \label{lem:one-hot-log-loss-estimate-large-K}
+    Suppose the assumptions \Cref{thm:one-hot-E_K-log-spectrum} hold. When $K = \omega(\log^b N)$, we have $V_2(K,N;\eta) \eqsim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}$.
+\end{lemma}
+\begin{proof}[Proof of \Cref{lem:one-hot-log-loss-estimate-large-K}]
+By $K =\omega(\log^b N)$, there exists a constant $N_6 > 0$ such that $K > \log^b N$ when $N\geq N_6$.
+We notice that when $i = \Theta\left(\left(N\log^b N\right)^{\frac{1}{a}}\right)$, $\log (i+1) = \Theta(\log N)$. Then, when $N\geq N_6$ and $d\geq 3(KN)^{\frac{1}{a}}\geq 3\left(N\log^b N\right)^{\frac{1}{a}}$, we have
+\begin{align*}
+    V_2(K,N;\eta)&\geq \frac{1}{2}\sum_{i=\left(N\log^b N\right)^{\frac{1}{a}}}^{3\left(N\log^b N\right)^{\frac{1}{a}}}\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{i^{a}}\right)^N \\
+    &\geq \frac{1}{2}\frac{2\left(N\log^b N\right)^{\frac{1}{a}}}{3^aN\log^b N}(1-\frac{c_{11}}{N})^N \\
+    &\gtrsim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}.
+\end{align*}
+For the upper bound, we have
+\begin{align*}
+    \bar\cR(K,N;\eta)&\leq \frac{1}{2}\sum_{i=1}^{\infty}\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{i^{a}}+\frac{c\log^b (i+1)}{i^{a}}\left(1-\frac{\eta}{\log^b (i+1)}\right)^{2K}\right)^N \\
+    &\leq \frac{1}{2}\sum_{i=1}^{\left(N\log^b N\right)^{\frac{1}{a}}}\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{i^{a}}+\frac{c\log^b (i+1)}{i^{a}}\left(1-\frac{\eta}{\log^b (i+1)}\right)^{2K}\right)^N\\
+    &~~~~+\frac{1}{2}\sum_{i=\left(N\log^b N\right)^{\frac{1}{a}}+1}^{\infty}\frac{c}{i^{a}}. 
+\end{align*}
+When $K = \omega(\log^b N)$ and $i\leq \left(N\log^b N\right)^{\frac{1}{a}}$, 
+\begin{align*}
+    \left(1-\frac{\eta}{\log^b (i+1)}\right)^K &\leq \left(1-\frac{c_{12}}{\log^{b} N}\right)^K = e^{K\log \left(1-\frac{c_{12}}{\log^{b} N}\right)} \\
+    &\leq e^{-K\frac{c_{12}}{\log^{b} N}} = o(1).
+\end{align*} 
+So there exists $N_7$ such that when $N\geq N_7$, $\left(1-\frac{\eta}{\log^b (i+1)}\right)^K \leq \frac{1}{2}$, and when $N\geq\max(N_6, N_7)$,
+\begin{align*}
+    \bar\cR(K,N;\eta)
+    &\leq \frac{1}{2}\sum_{i=1}^{\left(N\log^b N\right)^{\frac{1}{a}}}\frac{c}{i^{a}}\left(1-\frac{c\log^b (i+1)}{2i^{a}}\right)^N+\frac{1}{2}\sum_{i=\left(N\log^b N\right)^{\frac{1}{a}}+1}^{\infty}\frac{c}{i^{a}}.
+\end{align*}
+One can derive that $\max_x\frac{c}{x^{a}}\left(1-\frac{c\log^b (x+1)}{2x^{a}}\right)^N = \Theta\left(\frac{1}{N\log^bN}\right)$.
+% \begin{align*}
+%     G(x)\leq -ax^a+ac\log^b(x+1)+Nac\log^b(x+1)+\frac{2cKNb\eta}{\log(x+1)}
+% \end{align*}
+% Given that $x_0 = \Omega(N^{\frac{1}{a}})$, under this scenario, we have
+% \begin{align*}
+%     G(x_0) &= -ax_0^a(1+o(1))+Nac\log^b(x_0+1)(1+o(1)) =0 \\
+%     x_0 &= \Theta(N\log^b(x_0)) = \Theta(N\log N).
+% \end{align*}
+% We define $E(x) = \frac{c}{x^{a}}\left(1-\frac{c\log^b (x+1)}{x^{a}}(1+o(1))\right)^N$. Next we calculate $E(x)$'s derivative and its maximum.
+% \begin{align*}
+%     E'(x)&=\frac{-ac}{x^{a+1}}\left(1-\frac{c\log^b (x+1)}{x^{a}}(1+o(1))\right)^N \\
+%     &+\frac{cN}{x^a}\left(1-\frac{c\log^b (x+1)}{x^{a}}(1+o(1))\right)^{N-1}\left(\frac{a}{x^{a+1}}\log^b (x+1)-\frac{b\log^{b-1}(x+1)}{x^{a}(x+1)}\right)(1+o(1)) \\
+%     &=\frac{c}{x^{2a+1}}\left(1-\frac{c\log^b (x+1)}{x^{a}}(1+o(1))\right)^{N-1} \\
+%     &\left(\left(Na\log^b(x+1)-Nb\log^{b-1}(x+1)\frac{x}{x+1}\right)(1+o(1))-ax^a-a\log^b(x+1)(1+o(1))\right)
+% \end{align*}
+% We define $x_0 = \arg\max E(x)$, and $E_1(x)=(Na\log^b(x+1)-Nb\log^{b-1}(x+1))(1+o(1))-ax^a-a\log^b(x+1)(1+o(1))$, so $E_1(x_0) = 0$. Next we prove that $N^{\frac{1}{2a}}\leq x_0\leq N^{\frac{3}{2a}}$ when $N$ is sufficiently large:
+
+% If $x_0\leq N^\frac{1}{2a}$, then
+% \begin{align*}
+%     E_1(x)&\geq c_3N -a\sqrt{N}-c_4\log^b N ~~\text{when} ~N\geq N_1\\
+%     &\geq 0 ~~\text{when} ~N\geq N_2,
+% \end{align*}
+% whichi is a contradiction.
+% If $x_0\geq N^\frac{3}{2a}$, then 
+% \begin{align*}
+%     E_1(x)&\leq Na\log^b(x+1)(1+o(1))-ax^a \\
+%     &\leq x^a\left(\frac{x^{\frac{2}{3}a}a\log^b(x+1)(1+o(1))}{x^a}-a\right) \\
+%     &=x^a\left(\frac{a\log^b(x+1)(1+o(1))}{x^\frac{a}{3}}-a\right)\leq 0 ~~\text{when} ~N\geq N_3,\\
+% \end{align*}
+% which is a contradiction. So 
+% \begin{align*}
+%     E_1(x_0)&= Na\log^b(x_0+1)(1+o(1))-ax_0^a = 0\\
+%     x_0 &= \arg\max E(x) = \Theta\left((N\log^bN)^{\frac{1}{a}}\right) \\
+%     E(x_0)&=\Theta\left(\frac{1}{N\log^b N}\right)
+% \end{align*}
+So finally, we have
+\begin{align*}
+    V_2(K,N;\eta) \le \bar\cR(K,N;\eta)
+    &\lesssim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}+\frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}\\
+    &\lesssim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}},
+\end{align*}
+and we get the result.
+\end{proof}
+\paragraph{The Range of Optimal Learning Rate.}
+
+First, take $\eta' = 1.5 \log^b(2)$, and we have
+    \begin{align*}
+        V_1(K, N; \eta') &\leq \frac{d_2c}{2}\left(1-\frac{c\log^b(2)}{d_2^{a}}+\frac{c\log^b(2)}{d_2^{a}}\max\left(0.5, 1-\frac{1.5 \log^b(2)}{\log^b(d_2 +1)}\right)^{2K}\right)^N \\
+        &=\frac{d_1c}{2}\left(1-\Theta(1)\right)^N \\
+        &=o(V_2(K, N;\eta')),
+    \end{align*}
+    where the last inequality comes from \Cref{lem:one-hot-loss-estimate-large-K}. Then we have
+    \begin{align*}
+        \Bar{\cR}(K, N;\eta')&=V_1(K, N;\eta')+V_2(K, N;\eta') \\
+        &=\Tilde{V_2}(K, N;\eta')(1+o(1)) 
+        % &=\Tilde{V_2}(K, N;2)(1+o(1)) \\
+        % &=\left(\frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}e^{\frac{-4KNc}{i^{a}}}\right)(1+o(1)).
+    \end{align*}
+    It is obvious that $\eta^* \in \left[\log^b(2), 2\log^b(2)\right]$. We know that
+    \begin{align*}
+        \Bar{\cR}^*(K, N)&=V_1(K, N;\eta^*)+V_2(K, N;\eta^*) \leq\Bar{\cR}(K, N;\eta')=V_2(K, N, \eta')(1+o(1)) \\
+        &\eqsim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}.
+    \end{align*}
+% \paragraph{Derivation of $E(K,N)$ When $K$ is Large.}
+% For multi-epoch case, by \Cref{lem:one-hot-log-loss-estimate-large-K} and \Cref{lem:loss-matching-upper-lower-bound}, there exist two constants $C_7$ and $C_8$ such that $\E\cR(\vw_{K,N})\leq \frac{C_7}{N\left(\log N\right)^b}$ and $\E\cR(\vw_{K,N})\geq \frac{C_8}{N\left(\log N\right)^b}$ when \Cref{asp:large-dimension} holds. We solve $\E\cR(\vw_{K,N}) = \E\cR(\vw_{T'})$, and we claim that $\left(\frac{C_4}{C_7}\right)^{\frac{a}{a-1}}{N\left(\log N\right)^b}\leq T'\leq \left(\frac{C_3}{C_8}\right)^{\frac{a}{a-1}}{N\left(\log N\right)^b}$, where $C_3$ and $C_4$ are defined in the proof of \Cref{thm:one-hot-E_K-v2}. 
+% Otherwise, if $T'>\left(\frac{C_3}{C_8}\right)^{\frac{a}{a-1}}{N\left(\log N\right)^b}$, then $\E\cR(\vw_{T'})<\E\cR(\vw_{K,N})$, which is a contradiction; and if $T'<\left(\frac{C_4}{C_7}\right)^{\frac{a}{a-1}}{N\left(\log N\right)^b}$, then \Cref{asp:large-dimension} implies $d = \Omega(\left(N\log^b N\right)^{\frac{1}{a}})=\Omega(T'^{\frac{1}{a}})$, and we have $\E\cR(\vw_{T'})>\E\cR(\vw_{K,N})$, which is another contradiction. Then the characterization for $E(K, N)$ yields directly.
+\subsection{$E(K,N)$ for Logarithmic Power-Law Spectrum: Proof of \Cref{thm:one-hot-E_K-log-spectrum}} \label{sec:proof-one-hot-Ek-log-power-spectrum}
+\subsubsection{Proof of \Cref{thm:one-hot-E_K-log-spectrum}, Small-$K$ Case}The proof here is almost a reproduction of the proof in Appendix \ref{sec:proof-power-spectrum-Ek-small}.
+\subsubsection{Proof of \Cref{thm:one-hot-E_K-log-spectrum}, Large-$K$ Case}
+
+Consider the multi-epoch training setting with $d=\Omega\left(\left(KN\right)^{\frac{1}{a+b}}\right)$.
+By \Cref{lem:one-hot-log-loss-estimate-large-K,lem:loss-matching-upper-lower-bound}, there exist constants $C_7,C_8>0$ such that
+\begin{equation}\label{eq:ME-two-sided}
+\frac{C_8}{\,N(\log N)^b\,}
+\;\le\;
+\Bar{\cR}^*(K,N)
+\;\le\;
+\frac{C_7}{\,N(\log N)^b\,}.
+\end{equation}
+
+Let $T'$ be defined by matching the expected risks:
+\begin{equation}\label{eq:ME-equal-risk}
+\Bar{\cR}^*(K,N)=\Bar{\cR}^*(1,T').
+\end{equation}
+In the one-pass case, we use the constants $C_3,C_4>0$ (as defined in the proof of \Cref{thm:one-hot-E_K-v2}) to control $\Bar{\cR}^*(1,T')$.
+
+We claim that
+\begin{equation}\label{eq:ME-Tprime-band}
+\left(\frac{C_4}{C_7}\right)^{\!\frac{a}{a-1}}\,
+N(\log N)^b
+\;\;\le\;\;
+T'
+\;\;\le\;\;
+\left(\frac{C_3}{C_8}\right)^{\!\frac{a}{a-1}}\,
+N(\log N)^b .
+\end{equation}
+
+\begin{proof}[Proof of the claim]
+We argue by contradiction.
+
+\begin{enumerate}
+\item \textbf{Upper bound violation.}
+If 
+$T' > \bigl(\tfrac{C_3}{C_8}\bigr)^{\frac{a}{a-1}}\,N(\log N)^b$,
+then the one-pass upper bound together with \Cref{eq:ME-two-sided} (multi-epoch lower bound) imply
+\[
+\Bar{\cR}^*(K,N)<\Bar{\cR}^*(1,T'),
+\]
+which contradicts the defining equality \Cref{eq:ME-equal-risk}.
+
+\item \textbf{Lower bound violation.}
+If 
+$T' < \bigl(\tfrac{C_4}{C_7}\bigr)^{\frac{a}{a-1}}\,N(\log N)^b$,
+then $d=\Omega\left(\left(KN\right)^{\frac{1}{a+b}}\right)$ yields
+\[
+d=\Omega\bigl((N(\log N)^b)^{1/a}\bigr)
+=\Omega\bigl((T')^{1/a}\bigr),
+\]
+so the one-pass lower bound together with \Cref{eq:ME-two-sided} (multi-epoch upper bound) give
+\[
+\Bar{\cR}^*(K,N)>\Bar{\cR}^*(1,T'),
+\]
+again contradicting \Cref{eq:ME-equal-risk}.
+\end{enumerate}
+Both violations are impossible; hence \Cref{eq:ME-Tprime-band} holds. 
+\end{proof}
+
+Thus, in the large-$K$ multi-epoch regime, the matched one-epoch training time satisfies $T'=\Theta\bigl(N(\log N)^b\bigr)$ up to fixed constants. Therefore, the desired characterization of $E(K,N)$ follows directly.
+
+
+% \section{Proof of \Cref{thm:one-hot-E_K-log-spectrum}}
+
+% To prove \Cref{thm:one-hot-E_K-log-spectrum}, we need the following two lemmas.
+% \begin{lemma} \label{lem:one-hot-log-loss-estimate-small-K}
+%     Suppose the assumptions in \Cref{thm:one-hot-loss-estimate} holds. When $K = o(\log^b N)$, we define the estimate of $\cR_{\ME}(\vw_{KN})$ as
+%     \begin{align*}
+%         \Tilde{\cR}_{\ME}(\vw_{K, N}) &= \frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}.
+%     \end{align*}
+%     Then we have $\cR_{\ME}(\vw_{K, N})=\Tilde{\cR}_{\ME}(\vw_{K, N})(1+o(1))$, and 
+%     $\Tilde{\cR}_{\ME}(\vw_{KN}) \eqsim \frac{1}{(KN)^{\frac{a-1}{a}}}$.
+% \end{lemma}
+% \begin{proof}
+% %     \begin{align*}
+% %     \cR_{\ME}(\vw_{K, N})
+% %     &\geq\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a+b}}}^{3(KN)^{\frac{1}{a+b}}}\frac{c}{i^{a+b}}\left(1-\frac{c}{i^{a}}\left(1-\left(1-\frac{\eta}{i^b}\right)^{2K}\right)\right)^N \\
+% %     &\geq \frac{1}{2}\frac{2(KN)^{\frac{1}{a+b}}c}{3^{a+b}KN}\left(1-\frac{c}{(KN)^{\frac{a}{a+b}}}\left(1-\left(1-\frac{\eta}{(KN)^{\frac{b}{a+b}}}\right)^{2K}\right)\right)^N \\
+% %     &\gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}\left(1-\frac{c}{(KN)^{\frac{a}{a+b}}}\left(1-\left(1-\frac{2K\eta}{(KN)^{\frac{b}{a+b}}}(1+o(1))\right)\right)\right)^N \\
+% %     &=\frac{1}{(KN)^{\frac{a+b-1}{a+b}}}\left(1-\frac{2c\eta}{N}\left(1+o(1)\right)\right)^N \\
+% %     &\gtrsim \frac{1}{(KN)^{\frac{a+b-1}{a+b}}}
+% % \end{align*}
+% We define $W(x) = \frac{c}{x^{a}}\left(1-\frac{c\log^b x}{x^{a}}\left(1-\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)\right)^N$.
+% \begin{align*}
+%     W'(x) &= -\frac{ac}{x^{a+1}}\left(1-\frac{c\log^b x}{x^{a}}+\frac{c\log^b x}{x^{a}}\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)^N \\
+%     &+\frac{cN}{x^{a}}\left(1-\frac{c\log^b x}{x^{a}}+\frac{c\log^b x}{x^{a}}\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)^{N-1}\\
+%     &\left(\left(\frac{ac\log^b x}{x^{a+1}}-\frac{bc\log^{b-1}x}{x^{a+1}}\right)\left(1-\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right) 
+%     +\frac{2cK\log^b x}{x^{a}}\left(1-\frac{\eta}{\log^b x}\right)^{2K-1}\frac{b\eta}{x\log^{b+1}x}\right) \\
+%     &=\frac{c}{x^{2a+1}}\left(1-\frac{c\log^b x}{x^{a}}+\frac{c\log^b x}{x^{a}}\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)^{N-1} \\
+%     &\left(-a\left(x^a-c\log^b x+c\log^b x\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)\right. \\
+%     &\left.+N\left(\left(ac\log^b x-bc\log^{b-1}x\right)\left(1-\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)+\frac{2cKb\eta}{\log x}\left(1-\frac{\eta}{\log^b x}\right)^{2K-1}\right)\right) \\
+% \end{align*}
+% We define 
+% \begin{align*}
+%     G(x)&=-a\left(x^a-c\log^b x+c\log^b x\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right) \\
+%     &+N\left(\left(ac\log^b x-bc\log^{b-1}x\right)\left(1-\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)+\frac{2cKb\eta}{\log x}\left(1-\frac{\eta}{\log^b x}\right)^{2K-1}\right)
+% \end{align*}
+% and $x_0$ is the maximum of $W(x)$, so $G(x_0) = 0$.
+% \begin{align*}
+%     G(x)&\geq Nc'\log^b x\left(1-\left(1-\frac{\eta}{\log^b x}\right)^{2K}\right)-ax^a \\
+%     &= Nc'\log^b x\times\frac{\eta}{\log^b x}\left(1+\left(1-\frac{\eta}{\log^b x}\right)+\cdots+\left(1-\frac{\eta}{\log^b x}\right)^{2K-1}\right)-ax^a\\
+%     &\geq Nc'\eta-ax^a \\
+% \end{align*}
+% So $G(x_0) = 0$ means that $x_0 = \Omega\left(N^{\frac{1}{a}}\right)$.
+% and 
+% \begin{align*}
+%     G(x_0) &= -ax_0^a(1+o(1))+N\left(ac\log^b x(1+o(1))\times\frac{2K\eta}{\log^b x}(1+o(1))+O\left(\frac{K}{\log N}\right)\right) \\
+%     &=-ax_0^a(1+o(1))+2KNac\eta(1+o(1))=0
+% \end{align*}
+% So
+% \begin{align*}
+%     x_0 &= \Theta\left((KN)^{\frac{1}{a}}\right) \\
+%     W(x_0)&=\Theta\left(\frac{1}{KN}\right).
+% \end{align*}
+% \tingkai{Finish the proof.}
+% \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})
+%     &=\frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}\frac{c}{i^{a}}\left(1-\frac{c\log^b i}{i^{a}}\left(1-\left(1-\frac{\eta}{\log^b i}\right)^{2K}\right)\right)^N \\
+%     &+\frac{1}{2}\sum_{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}\left(1-\frac{c\log^b i}{i^{a}}\left(1-\left(1-\frac{\eta}{\log^b i}\right)^{2K}\right)\right)^N \\
+%     &:=J_1+J_2
+% \end{align*}
+% \begin{align*}
+%     J_1&\lesssim \frac{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}{KN} \\
+%     J_2&=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}\left(1-\frac{c\log^bi}{i^{a}}+\frac{c\log^b i}{i^{a}}\left(1-\frac{\eta}{\log^b i }\right)^{2K}\right)^N \\
+%     &=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}\left(1-\frac{2Kc\eta}{i^{a}}+O\left(\frac{K^2}{i^{a}\log^b i}\right)\right)^N \\
+%     &=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}e^{N\log \left(1-\frac{2Kc\eta}{i^{a}}+O\left(\frac{K^2}{i^{a}\log^b i}\right)\right)} \\
+%     &=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}+O\left(\frac{K^2N}{i^{2a}}\right)+O\left(\frac{K^2N}{i^{a}\log^b i}\right)} \\
+%     &=\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}(1+o(1)) \\
+% \end{align*}
+% We define $K_1(x) = \frac{c}{x^{a}}e^{\frac{-2KNc\eta}{x^{a}}}$.
+% We can verify that $\arg\max K_1(x) = \Theta\left((KN)^{\frac{1}{a}}\right)$ and $\max K_1(x) = \Theta\left(\frac{1}{KN}\right)$ through a direct calculation.
+% So 
+% \begin{align*}
+%     J_2&\geq \frac{1}{2}\sum_{i=c_1(KN)^{\frac{1}{a}}}^{c_2(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}(1+o(1)) \\
+%     &\gtrsim \frac{(KN)^{\frac{1}{a}}}{KN}
+% \end{align*}
+% We can verify that $J_1 = o(J_2)$ as a direct consequence.
+% We define 
+% \begin{align*}
+%     \Tilde{\cR}_{\ME}(\vw_{K, N}) &= \frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+%     &=\frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+%     &:=\Tilde{J_1}+\Tilde{J_2}
+% \end{align*}
+% We have $J_2 = \Tilde{J_2}(1+o(1))$, and
+% \begin{align*}
+%     \Tilde{J_1}&\lesssim \frac{(KN)^{\frac{1}{a}}\left(\frac{K}{\log^bN}\right)^{\frac{1}{2a}}}{KN} = o(\Tilde{J_2}). \\
+% \end{align*}
+% So $\cR_{\ME}(\vw_{K, N})=\Tilde{\cR}_{\ME}(\vw_{K, N})(1+o(1))$.
+
+% Finally, we derive a matching upper and lower bound for $\Tilde{\cR}_{\ME}(\vw_{K, N})$ and conclude the proof:
+% \begin{align*}
+%     \Tilde{\cR}_{\ME}(\vw_{K, N}) &\geq \Tilde{J_2} \gtrsim J_2 \gtrsim \frac{1}{(KN)^{\frac{a-1}{a}}}. \\
+%     \Tilde{\cR}_{\ME}(\vw_{K, N}) &=\frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}} \\
+%     &\leq \frac{1}{2}\sum_{i=1}^{(KN)^{\frac{1}{a}}}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}+1}^{d}\frac{c}{i^{a}} \\
+%     &\lesssim \frac{(KN)^{\frac{1}{a}}}{KN}+\frac{1}{\left(KN\right)^{\frac{a-1}{a}}} \lesssim \frac{1}{\left(KN\right)^{\frac{a-1}{a}}}
+% \end{align*}
+% \end{proof}
+
+% \begin{lemma} \label{lem:one-hot-log-loss-estimate-large-K}
+%     Suppose the assumptions in \Cref{asp:log-power-decay-prior} and \Cref{asp:dim-large} holds. When $K = \omega(\log^b N)$, we have $\cR_{\ME}(\vw_{KN}) \eqsim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}$.
+% \end{lemma}
+
+% \begin{proof}
+% First, we notice that when $i = \Theta\left(\left(N\log^b N\right)^{\frac{1}{a}}\right)$, $\log i = \Theta(\log N)$
+% \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})&\geq \frac{1}{2}\sum_{i=\left(N\log^b N\right)^{\frac{1}{a}}}^{3\left(N\log^b N\right)^{\frac{1}{a}}}\frac{c}{i^{a}}\left(1-\frac{c\log^b i}{i^{a}}\right)^N \\
+%     &\geq \frac{1}{2}\frac{2\left(N\log^b N\right)^{\frac{1}{a}}}{3^aN\log^b N}(1-\frac{c_1}{N})^N \\
+%     &\gtrsim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}.
+% \end{align*}
+% \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})&\leq \frac{1}{2}\sum_{i=1}^{\infty}\frac{c}{i^{a}}\left(1-\frac{c\log^b i}{i^{a}}+\frac{c\log^b i}{i^{a}}\left(1-\frac{\eta}{\log^b i}\right)^{2K}\right)^N \\
+%     &\leq \frac{1}{2}\sum_{i=1}^{\left(N\log^b N\right)^{\frac{1}{a}}}\frac{c}{i^{a}}\left(1-\frac{c\log^b i}{i^{a}}+\frac{c\log^b i}{i^{a}}\left(1-\frac{\eta}{\log^b i}\right)^{2K}\right)^N+\frac{1}{2}\sum_{i=\left(N\log^b N\right)^{\frac{1}{a}}+1}^{\infty}\frac{c}{i^{a}} \\
+% \end{align*}
+% When $K = \omega(\log^b N)$ and $i\leq \left(N\log^b N\right)^{\frac{1}{a}}$, 
+% \begin{align*}
+%     \left(1-\frac{\eta}{\log^b i}\right)^K &\leq \left(1-\frac{c_2}{\log^{b} N}\right)^K = e^{K\log \left(1-\frac{c_2}{\log^{b} N}\right)} \\
+%     &\leq e^{-K\frac{c_2}{\log^{b} N}} = o(1).
+% \end{align*}    
+% We define $E(x) = \frac{c}{x^{a}}\left(1-\frac{c\log^b x}{x^{a}}(1+o(1))\right)^N$. Next we calculate $E(x)$'s derivative and its maximum.
+% \begin{align*}
+%     E'(x)&=\frac{-ac}{x^{a+1}}\left(1-\frac{c\log^b x}{x^{a}}(1+o(1))\right)^N+\frac{cN}{x^a}\left(1-\frac{c\log^b x}{x^{a}}(1+o(1))\right)^{N-1}\left(\frac{a}{x^{a+1}}\log^b x-\frac{b\log^{b-1}x}{x^{a+1}}\right)(1+o(1)) \\
+%     &=\frac{c}{x^{2a+1}}\left(1-\frac{c\log^b x}{x^{a}}(1+o(1))\right)^{N-1}\left((Na\log^bx-Nb\log^{b-1}x)(1+o(1))-ax^a-a\log^bx(1+o(1))\right)
+% \end{align*}
+% We define $x_0 = \arg\max E(x)$, and $E_1(x)=(Na\log^bx-Nb\log^{b-1}x)(1+o(1))-ax^a-a\log^bx(1+o(1))$, so $E_1(x_0) = 0$. Next we prove that $N^{\frac{1}{2a}}\leq x_0\leq N^{\frac{3}{2a}}$ when $N$ is sufficiently large:
+
+% If $x_0\leq N^\frac{1}{2a}$, then
+% \begin{align*}
+%     E_1(x)&\geq c_3N -a\sqrt{N}-c_4\log^b N ~~\text{when} ~N\geq N_1\\
+%     &\geq 0 ~~\text{when} ~N\geq N_2,
+% \end{align*}
+% whichi is a contradiction.
+% If $x_0\geq N^\frac{3}{2a}$, then 
+% \begin{align*}
+%     E_1(x)&\leq Na\log^bx(1+o(1))-ax^a \\
+%     &\leq x^a\left(\frac{x^{\frac{2}{3}a}a\log^bx(1+o(1))}{x^a}-a\right) \\
+%     &=x^a\left(\frac{a\log^bx(1+o(1))}{x^\frac{a}{3}}-a\right)\leq 0 ~~\text{when} ~N\geq N_3,\\
+% \end{align*}
+% which is a contradiction. So 
+% \begin{align*}
+%     E_1(x_0)&= Na\log^bx_0(1+o(1))-ax_0^a = 0\\
+%     x_0 &= \arg\max E(x) = \Theta\left((N\log^bN)^{\frac{1}{a}}\right) \\
+%     E(x_0)&=\Theta(\frac{1}{N\log^b N})
+% \end{align*}
+% So
+% \begin{align*}
+%     \cR_{\ME}(\vw_{K, N})
+%     &\lesssim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}+\frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}\\
+%     &\lesssim \frac{1}{\left(N\log^b N\right)^{\frac{a-1}{a}}}.
+% \end{align*}
+% \end{proof}
+

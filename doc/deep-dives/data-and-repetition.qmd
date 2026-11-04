@@ -1,0 +1,45 @@
+---
+title: "Turn mixture weights into auditable data exposure"
+---
+
+This companion expands notes §7 and blog §7. A mixture is an allocation of token exposures to finite data pools; its weights cannot be interpreted without the corpus inventory and sampling process.
+
+## Separate three experiments {#source-value}
+
+A source-addition experiment asks whether adding data improves a chosen training recipe. A mixture experiment searches weights among available buckets. A repetition experiment studies how reuse changes returns. Keep these questions separate initially.
+
+A useful controlled example is Nemotron-CC Table 5: 8B models train for 1T tokens, with 73% from the tested crawl corpus and the same fixed 27% from other sources. DCLM gives MMLU 53.4, full Nemotron-CC 53.0 and the HQ subset 59.0. The HQ result supports that setting, not every longer-horizon regime. The report's full corpus contains 4.4T deduplicated original tokens plus 1.9T synthetic tokens. [Su et al., v2, Tables 4–5](https://arxiv.org/abs/2412.02595v2); [Nemotron case study](../efforts/nemotron-pretraining.qmd).
+
+## Exposure constraints on the simplex {#exposure}
+
+Let $U_j$ be unique tokens in bucket $j$, $w_j$ its mixture fraction, and $D$ the training-token budget. Then average exposure is $e_j=Dw_j/U_j$, with $w_j\ge0$ and $\sum_jw_j=1$. A cap of $k_j$ epochs implies
+
+$$w_j\le k_jU_j/D.$$
+
+An illustrative 100B-token run assigning 10% to a 1B-token bucket exposes that bucket about ten times. A three-epoch cap allows at most 3% weight. If the sum of all capped capacities is below $D$, no feasible mixture exists: obtain more unique data, relax justified caps or reduce the horizon.
+
+Per-bucket averages assume the declared sampler. Uneven document sampling can produce a heavy exposure tail. Global overlap between buckets also invalidates treating their token counts as independent capacities.
+
+## Preserve exposure in small proxies {#proxies}
+
+Suppose a proxy uses token budget $D_p=sD_t$ relative to a target. To preserve $e_j$ at fixed weights, its available pool must satisfy $U_{jp}=sU_{jt}$. If it instead draws from the whole target pool, it may never encounter the target's repetition problem.
+
+This is an accounting derivation. It does not prove the proxy is a faithful model of target generalization. Confirm mixture rankings at a larger scale, with architecture, optimizer and target exposures matched. [Marin data pipeline](https://openathena.ai/blog/marin-data-pipeline-overview/); [Olmix](https://arxiv.org/abs/2602.12237).
+
+## Understand the saturation formula {#repetition}
+
+For $D\ge U$, let $R=D/U-1$ count repeats beyond the first epoch. One fitted effective-data model is
+
+$$D_{\mathrm{eff}}=U[1+R_*(1-e^{-R/R_*})].$$
+
+Its derivative with respect to $D$ is $e^{-R/R_*}$, so the marginal effective contribution decreases exponentially. Its limit is $U(1+R_*)$. Muennighoff et al.'s Appendix A reports $R_D^*\approx15.4$ for its fit; this is an e-folding scale, not four epochs and not a half-life. [Data-constrained scaling, v5, Appendix A](https://arxiv.org/abs/2305.16264v5).
+
+The monotone saturation form cannot describe validation loss getting worse from severe overfitting. Diagnose such failures rather than forcing every point into it. Synthetic rewrites also need lineage: different wording is not independent new source knowledge.
+
+## Select and confirm a mixture {#confirmation}
+
+Fit task-specific responses on sampled feasible mixtures, validate on excluded mixtures, solve under exposure constraints, and compare the solved mixture with natural and capped baselines. A compositional correlation is not a causal effect: raising one weight necessarily lowers others. Preserve the substitution being tested.
+
+**Required artifact:** bucket inventory, overlap audit, sampler definition, exposure table, held-out mixture scores and larger-scale confirmation. See the [data protocol](../experiments/07-data-mixture.qmd).
+
+[Back to the blog reading guide](../reading/jiaxuan-reading-guide.qmd) · [Quarto notes](../reading/deep-dive-notes.qmd)

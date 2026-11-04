@@ -1,0 +1,49 @@
+---
+title: "Data experiments: source value, mixture weights, and repetition"
+---
+
+> **Reading note.** This is an explanatory reconstruction of Jiaxuan Zou’s literature synthesis. Published experiments belong to the cited teams. Numbered protocols and illustrative matrices are our planning synthesis unless explicitly attributed.
+
+The blog's §7 contains three distinct experiments: screening a new source, optimizing domain weights, and measuring the value of repeated data. Hold architecture and optimization fixed initially so that a source's effect can be identified.
+
+## Inventory and source screening
+
+1. Deduplicate across sources, record provenance, and freeze quality filters and tokenizer.
+2. For bucket $j$, count unique tokens $U_j$ after filtering and deduplication. Version the resulting manifest.
+3. Screen a source using a controlled small-model addition or a short continuation branch from a common checkpoint.
+4. Score every candidate on identical validation distributions and domain tasks. A micro-annealing result measures marginal value at that checkpoint, not a full-training ranking.
+
+OLMo 2 uses short continuation experiments in its data-development process; the blog combines this with the mixture methodologies of Olmix, OLMo 3, and Marin. These methods have different experimental scopes and should not be treated as interchangeable evidence.
+
+## Fit a constrained mixture
+
+Let $w_j\ge0$ be a bucket's fraction of $D$ loss-bearing training tokens, with $\sum_j w_j=1$. Its approximate average exposure is
+
+$$e_j=\frac{Dw_j}{U_j}.$$
+
+An epoch cap $k_j$ implies $w_j\le k_jU_j/D$. This accounting assumes the declared within-bucket sampling process and does not capture document-level exposure variation.
+
+1. Establish token-proportional and repetition-capped baselines.
+2. Sample candidate weights over the feasible simplex; use a declared prior.
+3. Train proxies with matched optimizer and horizon conventions. Downscale bucket pools to reproduce target exposure when studying repetition.
+4. Fit per-task response models and validate them on mixtures excluded from fitting. Examine non-monotonic saturation.
+5. Optimize the declared aggregate objective subject to caps. If using KL regularization toward a prior, tune its coefficient on development mixtures.
+6. Train the proposed mixture at a larger scale and compare it against the baseline with paired seeds.
+
+For repetition, one model in Muennighoff et al. uses
+
+$$D_{\mathrm{eff}}=U\left[1+R_*\left(1-e^{-R/R_*}\right)\right],$$
+
+where $R=D/U-1\ge0$ is additional repetition beyond the first epoch and $R_*>0$ is a fitted decay scale. $R_*$ is an e-folding scale; the marginal contribution halves after $R_*\ln2$, so it should not be called a half-life. The expression describes diminishing returns rather than all possible overfitting dynamics.
+
+The cited paper’s Appendix A reports $R_D^*=15.387756$ and $R_N^*=5.309743$ for its extended fit. These are recipe-specific fitted values. The supplied notes correctly distinguish the roughly four-epoch near-fresh regime from the approximately 15.4 data-repetition decay scale. [Muennighoff et al., v5, Eq. 14](https://arxiv.org/pdf/2305.16264v5).
+
+## Minimal matrix and acceptance
+
+Compare natural weights, capped weights, sampled mixtures, and the solved mixture at a fixed proxy size/horizon; confirm finalists at an intermediate scale. Sweep unique-pool size or epochs separately to identify repetition effects.
+
+**Acceptance checklist:** fixed validation; audited overlaps; feasible epoch caps; held-out mixture predictions; intermediate-scale confirmation; no regression in critical domains; combined optimizer/mixture check before production.
+
+**Sources:** [blog §7](../reading/scientific-scaling-ladder.md#7-data-ladder); [OLMo 2, 2025](https://arxiv.org/abs/2501.00656); [Olmix, 2026](https://arxiv.org/abs/2602.12237); [OLMo 3, 2025, §3.4](https://arxiv.org/abs/2512.13961); [Marin data pipeline](https://openathena.ai/blog/marin-data-pipeline-overview/); [Muennighoff et al., 2023](https://arxiv.org/abs/2305.16264).
+
+[Blog/notes crosswalk](../reading/jiaxuan-reading-guide.qmd) · [Detailed companion](../deep-dives/data-and-repetition.qmd)

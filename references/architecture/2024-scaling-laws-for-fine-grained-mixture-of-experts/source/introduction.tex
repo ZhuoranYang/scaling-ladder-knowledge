@@ -1,0 +1,138 @@
+\section{Introduction}
+% \sj{Active params definition, from mixtral: "which grows with n, and the number of parameters used for processing an
+% individual token (called the active parameter count), "}
+% \repl{Recently, we have witnessed the development of large language models achieving exceptional effectiveness in various tasks. Despite their performance, the cost of training these massive models is very high. In response to these challenges, the research is striving to increase the efficiency of these systems. One approach that proves to be promising is the use of the Mixture of Experts (MoE) architecture.}{
+% In recent years, we have witnessed Large Language Models (LLMs) achieve exceptional performance in tasks across numerous domains \cite{chowdhery2022palm, yin2023survey, agostinelli2023musiclm}. However, training those massive models incurs high computational costs, measured in millions of GPU-hours, \cite{touvron2023llama2} enabled only by enormous budgets \cite{workshop2023bloom} and leading to non-negligible carbon footprints \cite{faiz2024llmcarbon}. To combat these obstacles, the research community has been striving to increase the efficiency of LLMs. One promising approach that has lately been gaining visibility is the use of Mixture of Experts (MoE) methods.
+% %}. 
+% Models such as Switch \cite{fedus2022switch} and Mixtral \cite{jiang2024mixtral} have already demonstrated that it is possible to achieve comparable effectiveness with significantly lower computational costs.
+
+
+% In the context of the current trend of increasing budgets for training models, a question arises: will MoE models continue to be attractive in the future? This is an important issue, as results from other studies \cite{clark2022unified%, artetxe2022efficient
+% } suggest that the traditional dense models may outperform MoE as the size of the models increases. 
+
+% In this paper, we argue that previous claims lose their validity when we relax certain implicit assumptions regarding the training process, present in previous research \cite{clark2022unified}. In particular, we refer to the fixed training duration and the constant size of experts in MoE models. %\sj{not understandable paragraph; also a bit strong}
+
+% Our results suggest that a compute-optimal MoE model trained with a budget of $10^{20}$ FLOPs will achieve the same quality as a dense Transformer trained with a \textit{$20\times$} greater computing budget, with the compute savings rising steadily, exceeding \textit{$40\times$} when budget of $10^{25}$ FLOPs is surpassed (see Figure \ref{flag_plot}).
+
+% Our main contributions are:
+
+% \begin{enumerate}
+%     \item Introducing a new hyperparameter - granularity. Adjusting this parameter allows us to determine the optimal size of experts in MoE models, which translates into increased efficiency.
+
+%     \item Deriving new scaling laws for MoE models that incorporate variable training duration, the number of parameters, and granularity. Such scaling laws allow us to calculate optimal training hyperparameters for MoE models.
+    
+%     %\item Finally, using these scaling laws to derive the parameters of the optimal training setup for MoE models.
+
+
+%     % \item  \repl{ Using these scaling laws, we derive the parameters of the optimal training setup for MoE models. We demonstrate that, with optimal settings, MoE models always outperform traditional Transformers in terms of the trade-off between training budget and model quality. For example, for training using the order of $10^{20}$ FLOPs, the computational savings amount to about 20x for the same model quality, while for $10^{25}$ FLOPs, the savings increase to 40x.}{  Finally, using these scaling laws to derive the parameters of the optimal training setup for MoE models. \maciej{Odtąd bym skończył enumerate i byłoby "zakończenie" introduction i 3 punkty w main contributions podobnej długości} We demonstrate that, with optimal settings, MoE models always match the quality of traditional Transformers trained with a much larger computing budget.
+%     % For example, a compute-optimal MoE model trained with a budget of $10^{25}$ FLOPs will achieve the same quality as a dense Transformer trained with a \textit{40x} greater computing budget (see Figure \ref{flag_plot}).
+%     % } \maciej{Rozumiem, że MoE potrzebuje $10^{25} / 40$ FLOPsów, żeby osiągnąć jakość Transformera trenowanego na $10^{25}$?} \jk{do mp: odwrotnie} \sj{"see figure X?"} \sj{altho this paragraph maybe should be shorter, so idk}
+
+% \item Demonstrating that, with optimal settings, MoE models can always outperform traditional Transformers at any computing budget. This is a conclusion contrary to the results from \cite{clark2022unified}.
+% \end{enumerate}
+
+% Additionally, we will open-source the code used to produce the results described in this work.
+
+
+% %This work sheds new light on the possibilities and efficiency of MoE models, offering a path to creating more efficient.
+
+% % % I want this figure to be visible on the first page or somewhere around
+
+% % %A picture like that will be here. Caption: We predict the loss well \sj{Rather I want to see scaling laws here. This will be in a later chapter.}
+% % %\begin{figure*}[ht!]
+% % %\centering
+% % %\includegraphics[width=0.8\textwidth]{icml2024/figures/scaling.png}
+% % %\caption{Scaling laws}
+% % %\label{fig:diagram}
+% % %\end{figure*}
+
+% % % \ka {adding actual intro}
+% % With the beginning of this year we have witnessed publication of several Mixture of Experts (MoE) Large Language Models (LLMs), which include: Phixtral that combines 2 or 4 Phi-2 models~\cite{phixtral}, DeepSeekMoE~\cite{dai2024deepseekmoe} that independently to this paper proposes  architecture that uses more granular experts to achieves 60\%
+% % cost saving with respect to LLaMA2 7B, or MoE-Mamba, that demonstrates 2.2 savings for state space
+% % models~\cite{pióro2024moemamba}. These results rise a question whether similar or even larger cost reductions will be possible when the models are scaled even further? This is highly puzzling question as~\cite{clark2022unified} states
+% % that MoE shall be used for models with less than 1.3B parameters. Analogously,~\cite{artetxe2022efficient} observes that the gap between dense and MoE models narrows at scale. These statements are not only in contrary with the results of~\cite{dai2024deepseekmoe}, but as well with the 1.2T model in~\cite{du2022glam}, or even with 1.6T model from~\cite{fedus2022switch}, that all deliver computational savings for pre-training. We have surveyed these
+% % papers and observed that they typically make arbitrary assumptions about 
+% % both MoE architecture as well as training setup. Thus limiting the
+% % exploration of parameter space that can lead to sub-optimal results. In particular, both papers \cite{clark2022unified} and \cite{artetxe2022efficient} that study scaling laws execute the training over fixed amount of tokens independently on the model size. However, we observe that MoE models require longer training even when experts see fixed number of tokens while scaling. Hence, any derivation of scaling laws for MoE needs
+% % to include the size of the training data as parameter, what previously was disregarded. Furthermore, we introduce the notion of {\em granularity}, i.e., we split experts into smaller ones, extending  the space of hyperparameters for 
+% % the model architecture and allowing to seek for optimal granularity. As stated
+% % above this idea was independently introduced in~\cite{dai2024deepseekmoe}, but 
+% % similarly to other papers the granularity level was fixed in a rather arbitrary way, whereas here we aim to provide the best choice for a given model size.
+
+
+
+
+
+% %Transformers have become the leading architecture in natural language processing (NLP), computer vision, sound generation, and across a range of other domains \cite{zhai2022scaling, Niizumi2022BYOL, Mars2022From}. Autoregressive Large Language Models (LLMs), trained on billions or even trillions of tokens, have proved to be especially versatile, achieving impressive zero-shot performance in various NLP tasks. 
+% %A crucial factor contributing to their effectiveness is the scale of the models. Research on neural scaling laws \cite{kaplan2020scaling,hoffmann2022training,clark2022unified} demonstrates that enhancing the performance of Large Language Models (LLMs) is significantly dependent on increasing both the number of model parameters and the volume of training data.
+
+% %Nevertheless, in the typical Transformer design, a rise in the number of parameters leads to an increase in the inference cost, quantified in Floating Point Operations (FLOPs). This dependency was overcome by Mixture of Experts (MoE) design that increases the model size while in inference selecting only a subset of the model's parameters for each token \cite{fedus2022switch}.
+
+% % \begin{figure*}[ht!]
+% % \centering
+% % \includegraphics[width=0.5\textwidth]{icml2024/figures/scaling.png}
+% % \caption{Compute Optimal scaling curves for Granular models and standard Transformers. Cyan, yellow and red lines represent areas on the Granular curve where respectively granularities $4$, $8$ and $16$ are optimal. We can observe that Granular models achieve better perplexity than dense Transformer throughout the entire FLOPS range. Moreover, bigger models benefit from higher granularities, while standard granularity $1$ is never optimal. $64 \times 7B$  denotes a model with expansion rate $64$ and $7B$ active parameters \janek{Dodać po prawej wykres Dopt x Nopt z kolorkami po optimal granularity}} 
+% % \label{fig:scaling}
+% % \end{figure*}
+
+
+
+
+
+% % \begin{figure}[ht!]
+% % \centering
+% % \includegraphics[width=0.5\textwidth]{icml2024/figures/gran_curve.png}
+% % \caption{By adjusting granularity to the optimal value for a given training budget, we achieve much faster convergence of the model.}
+% % \label{fig:gran_project}
+% % \end{figure}
+% % \mk{zacząłbym od tego co to wgl jest i wtedy poszczególne linie} 
+
+% %Black line is dense compute optimal scaling curve, while colored lines represent scaling of MoE models with different granularities, with purple line representing granularity $1$ being the standard baseline MoE. 
+% % Parts of the curve where given granularity is compute optimal are marked with solid line, locally suboptimal granularities are plotted with a dashed line. We can clearly see \mk{brzmi informal, ale nei jestem anglistą, może observe?}, that bigger models need higher granularities, and the standard granularity $1$ is never optimal. 
+
+% %Moreover, when adjusting compute optimal $N,D,G$, MoE models always perform more efficiently than their dense counterparts, and while scaling the gap only widens. 
+% %\sj{Make this same chart again, but w/o boldening the optimal granularity (and zoom in). Put it in addition to this one. This by its own is not understandable, so basically we want a simple version of this chart first.} \jk{może inne grans like 6? maybe not log scale on y?} \ps{tutaj też brakuje powiedzienia jakie jest expansion rate}
+
+% % To be more specific the novel contributions of this paper are as follows:
+% % \begin{enumerate}
+% %     \item \textbf{New Concept: Granularity} We introduce a new Mixture of Experts hyperparameter, \textit{granularity} that splits each expert into sub-experts, creating a class of granular models that achieve significantly lower perplexity than their non-granular counterparts.
+% %     %\marekc{I would call it a hyperparameter, not parameter}
+% %     \item \textbf{Scaling Laws for Granular MoE} We provide unified scaling laws for a Mixture of Experts model that predicts loss based on granularity, in addition to other factors. Furthermore, we obtain a formula to determine the compute-optimal model granularity. Taking into account both the varying number of training tokens and model parameters, we provide an optimal training schedule for MoE models -- see Figure~\ref{fig:scaling}.
+% % \end{enumerate}
+% % In contrary to \cite{clark2022unified}, our scaling laws show that MoE models always scale better than vanilla Transformers when a variable number of steps is considered. Additionally, we conclude the that gap between dense and MoE model does not narrow with scale as stated in~\cite{artetxe2022efficient}.
+% % Furthermore, in order to derive all these results reliably, we are the first to consider the FLOPS routing overhead cost which is inherent in all MoE models. 
+
+% % \ka{Tutaj coś w rodzaju optimal design and hyperparams are still a point of debate, clark et al. etc., a my dodajemy nowy parameter, badamy go i pokazujemy, że MoE może być bardziej optymalne.}
+
+
+% %\ka{paragraph below to be done, get another contribution to think about (or split point 2 into two)}
+
+% %\maciej{Since we are interested in practical results? poszedłbym tu w kierunku `practical/real-life` a nie `fair`}
+
+% % [sj: This is contrary to findings by ”scaling laws” blabla]  \maciej{Czy ten statement (all MoE models) nie jest za mocny?} \janek{tutaj liczymy routing cost który jest dla każdej metody która ma jakis klasyfikator (token, expert), wiec conajmniej wszystko co nazwałbym MoE bez jakiś low-rank trików które specjalnie go omijają, typu Sparse Transformer. Sens był taki tutaj, że ten koszt też jest w switch/expert-choice, a nie tylko u nas, napisane zwięźle}.\mk{Nie wiem czy to w introduction jest potrzebne o routingu}
+
+% %    \item \textbf{Improvements in the MoE architecture \maciej{Rozumiem, ze to wyrzucamy} } Finally, we modify the Expert Choice (EC) routing algorithm, allowing it to work autoregressively while preserving compatibility with encoder and encoder-decoder models. Moreover, we show that a short fine-tuning allows a model trained as an autoregressive EC to function as a Token Choice model. 
+%     % Our Granular MoE, in contrast to regular Expert Choice can be used on each layer, bringing in consistently to the architecture.
+
+%     % mysle, ze na to nie ma szansy
+% %    \item \textbf{Shiny new model: bazilion params.} We extrapolate our scaling laws to train a multi-gpu compute optimal large model that %surpasses non-granular MoE models with the same FLOP budget and dense Transformer baselines. 
+% \end{enumerate}
+
+% \sj{Can we base it on some standard format, e.g. ICLR? For example, the margins here are extraordinarily small; it looks weird.} \jk{spoko, możesz podmienić i zobaczymy jak to wygląda. Ten szablon tutaj jest jak w MoE-Mambie}
+
+In recent years, LLMs achieved exceptional performance in tasks across numerous domains \citep{chowdhery2022palm, yin2023survey, agostinelli2023musiclm}. However, training those massive models incurs high computational costs, measured in millions of GPU-hours \citep{touvron2023llama2,workshop2023bloom}, and leading to non-negligible carbon footprints \citep{faiz2024llmcarbon}. To combat these obstacles, the research community has been striving to increase the efficiency of LLMs. One promising approach that has lately been gaining visibility is the use of Mixture of Experts (MoE) methods.
+%}. 
+Models such as Switch \citep{fedus2022switch} and Mixtral \citep{jiang2024mixtral} have demonstrated that it is possible to achieve comparable effectiveness with significantly lower computational costs.
+
+In the context of the current trend of increasing budgets for training models, a question arises: will MoE models continue to be attractive in the future? This is an important issue, as results from other studies \citep{clark2022unified} suggest that the traditional dense models may outperform MoE as the size of the models increases. We argue that previous claims lose their validity when we relax certain implicit assumptions regarding the training process, present in previous research \citep{clark2022unified}. In particular, we refer to the fixed training duration and the constant size of experts in MoE models. 
+%In particular, we refer to the . %\sj{not understandable paragraph; also a bit strong}
+
+Our results suggest that a compute-optimal MoE model trained with a budget of $10^{20}$ FLOPs will achieve the same quality as a dense Transformer at a \textit{$20\times$} greater computing budget, with compute savings rising steadily, exceeding \textit{$40\times$} at $10^{25}$ FLOPs (see Fig. \ref{flag_plots}). Importantly, we show that the standard practice of fixing the size of experts in MoE to be the same as feed-forward layer is \textit{almost never} optimal. Our main contributions are:
+\begin{enumerate}
+    \item Introducing a new hyperparameter - granularity. Adjusting this parameter allows us to determine the optimal size of experts in MoE models, translating into increased efficiency.
+
+    \item Deriving new scaling laws for MoE models by integrating variable training duration, the number of parameters, and granularity, pointing us to the optimal parameters of MoE models.
+
+    \item Demonstrating that, with optimal settings, MoE models can always outperform vanilla Transformers at any computing budget - contrary to the results from \cite{clark2022unified}.
+\end{enumerate}
+% \vspace{1.6}

@@ -1,0 +1,106 @@
+---
+title: "StepFun Part II: Farseer's loss surface and allocation experiments"
+subtitle: "Interaction terms, differential fitting, two-dimensional designs and out-of-sample prediction"
+date: 2026-11-02
+---
+
+## What Part II adds
+
+[Li et al., Farseer v3](https://arxiv.org/abs/2506.10972v3) studies prediction of final model loss across parameter count and token horizon, after standardizing the training family and choosing suitable HPs. It is distinct from [Step Law's optimizer-choice surface](step-law.qmd).
+
+Primary local artifacts: [PDF](../../references/scaling-laws/2025-predictable-scale-part-ii-farseer-a-refined-scaling-law-in-large-language-models/paper.pdf), [LaTeX/code metadata](../../references/scaling-laws/2025-predictable-scale-part-ii-farseer-a-refined-scaling-law-in-large-language-models/metadata.json), and the archived [official implementation](https://github.com/Farseer-Scaling-Law/Farseer). We have reviewed the method and source; we have not rerun the approximately 1,000-model suite.
+
+## 1. Define a family, not just a parameter count
+
+AppendixA defines an architecturally standardized family: $N$ must map to width, depth, attention, FFN, normalization and other choices. Otherwise two equal-$N$ points can represent different algorithms. A dataset recipe similarly includes the tokenizer, processing and mixture policy, not merely its name.
+
+The reported setup (§2.2) uses web/code/math mixtures, BPE vocabulary 65,536, context 2,048, AdamW $(0.9,0.95)$, epsilon$10^{-8}$, decay 0.1, clip 1, 2,000 warmup updates and cosine decay to absolute LR$10^{-5}$. Sizes and horizons are geometrically spaced; a separate high-quality validation set contains30M tokens. AppendixA uses Step Law-style settings to limit suboptimal-HP noise.
+
+The primary compression metric is **bits per character**, not Marin's bits per byte. With non-ASCII text the denominators differ. Keep metric/text normalization/boundary conventions fixed when comparing fits or mixtures.
+
+## 2. Why add a size–data interaction?
+
+A separable Chinchilla-style model is
+
+$$
+L(N,D)=E+AN^{-\alpha}+BD^{-\beta}.
+$$
+
+At fixed $N$, all sizes share one data exponent $\beta$; only the additive model term changes. Farseer instead starts with
+
+$$
+L(N,D)=E+U(N)+V(D)+H(N,D),
+$$
+
+where $H$ allows the response to more data to depend on model size. This is an empirical modeling hypothesis, not proof that a fitted interaction has a unique mechanistic interpretation.
+
+For a data multiplier $r>1$, a difference at fixed $N$ removes the size-only term:
+
+$$
+\Delta_D L(N,D)=L(N,D)-L(N,rD).
+$$
+
+If the data-dependent component is $B(N)D^{-A(N)}$, then
+
+$$
+\Delta_D L(N,D)=B(N)(1-r^{-A(N)})D^{-A(N)}.
+$$
+
+This explains the differential analysis: the log-log slope of those differences can diagnose a size-dependent data exponent. Differences amplify measurement noise and correlated endpoints, so uncertainty cannot be ignored.
+
+## 3. The fitted functional form
+
+The paper's Eq.3 is
+
+$$
+\widehat L(N,D)=e^{a_3N^\gamma+b_3}
++e^{a_2N^\beta+b_2}D^{-e^{a_1N^\alpha+b_1}}.
+$$
+
+Equivalently, write $R(N)+B(N)D^{-A(N)}$, with positive $A,B,R$ parameterized by exponential functions. There are nine coefficients/exponents; their values and numerical units are suite-specific. A flexible expression with more coefficients is not automatically better outside the fitted domain.
+
+The method uses differential/piecewise fits to estimate data-dependent slopes/amplitudes, examines their dependence on $N$, estimates the remaining size-dependent residual, then refines fits with the reported iterative procedure. Read the official code/AppendixC for exact objective weighting, transformations and constraints. Directly launching one unconstrained nonlinear optimizer from arbitrary starts need not reproduce the paper's estimates.
+
+## 4. What data geometry is needed?
+
+A fixed-TPP ladder has $D=rN$, so it samples only one ray through $(N,D)$. It may characterize performance along that recipe but cannot independently identify a general two-dimensional allocation surface.
+
+For Farseer-style analysis, train multiple horizons per size and multiple sizes over overlapping horizon ranges. Hold out entire sizes and horizon ranges; randomly holding out nearby points on the same training trajectory overstates extrapolation evidence. A shared-prefix checkpoint is not a fully annealed endpoint for a shorter horizon unless the appropriate annealing branch was actually trained.
+
+The paper analyzes robustness to fit-data coverage, a different English/Chinese recipe and extrapolation to larger models (§4). Those are empirical tests on its suite. They do not establish calibrated error bars for new sparse/recurrent models, new schedules or cyber data.
+
+## 5. From a surface to a compute allocation
+
+For a dense approximate convention $C=6ND$, the fitted allocation problem is
+
+$$
+N_\star(C)=\arg\min_N\widehat L\!\left(N,\frac{C}{6N}\right).
+$$
+
+For the separable baseline, the stationary equation is
+
+$$
+\alpha A N^{-\alpha}=\beta B(6N/C)^\beta.
+$$
+
+It produces power-law allocations under the model assumptions. Farseer's size-dependent data exponent generally requires a numerical optimization over the feasible family. Do not infer a universal20TPP or a universal increasing TPP from an empirical fit whose family/metric changed.
+
+For MoE, use measured/derived architecture FLOPs $C=f(\mathcal A,\ell)D$ and maintain stored/active parameter definitions. A size label alone does not fix cost when expert count, top-k, latent dimension or recurrence changes. Serving constraints can favor an intentionally overtrained smaller model even when the training-loss allocation optimum differs.
+
+## 6. A defensible fitting and comparison workflow
+
+1. Tune the recipe adequately first; retain its uncertainty and failure regimes. A bad LR at one horizon can masquerade as a new scaling exponent.
+2. Freeze preprocessing, data mixture, tokenizer, family mapping and evaluation text. Compare different families on a common target metric.
+3. Fit the simpler separable law and Farseer on identical fitting points, with multiple initializations/appropriate constraints and declared weights.
+4. Inspect residuals by width, horizon, TPP and schedule phase. Report absolute and relative held-out errors, not only in-sample $R^2$.
+5. Bootstrap independent runs/cells, account for shared prefixes, and stress-test sensitivity to dropping a size or longest horizon.
+6. Predict an untouched larger/longer run before inspecting its outcome. If the forecast misses, diagnose the recipe and data transfer, not only the curve fit.
+7. Compare recipe families at both matched analytical compute and wall time. A lower fitted FLOP frontier can lose after communication or optimizer overhead.
+
+## When should our team run this?
+
+Do it if model/data allocation or a calibrated hero-loss forecast materially affects the decision. For a constrained96-H100 run with a serving-size target and a measured corpus, it is reasonable to prioritize the HP ladder and fresh long-horizon validation first. If we skip the loss-surface study, say that we have **no calibrated hero-loss prediction**.
+
+For cyber data, first test a controlled mixture addition on held-out domain/general metrics. If we later compare scaling surfaces, freeze each data recipe and fit its own surface with matched HP-tuning effort. A single small-model improvement does not establish a hero-scale advantage.
+
+See [Marin's search/loss-law sequence](../optimizers/marin-hyperparameter-search.qmd) and the [current resource plan](../plans/plan-96-h100.qmd) for the practical decision gates.

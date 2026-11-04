@@ -1,0 +1,139 @@
+\documentclass{article}
+
+
+% if you need to pass options to natbib, use, e.g.:
+% \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2024
+
+
+% ready for submission
+\PassOptionsToPackage{numbers, compress}{natbib}
+% \usepackage{neurips_2024}
+
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+% \usepackage[preprint]{neurips_2024}
+
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+\usepackage[final]{neurips_2024}
+
+
+% to avoid loading the natbib package, add option nonatbib:
+% \usepackage[nonatbib]{neurips_2024}
+% \usepackage[numbers]{natbib} 
+\usepackage{amsmath}
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{bbding}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{wrapfig}
+% \usepackage[table]{xcolor} 
+\usepackage{pgf}           
+\usepackage{colortbl}
+% \usepackage{arydshln}
+\definecolor{darkblue}{rgb}{0, 0, 0.5}
+\hypersetup{colorlinks=true, citecolor=darkblue, linkcolor=darkblue, urlcolor=darkblue}
+
+\newcommand{\qian}[1]{\textcolor{red}{[\textrm{$_{qian}$#1}]}} 
+% Qian's comments
+
+\providecommand{\longxu}[1]{{\protect\color{magenta}{[longxu: #1]}}}
+\providecommand{\niklas}[1]{{\protect\color{purple}{[Niklas: #1]}}}
+\providecommand{\chaofan}[1]{{\protect\color{brown}{[chaofan: #1]}}}
+\newcommand{\colorcell}[1]{%
+  \pgfmathparse{int(100-#1*100)}% Scale the value to [0,100]
+  \expandafter\cellcolor{blue!\pgfmathresult} #1
+}
+
+\makeatletter
+\AtBeginDocument{%
+  \renewcommand{\sectionautorefname}{\S\@gobble}
+  \renewcommand{\tableautorefname}{Table}
+  \renewcommand{\equationautorefname}{Equation}
+  \renewcommand{\subsectionautorefname}{\S\@gobble}  
+  \renewcommand{\subsubsectionautorefname}{\S\@gobble}    
+}
+\makeatother
+
+\title{Scaling Laws with Vocabulary:\\Larger Models Deserve Larger Vocabularies}
+
+\renewcommand\footnotemark{}
+\author{
+Chaofan Tao$^{1,2}$ \quad
+Qian Liu$^{2\dagger}$ \quad
+Longxu Dou$^{2\dagger}$ \quad
+Niklas Muennighoff$\,^{3,4}$\\
+\textbf{Zhongwei Wan}$^5$ \quad
+\textbf{Ping Luo}$^1$ \quad
+\textbf{Min Lin}$^2$ \quad
+\textbf{Ngai Wong}$^{1\dagger}$
+\thanks{$^\dagger$Corresponding authors. The project was done during Chaofan Tao's internship at Sea AI Lab. For more information, please contact \href{mailto:cftao@connect.hku.hk}{\texttt{cftao@connect.hku.hk}} and \href{mailto:liuqian.sea@gmail.com}{\texttt{liuqian.sea@gmail.com}}.}\\ \\
+$^1$The University of Hong Kong \quad
+$^2$Sea AI Lab \quad
+$^3$Contextual AI\\
+$^4$Stanford University \quad
+$^5$The Ohio State University\\
+% \texttt{cftao@connect.hku.hk}\quad\texttt{liuqian@sea.com} 
+}
+
+
+\begin{document}
+
+
+\maketitle
+
+\begin{abstract}
+Research on scaling large language models (LLMs) has primarily focused on model parameters and training data size, overlooking the role of vocabulary size. We investigate how vocabulary size impacts LLM scaling laws by training models ranging from 33M to 3B parameters on up to 500B characters with various vocabulary configurations. We propose three complementary approaches for predicting the compute-optimal vocabulary size: IsoFLOPs analysis, derivative estimation, and parametric fit of the loss function.
+Our approaches converge on the conclusion that the optimal vocabulary size depends on the compute budget, with larger models requiring larger vocabularies.
+Most LLMs, however, use insufficient vocabulary sizes.
+For example, we predict that the optimal vocabulary size of Llama2-70B should have been at least 216K, 7 times larger than its vocabulary of 32K. We validate our predictions empirically by training models with 3B parameters across different FLOPs budgets. Adopting our predicted optimal vocabulary size consistently improves downstream performance over commonly used vocabulary sizes. By increasing the vocabulary size from the conventional 32K to 43K, we improve performance on ARC-Challenge from 29.1 to 32.0 with the same 2.3e21 FLOPs. 
+Our work highlights the importance of jointly considering tokenization and model scaling for efficient pre-training. 
+The code and demo are available at \url{https://github.com/sail-sg/scaling-with-vocab} and \url{https://hf.co/spaces/sail/scaling-with-vocab-demo}.
+\looseness=-1
+\end{abstract}
+
+
+
+\input{sec/1-intro}
+\input{sec/2-background}
+\input{sec/3-1preliminary}
+\input{sec/3-2motivation}
+\input{sec/3-3method}
+\input{sec/4-discussion}
+\input{sec/5-related}
+
+\section{Conclusion}
+
+We investigate the impact of the vocabulary size in language models. We analyze and verify that there exists an optimal vocabulary size for a given FLOPs budget. Subsequently, we develop 3 approaches to predict the optimal vocabulary size.
+Our first approach uses empirical training runs across different IsoFLOPs regimes to fit a scaling law. The second approach investigates the FLOPs w.r.t. the vocabulary size and estimates the vocabulary size with derivatives. The third approach consists of a parametric function to predict the impact of different attributes on loss.
+Across all approaches, we find that while vocabulary parameters should be scaled slower than other parameters, they are still critical for performance and we can accurately predict their optimal allocation. We make predictions for larger models and empirically verify our approaches on up to 3B parameters and on varying amounts of training data. We show that models trained with an optimal vocabulary size as predicted by our approaches outperform models with a conventional vocabulary size under the same FLOPs budget.
+\looseness=-1
+
+\section*{Acknowledgements}
+This work was supported by in part by the Theme-based Research Scheme (TRS) project T45-701/22-R of the Research Grants Council (RGC), Hong Kong SAR.
+
+\bibliography{ref}
+\bibliographystyle{acl_natbib}
+
+\newpage
+\input{sec/6-appendix}
+\input{sec/7-limitation}
+\input{sec/8-checklist}
+
+
+\end{document}

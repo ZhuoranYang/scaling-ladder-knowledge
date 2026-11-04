@@ -1,0 +1,67 @@
+\section{Discussion}
+\label{sec:discussion}
+Our findings amplify the findings of \citet{ludziejewski2024scaling} and further justify the effort to work toward \moes with experts larger in number and smaller in size~\citep{he2024mixture}. For downstream tasks which their performance is predictable given the pretraining loss (i.e., perplexity), sparsity potentially provides efficiency gains both during pretraining and inference. 
+
+Here is a summary of our observations as discussed in \Cref{sec:n_s_d_interaction,sec:effect_of_training_budget,sec:scaling_law_ds,sec:deriving_scaling_laws} :
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Larger, Sparser Models Perform Better under a Fixed Compute Budget:} When memory and communication overheads are disregarded, increasing sparsity while proportionally expanding the total number of parameters consistently leads to a lower pretraining loss, even when constrained by a fixed training compute budget (see \S~\ref{sec:n_s_d_interaction}).
+
+        \item \textbf{Optimal Sparsity for Fixed Model Size:} 
+    For any given number of parameters and under a fixed training compute budget, model performance as a function of sparsity exhibits a parabolic pattern, reaching its peak at an optimal sparsity level (see \S\ref{sec:fix_params_vary_sparsity}). Specifically, the optimal sparsity level:
+    \begin{itemize}
+        \item Increases with the total number of parameters approaching $1.0$ for larger models. i.e., if a model is relatively small for a given training compute budget, sparsifying it more than a threshold will hurt its performance. On the other hand, if a model is relatively large for a given compute budget, further sparsifying it helps as it leads to increase in the number of tokens the model is trained on under the given training budget constraints (see \S\ref{sec:fix_params_vary_sparsity}). 
+        \item Increases across all model sizes as the training compute budget increases (see \S\ref{app:n_s_d_interaction} and \S\ref{app:budget}). 
+    \end{itemize}
+    
+    \item \textbf{Effect of Sparsity on Scaling Laws for Optimal Model Size:} For any specific sparsity level, performance of the models as a function of their size exhibits parabolic behavior under a fixed training compute budget. i.e., the model reaches its optimal performance at a vertex, that indicates optimal model size.
+    Under these conditions:
+     \begin{itemize}
+     \setlength{\itemindent}{0pt}  % No extra indentation for items
+     \setlength{\leftmargin}{0pt}  % No left margin
+      \item The optimal active number of parameters decreases as the sparsity level increases, leading to smaller \flops per example and more efficient inference even though the total number of parameters increases (see \S\ref{sec:fix_sparsity_vary_params}).
+      \item While the trend of increasing active number of parameters is similar across all training compute budgets; the optimal active number of parameters decrease more rapidly with sparsity as the training compute budget increases (see \S\ref{sec:effect_of_training_budget}). 
+\end{itemize}
+    \item \textbf{Effect of Sparsity on Downstream Performance:} For most downstream tasks, models with similar pretraining perplexity have similar downstream task performance regardless of sparsity. For reading comprehension tasks (e.g., CoQA~\citep{reddy-etal-2019-coqa}, SQuAD~\citep{rajpurkar-etal-2018-know}), denser models perform better, potentially due to their higher inference-time compute than a perplexity-matched sparse model. Strategies to increase inference time compute dynamically~\citep{wei2022chain_cot,goyal2024think_pause} may address this gap. 
+    % We use a ``length-controlled'' variant of few-shot Chain-of-Thought (CoT) prompting to study whether this strategy may help close the gap between \moes and dense models on reasoning tasks in~\Cref{app:cot_expt}. Empirical evidence suggests that \moes may benefit more from dynamically increased inference-time compute than dense models under a fixed generated tokens budget. 
+
+    \item \textbf{Parametric Scaling Law:} We propose a parametric form for scaling laws that accounts for sparsity. The model coefficients are estimated using the empirical data obtained by training compute-optimal models. An interesting observation from ~\Cref{appendix:scaling_law_sparsity} is that the exponent for sparsity term $\lambda$ is negative which is consistent with our intuition that sparser models lead to a lower perplexity. 
+\end{itemize}
+
+%How increasing the sparsity level makes pretraining more efficient?
+% Based on these observations, during pretraining, sparsity allows us to increase the model capacity by adding more parameters, while at the same time increasing the amount of data the model sees with the the same total training flops by reducing the number of \flops per token. 
+
+% %How we can benefit from reduced flops per example during inference? 
+% At inference, for many tasks, e.g., language understanding and world knowledge, we can benefit from reduced costs both during pretraining and performance, as the sparsity level does not seem to impact the relation between pretraining and downstream performance. As sparser models are able to achieve lower perplexity on pretraining data with fewer total training \flops and \flops per token.
+% However, reducing the compute during inference has an adverse effect on the transferability of pretraining performance to downstream on tasks that require more on the fly reasoning, e.g., reading comprehension.
+
+
+% \todo[inline]{Add a paragraph about CoT experiments}. 
+
+% \todo[inline]{Add something about the general scaling laws (which they)}
+% \paragraph{Overtraining}
+% It is also noteworthy that, in this paper, we have prioritized training compute-optimal models, in contrast to many published results on large language models (LLMs), which often rely on over-trained models. As a result, the performance of the models we use for the analysis in this paper is not directly comparable to those of other studies, where they overtrain smaller language models, to reduce the cost of inference relative to training.  
+
+\subsection{Limitations}
+In our analysis, similar to other scaling law studies~\citep{kaplan_scale, hoffmann2022training}, we have measured the costs for both training and inference exclusively in terms of FLOPs. While there may be discrepancies between actual computational costs and theoretical FLOPs due to hardware specifications, infrastructure, and implementation details, it is reasonable to abstract away from these factors when comparing similar models under fixed conditions. However, an important aspect not accounted for in this study is the cost associated with memory usage and communication overhead, which could potentially increase as we raise the sparsity level. Incorporating these factors is challenging because they are highly dependent on the hardware used. 
+To address this limitation to some extent, in \Cref{sec:fix_params_vary_sparsity} we investigate the optimal sparsity level under the setting where total number of parameters is fixed.
+
+Despite the limitation with using an approximate method to quantify FLOPs, our findings highlight the importance of investing in methods to enhance the efficiency of sparse Mixture-of-Experts models. By increasing model capacity through additional parameters while minimizing per-unit computation costs, these models have the potential to improve both efficiency and performance. The availability of GPUs with larger memory, for e.g., the recently introduced H200 GPU chip with 141 GB of memory as well as improving the efficiency of training and deployment pipelines~\citep{nv_nemo} suggest that there is significant interest in developing efficient implementations for \moes.
+
+% Moreover, despite this limitation, our findings highlight the importance of investing in methods to enhance the efficiency of the underlying mechanism that support sparse Mixture-of-Experts models as by increasing model capacity through additional parameters while minimizing the per-unit cost of computation, these models have the potential to improve both efficiency and performance. 
+% \todo[inline]{@Vimal: Motivation from harware design point of view?
+% thing are aligning even in the hadrware word: H200}
+
+% Through a large scale empirical study where we systematically varied model size, sparsity and total compute to train \moes on the task of langauge modeling; we aimed to disentangle the effects of model parameters and \flops per example to find an optimal recipe for scaling up model's capacity under different constraints, i.e., memory and total training budget.
+
+% In line with previous work~\citep{}\todo{add citation}, we found that increasing sparsity, while scaling up the total number of parameters proportionally, consistently lowers pretraining loss across different training compute budgets (see \S~\ref{sec:fix_sparsity_vary_params} and ~\ref{sec:effect_of_training_budget}).
+
+% Interestingly, as sparsity increases, while the compute-optimal model size also grows the number of active parameters, hence \flops per example decreases. Allowing for larger models fewer flops per example, thus reducing inference costs.  Our analysis on comparing the trend of decreasing inference cost across different training comptue budgets, suggests that this effect is amplifying as we increase the training budget. 
+
+% We also observed that the impact of sparsity is not uniform across all model sizes: there exists an optimal sparsity level for each model size, which grows as the model's size increases (see \S~\ref{sec:fix_params_vary_sparsity}). 
+
+% Interestingly, while sparse models perform better overall when taking the cost of training and inference into account, if we consider the relation between upstream and downstream performances, dense models show better transfer on specific tasks, such as reading comprehension. This could be an indicator of the importance of compute per example during inference, and this observation might be a side effect higher compute during inference for denser models with the same pretraining performance. However, alternative inference strategies to increase inference time compute~\citep{wei2022chain_cot, goyal2024think_pause} may help close this gap for sparse models. 
+
+
+
+
+

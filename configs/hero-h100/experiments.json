@@ -1,0 +1,109 @@
+{
+  "qualification": {
+    "stages": [
+      "single-rank shared/unrolled forward and summed-gradient parity",
+      "8-GPU BF16 MoE/EP and checkpoint-recompute equivalence",
+      "32-GPU data/optimizer/checkpoint resume",
+      "128-GPU throughput and peak-HBM rehearsal"
+    ],
+    "new_looped_trainer_is_already_validated": false
+  },
+  "reference_search": {
+    "reference": "S0, both families, 10B tokens, 20% decay endpoint",
+    "peak_lrs": [
+      0.0003,
+      0.0006,
+      0.0012
+    ],
+    "batch_tokens": [
+      524288,
+      1048576,
+      2097152
+    ],
+    "weight_decay": [
+      0.05,
+      0.1,
+      0.2
+    ],
+    "method": "coordinate refinement with best-of-search confirmation, not all combinations",
+    "budget": "14 S0 runs plus 6 S1 LR-calibration runs at 10B tokens each",
+    "long_horizon_checks": {
+      "tier": "S0",
+      "horizon_tokens": 160000000000,
+      "additional_runs": 4,
+      "lr_factors": [
+        0.5,
+        2.0
+      ],
+      "per_family": true,
+      "use": "estimate horizon trend before final ladder; expand if boundary wins, within contingency cap"
+    }
+  },
+  "data_screen": {
+    "reference": "qualified S0 unlooped reference; 20B tokens",
+    "recipes": [
+      "natural capacity-proportional weights under caps",
+      "proposed phase-1 weights",
+      "remove medium-low; transfer 10 points to medium",
+      "replace medium-low 10% with raw-low 10%",
+      "transfer 10 points medium to high",
+      "remove synthetic; transfer 10 points to medium-high",
+      "transfer 5 points medium to code",
+      "transfer 5 points medium to math"
+    ],
+    "init_seeds": [
+      101,
+      202
+    ],
+    "paired_data_manifest": "same sampler seed and versioned pools; differing mixtures cannot have identical training text",
+    "required_followup": "confirm winning recipe versus baseline at S1 and target exposure"
+  },
+  "shape_and_expert_screen": {
+    "budget": "8 S1-equivalent 20B-token runs; match actual compute, record parameter/cache mismatch",
+    "loop_depth_candidates": [
+      16,
+      20,
+      24
+    ],
+    "routed_expert_candidates": [
+      64,
+      96,
+      128
+    ],
+    "top_k": 8,
+    "fixed_loop_visits": 2,
+    "fixed_loop_span": 0.5,
+    "selection_changes_must_trigger_updated_matching_and_ladder": true
+  },
+  "core_ladder": {
+    "rows": "doc/data/hero-run-matrix.csv",
+    "architectures": [
+      "unlooped",
+      "looped"
+    ],
+    "fit_tiers": [
+      "S0",
+      "S1",
+      "S2"
+    ],
+    "horizons_per_tier": 3,
+    "decay_tokens_fraction": 0.2,
+    "trunks_shared_within_architecture_and_tier": true,
+    "seed_cluster_unit": "stable trunk and its decay branches"
+  },
+  "held_out": {
+    "high_tpp": "Both S1 families at 720B, new seed independent of fitting trunks; freeze fits and decisions before observing results. This is about 220\u2013226 stored-parameter TPP for this tier.",
+    "hero_shape": "selected 32-layer hero shape at 10B; standalone complete short-horizon WSD for size holdout and systems validation, not a 3.5T stability guarantee"
+  },
+  "hero_release_gate": {
+    "equal_quality_projected_wall_time_saving_minimum": 0.05,
+    "paired_gain_confidence": "95% run-cluster bootstrap interval excludes no improvement",
+    "critical_task_floor": "at most 1 absolute accuracy point regression, interpreted with evaluation uncertainty",
+    "loop_steady_throughput_ratio_minimum": 0.9,
+    "peak_hbm_gib_maximum": 72,
+    "minimum_engineering_run_steps": 10000,
+    "budgeted_hero_tokens": "freeze from measured sustained throughput before launch",
+    "stored_parameter_tpp_minimum": 200,
+    "bf16_model_weights_gb_maximum": 48
+  }
+}

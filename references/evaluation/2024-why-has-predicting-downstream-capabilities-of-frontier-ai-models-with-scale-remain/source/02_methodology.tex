@@ -1,0 +1,31 @@
+\section{Methodology: Data for Studying Scaling of Downstream Capabilities}
+\label{sec:methodology}
+
+To study how downstream capabilities on specific tasks change with scale for different model families, we generated per-sample scores from a large number of model families and multiple-choice NLP benchmarks. To ensure the computed scores were consistent with prior work, we used EleutherAI's Language Model Evaluation Harness \citep{eleuther2023evalharness}.
+
+\paragraph{Model Families} 
+
+Because our goal is to explore the scaling behavior of evaluations with increasing compute, we chose to evaluate model families with dense combinations of parameter counts and token counts.  The following families were evaluated (additional details in App. \ref{app:sec:ckpt-details}):
+
+\begin{enumerate}
+    \item \textbf{Pythia} \citep{biderman2023pythia}: The Pythia family contains 8 models from 70M to 12B parameters trained on the Pile \citep{gao2020pile} for 300B tokens. % using the same settings.
+    % 154 model checkpoints per model size are released.
+    We used 8 checkpoints per size of the non-deduplicated variants.%: 2M, 64M, 2B, 6B, 20B, 60B, 200B, and 300B tokens.
+    \item \textbf{Cerebras-GPT} \citep{dey2023cerebrasgpt}: The Cerebras-GPT family contains 7 models ranging from 111M to 13B parameters. %\footnote{The Cerebras-GPT authors recently and graciously made intermediate pretraining checkpoints publicly available that we intend to integrate into our analyses. \SK{I think it's safer to skip this.}}. 
+    The models were trained on the Pile \citep{gao2020pile} for different durations as part of a scaling study with a ratio of $\sim 20 \times$ tokens to parameters in a ``Chinchilla''-optimal manner \citep{hoffmann2022training}.
+    \item \textbf{OLMo} \citep{groeneveld2024olmo}: The OLMo family contains a 1B parameter model trained for 3T tokens and two 7B parameter models trained for 2T-2.5T tokens. We selected 7 checkpoints for 1B (spanning 84B\footnote{OLMo 1B checkpoints below 84B tokens were unfortunately accidentally lost by their creators.} to 3T tokens) and 7 checkpoints for 7B (spanning 4B to 2.4T tokens).
+    \item \textbf{INCITE} \citep{together2023incite}: The INCITE family contains 3B and 7B parameter models, trained on 0.8T and 1T tokens of RedPajama-v1\citep{together2023redpajama}. The 3B model has only a single checkpoint, so we excluded it. We found this family to be a slight outlier from other families, which we speculate is because its pretraining data were contaminated by benchmarks \citep{elazar2023whats}.
+    \item \textbf{LLM360} \citep{liu2023llm360}:
+    LLM360 includes two 7B parameter LLMs trained on 1.3T and 1.4T tokens. We selected 13 checkpoints of Amber spaced approximately logarithmically.
+    % \item \textbf{Llama 2} \citep{touvron2023llama2}: Llama 2 includes three models with 7B, 13B and 70B parameters all trained on 1.92T tokens. Intermediate pretraining checkpoints are not publicly available.
+\end{enumerate}
+
+\paragraph{NLP Benchmarks} We evaluated the above model families on widely-used multiple-choice benchmarks for assessing comprehension, reasoning, and world knowledge: AI2 Reasoning Challenge (ARC) Easy and Hard \citep{clark2018arc}, HellaSwag \citep{zellers2019hellaswag}, MathQA \citep{amini2019mathqa}, MCTACO \citep{zhou2019mctaco}, MMLU \citep{hendrycks2020mmlu}, OpenbookQA \citep{mihaylov2018openbookqa}, PIQA \citep{bisk2020piqa}, RACE \citep{lai2017race}, SciQ \citep{welbl2017sciq}, SIQA \citep{sap2019social},  WinoGrande \citep{keisuke2019winogrande} and XWinoGrad En \citep{muennighoff2023xwinograd}. For MMLU, we analyzed each of the 57 subjects (e.g., Abstract Algebra) independently. For each benchmark, we used default evaluation settings from the LM Evaluation Harness \citep{eleuther2023evalharness}. 
+ %, and evaluated predominantly in the zero-shot setting for our study.
+
+\paragraph{Performance Metrics} We used three common multiple-choice metrics \citep{srivastava2022beyond,schaeffer2023mirage,du2024understanding}: \texttt{Accuracy}, \texttt{Brier Score} \citep{brier1950verification}, and probability mass on the correct choice relative to the available choices $p_{\theta}^{\text{Choices}}(\text{Correct Choice})$.
+
+\paragraph{Compute Budget Calculations}
+
+Following prior work \citep{kaplan2020scaling}, we approximated\footnote{This approximation neglects FLOP costs associated with attention calculations over sequence length; however, such operations are negligible so long as $d_{model} >> n_{ctx} / 12$, and this approximation is therefore standard in most language model scaling law analyses.} the pretraining compute $C$ (in terms of training FLOP) of a given model checkpoint as a function of the parameter count (excluding embeddings) $N$ and the amount of training data seen in tokens $D$: $C = C(N, D) \; \approx \; 6 \, N\, D$.
+

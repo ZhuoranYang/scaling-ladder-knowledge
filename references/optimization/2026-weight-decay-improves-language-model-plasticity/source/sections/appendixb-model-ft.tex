@@ -1,0 +1,118 @@
+\section{Fine-tuning}
+\label{app:ft}
+
+
+
+
+
+\subsection{Training details}
+\label{app:ft-training-details}
+
+We fine-tune the pretrained models on various downstream tasks (chain-of-thought reasoning, language understanding and commonsense reasoning, and safety alignment) using the following hyperparameters. 
+We use five pretrained models for \olmoonex{} (weight decay: \{0, 0.1, 0.3, 0.6, 1.0\}, a range of values including the smallest and largest values, the 0.1 standard default value, and the 0.6 value that led to the lowest pretraining validation loss) and all pretrained models for the other model setups (described in Appendix~\ref{app:pt-training-details}).
+
+\renewcommand{\arraystretch}{1.1} 
+\begin{table}[H]
+\centering
+\begin{tabular}{llllll}
+\hline
+\textbf{Hyperparameters} & \textbf{1B and under} & \textbf{4B}  \\ 
+\hline
+cutoff\_len             & 2048       & 2048        \\
+batch\_size             & 64        & 64         \\
+learning\_rate          & 0.00001    & 0.0000075   \\
+lr\_scheduler\_type     & cosine     & cosine      \\
+warmup\_ratio           &  0.1       &  0.1        \\
+n\_epochs               &  3       &  3        \\
+\hline
+\end{tabular}
+\vspace{0.1cm}
+\caption{\textbf{Hyperparameters for supervised fine-tuning.} We set hyperparameters for fine-tuning following \citet{qi2025evolm}. We set n\_epochs = 3 based on results from \citet{qi2025evolm} showing that this setting leads to the best downstream performance. We use a smaller batch size (batch\_size = 64) than \citet{qi2025evolm} due to computational constraints.}
+\label{table:ft-training}
+\end{table}
+
+
+\vspace{-0.5cm}
+We use the following template for supervised fine-tuning.
+
+\textit{Human: \{question\}} \\
+\textit{Assistant: \{response\}}
+
+
+
+\subsection{Chain-of-thought reasoning}
+\label{app:ft-cot}
+
+
+We fine-tune the pretrained models on six chain-of-thought reasoning datasets. We clean the training data, removing questions that are incoherent or that exceed the models' maximum input sequence length. Information for each dataset is shown in Table~\ref{table:ft-datasets-cot}. Fine-tuned models are evaluated based on answer correctness and quality using the six metrics in Section~\ref{sec:methods}.
+
+
+
+\renewcommand{\arraystretch}{1.2} 
+\begin{table}[H]
+\centering
+\begin{tabular}{llll}
+\hline
+\textbf{Dataset}   & \textbf{Training set} & \textbf{Test set} \\ 
+\hline
+\metamathqa{}      &  $n=395,000$   & GSM8KPlatinum ($n=1,209$) + MATH ($n=5,000$)     \\
+\medmcqa{}         & $n=182,555$    & \medmcqa{} ($n=4183$)           \\
+\pubmedqa{}        & $n=211,168$    & \pubmedqa{} ($n=1000$)            \\
+\mmluprocot{}      & $n=123,836$    & \mmluprocot{} ($n=567$)           \\
+\race{}            & $n=92,737$     & \race{} ($n=4934$)              \\
+\simplescaling{}   & $n=54,484$     & GSM8KPlatinum ($n=1,209$) + MATH ($n=5,000$) \\ 
+\hline
+\end{tabular}
+\vspace{0.2cm}
+\caption{\textbf{Chain-of-thought datasets used for fine-tuning.} \metamathqa{} and \simplescaling{} are evaluated on test sets of the GSM8KPlatinum \cite{cobbe2021gsm8k,vendrow2025largelanguagemodelbenchmarks} and MATH \cite{hendrycksmath2021} datasets because \metamathqa{} and \simplescaling{} contain questions that are augmented from the training sets of GSM8KPlatinum and MATH.}
+\label{table:ft-datasets-cot}
+\end{table}
+
+
+\vspace{-0.5cm}
+Results from experiments are in the figures below.
+\vspace{-0.2cm}
+\begin{itemize}[itemsep=1pt]
+  \item Figure~\ref{fig:app-wd-vs-ftperf-all-tasks}. Individual and average performance after fine-tuning the pretrained models on chain-of-thought tasks.
+  \item Figure~\ref{fig:app-ptloss-vs-ftperf-full}. Relationship between pretraining performance (validation cross-entropy loss after pretraining) and performance after fine-tuning for chain-of-thought tasks.
+  \item Figure~\ref{fig:app-r-loo}. Stability analysis for observed correlation between pretraining performance and fine-tuning performance.
+\end{itemize}
+
+
+
+
+\subsection{Language understanding and commonsense reasoning}
+\label{app:ft-lang}
+
+
+We fine-tune the pretrained models on five language understanding and commonsense reasoning datasets. Information for each dataset is shown in Table~\ref{table:ft-datasets-lang}. Fine-tuned models are evaluated using cloze-style accuracy. Results from experiments are in Figure~\ref{fig:app-ft-lang}.
+
+\renewcommand{\arraystretch}{1.2} 
+\begin{table}[H]
+\centering
+\begin{tabular}{llll}
+\hline
+\textbf{Dataset}   & \textbf{Training set} & \textbf{Test set} \\ 
+\hline
+\hellaswag{}       & $n=39,905$    & $n=10,042$     \\
+\winogrande{}      & $n=40,398$    & $n=1,267$      \\
+\piqa{}            & $n=16,113$    & $n=1,838$      \\
+\arceasy{}         & $n=2,251$    & $n=2,376$       \\
+\arcchallenge{}    & $n=1,119$     & $n=1,172$      \\
+\hline
+\end{tabular}
+\vspace{0.2cm}
+\caption{\textbf{Language and general knowledge datasets used for fine-tuning.}}
+\label{table:ft-datasets-lang}
+\end{table}
+
+
+
+
+
+
+
+\subsection{Safety alignment}
+\label{app:ft-safety}
+
+We also examine fine-tuning for safety alignment. Specifically, we fine-tune models on 20,000 general-purpose instructions, randomly sampled from the Alpaca dataset, combined with 300, 500, 1,000, or 2,000 safety-related instructions. Then, we evaluate the fine-tuned models on 100 harmful prompts from the I-MaliciousInstructions dataset. For each generated response, we measure harmfulness using a harmfulness reward model (HRM), which assigns a score from 0 to 4, with higher scores indicating more harmful responses. The experimental setup, training data, test set, and HRM are from \citet{bianchi2024safety}. Results from experiments for each model are in Figures~\ref{fig:app-ft-safety-llama0.5B}, \ref{fig:app-ft-safety-llama1B}, \ref{fig:app-ft-safety-llama4B}, \ref{fig:app-ft-safety-olmo1x}, \ref{fig:app-ft-safety-olmo7x}. 

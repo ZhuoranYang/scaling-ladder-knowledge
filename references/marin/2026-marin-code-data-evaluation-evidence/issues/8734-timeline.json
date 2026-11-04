@@ -1,0 +1,162 @@
+{
+  "comments": [
+    {
+      "url": "https://github.com/marin-community/marin/issues/8734#issuecomment-5443536287",
+      "body": "🤖 **Assessment: not an automated-PR task (experiment launch, out of scope)**\n\n**What this issue is.** A logbook/tracking stub for launching a production-priority v4-2048 run — the 2x long-context skew treatment twin of the qk=1.75 262K context-extension control, using the length-partitioned Datakit store from #8656 and preserving the checkpoint/optimizer/schedule/mesh/batch/data-offset from #6044. It is labeled `experiment`, not a bug report, and states no code defect.\n\n**Why I am not opening a PR.**\n- Launching a production-priority Iris run is governed by the `manage-hero-run` skill and requires explicit operator authorization plus live cluster submission. Per repo policy an agent does not submit production runs or bounce clusters without express permission. This is the opposite of a self-contained <100-line bug fix.\n- There is no committed launcher to fix or extend: the qk=1.57 control and qk=1.75 runs referenced here exist only as W&B runs, and a repo search finds no `qk157`/`ctxext`/`262144` experiment module. So there is no code artifact this issue points at.\n\n**To make this actionable as a repository change**, specify the concrete code deliverable and target path — e.g. \"add a pinned launcher module at `experiments/.../ctxext_qk175_skew2x.py` that builds the treatment mixture (22.586% >64K / 77.414% ≤64K per #8656) from the length-partitioned store and the step-156k checkpoint.\" With that I can draft the launcher as a reviewable PR without submitting it. If instead you want the run actually launched, that needs an operator running the `manage-hero-run` workflow with an explicit go-ahead.\n",
+      "user": {
+        "login": "claude[bot]",
+        "name": "claude[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1236702?v=4",
+        "id": 209825114
+      },
+      "id": 5443536287,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 <strong>Assessment: not an automated-PR task (experiment launch, out of scope)</strong></p>\n<p dir=\"auto\"><strong>What this issue is.</strong> A logbook/tracking stub for launching a production-priority v4-2048 run — the 2x long-context skew treatment twin of the qk=1.75 262K context-extension control, using the length-partitioned Datakit store from <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5242087848\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8656\" data-hovercard-type=\"pull_request\" data-hovercard-url=\"/marin-community/marin/pull/8656/hovercard\" href=\"https://github.com/marin-community/marin/pull/8656\">#8656</a> and preserving the checkpoint/optimizer/schedule/mesh/batch/data-offset from <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"4550964605\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/6044\" data-hovercard-type=\"issue\" data-hovercard-url=\"/marin-community/marin/issues/6044/hovercard\" href=\"https://github.com/marin-community/marin/issues/6044\">#6044</a>. It is labeled <code class=\"notranslate\">experiment</code>, not a bug report, and states no code defect.</p>\n<p dir=\"auto\"><strong>Why I am not opening a PR.</strong></p>\n<ul dir=\"auto\">\n<li>Launching a production-priority Iris run is governed by the <code class=\"notranslate\">manage-hero-run</code> skill and requires explicit operator authorization plus live cluster submission. Per repo policy an agent does not submit production runs or bounce clusters without express permission. This is the opposite of a self-contained &lt;100-line bug fix.</li>\n<li>There is no committed launcher to fix or extend: the qk=1.57 control and qk=1.75 runs referenced here exist only as W&amp;B runs, and a repo search finds no <code class=\"notranslate\">qk157</code>/<code class=\"notranslate\">ctxext</code>/<code class=\"notranslate\">262144</code> experiment module. So there is no code artifact this issue points at.</li>\n</ul>\n<p dir=\"auto\"><strong>To make this actionable as a repository change</strong>, specify the concrete code deliverable and target path — e.g. \"add a pinned launcher module at <code class=\"notranslate\">experiments/.../ctxext_qk175_skew2x.py</code> that builds the treatment mixture (22.586% &gt;64K / 77.414% ≤64K per <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5242087848\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8656\" data-hovercard-type=\"pull_request\" data-hovercard-url=\"/marin-community/marin/pull/8656/hovercard\" href=\"https://github.com/marin-community/marin/pull/8656\">#8656</a>) from the length-partitioned store and the step-156k checkpoint.\" With that I can draft the launcher as a reviewable PR without submitting it. If instead you want the run actually launched, that needs an operator running the <code class=\"notranslate\">manage-hero-run</code> workflow with an explicit go-ahead.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8734#issuecomment-5444397466",
+      "body": "🤖 Launch contract pinned\n\nThe treatment is the qk=1.75 control twin with only the data mixture changed to a 2× long-document skew.\n\n- Runtime source: `1691d0a9afbfe849538e180186bec7759574cf2c`\n- Executor: v4-2048, non-preemptible, production priority\n- Steps: resume at 156000 and finish at 157000\n- Checkpoint: `gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep8_bs1024_seq65536_sw2k_v4_2048_muon_cooldown_step141k-a30ef8/checkpoints/step-156000/`\n- Checkpoint metadata: present\n- Source checkpoint size: 1,078,866,901,949 bytes\n- Retention: inherited from the control, four permanent checkpoints; projected maximum 4,315,467,607,796 bytes\n- Output: `gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2-ec6741`\n- Output collision check: absent before submission\n- W&B: `marin-community/marin_moe/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2`, online, resume policy `allow`\n- DRI: held\n- Raw trajectory, session, and Ray spill outputs: not applicable\n\nScrubbed submission command:\n\n```bash\n/home/held/marin-lcr/.venv/bin/iris --cluster=marin job run --no-wait --region us-central2 \\\n  --priority production --no-preemptible --max-retries 100 \\\n  -e WANDB_API_KEY REDACTED \\\n  -- python -m experiments.grug.moe.moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk175_long_context_skew\n```\n",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5444397466,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Launch contract pinned</p>\n<p dir=\"auto\">The treatment is the qk=1.75 control twin with only the data mixture changed to a 2× long-document skew.</p>\n<ul dir=\"auto\">\n<li>Runtime source: <code class=\"notranslate\">1691d0a9afbfe849538e180186bec7759574cf2c</code></li>\n<li>Executor: v4-2048, non-preemptible, production priority</li>\n<li>Steps: resume at 156000 and finish at 157000</li>\n<li>Checkpoint: <code class=\"notranslate\">gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep8_bs1024_seq65536_sw2k_v4_2048_muon_cooldown_step141k-a30ef8/checkpoints/step-156000/</code></li>\n<li>Checkpoint metadata: present</li>\n<li>Source checkpoint size: 1,078,866,901,949 bytes</li>\n<li>Retention: inherited from the control, four permanent checkpoints; projected maximum 4,315,467,607,796 bytes</li>\n<li>Output: <code class=\"notranslate\">gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2-ec6741</code></li>\n<li>Output collision check: absent before submission</li>\n<li>W&amp;B: <code class=\"notranslate\">marin-community/marin_moe/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2</code>, online, resume policy <code class=\"notranslate\">allow</code></li>\n<li>DRI: held</li>\n<li>Raw trajectory, session, and Ray spill outputs: not applicable</li>\n</ul>\n<p dir=\"auto\">Scrubbed submission command:</p>\n<div class=\"highlight highlight-source-shell notranslate position-relative overflow-auto\" dir=\"auto\" data-snippet-clipboard-copy-content=\"/home/held/marin-lcr/.venv/bin/iris --cluster=marin job run --no-wait --region us-central2 \\\n  --priority production --no-preemptible --max-retries 100 \\\n  -e WANDB_API_KEY REDACTED \\\n  -- python -m experiments.grug.moe.moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk175_long_context_skew\"><pre class=\"notranslate\">/home/held/marin-lcr/.venv/bin/iris --cluster=marin job run --no-wait --region us-central2 \\\n  --priority production --no-preemptible --max-retries 100 \\\n  -e WANDB_API_KEY REDACTED \\\n  -- python -m experiments.grug.moe.moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk175_long_context_skew</pre></div>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8734#issuecomment-5444426964",
+      "body": "🤖 Launched\n\n- Iris job: [`/held/iris-run-job-20260827-194841`](https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260827-194841)\n- Priority: `production`\n- Runtime source: `1691d0a9afbfe849538e180186bec7759574cf2c`\n- W&B run ID: `moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2`\n- Output: `gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2-ec6741`\n\nThe entrypoint was submitted in `us-central2` as non-preemptible with `--max-retries 100`. Startup monitoring is attached.\n",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5444426964,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Launched</p>\n<ul dir=\"auto\">\n<li>Iris job: <a href=\"https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260827-194841\" rel=\"nofollow\"><code class=\"notranslate\">/held/iris-run-job-20260827-194841</code></a></li>\n<li>Priority: <code class=\"notranslate\">production</code></li>\n<li>Runtime source: <code class=\"notranslate\">1691d0a9afbfe849538e180186bec7759574cf2c</code></li>\n<li>W&amp;B run ID: <code class=\"notranslate\">moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2</code></li>\n<li>Output: <code class=\"notranslate\">gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2-ec6741</code></li>\n</ul>\n<p dir=\"auto\">The entrypoint was submitted in <code class=\"notranslate\">us-central2</code> as non-preemptible with <code class=\"notranslate\">--max-retries 100</code>. Startup monitoring is attached.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8734#issuecomment-5446111938",
+      "body": "🤖 Degraded v4-2048 slice\n\nThe training child remains pending with all 256 tasks unstarted. The scheduler reports `need 256 workers in same tpu-name group, largest group has 254`.\n\nThe slice has 255 registered Iris workers. TPU host `t1v-n-25bf471b-w-74` has empty TPU metadata and registers as `worker-0`, colliding with the real `worker-0`. Controller logs show the same worker ID alternating between two IP addresses. The autoscaler therefore sees a degraded slice at its one-slice limit and cannot form the 256-worker gang.\n\nNo training step has run. Stopping and resubmitting only the job would retain this slice. Recovery requires replacing the degraded v4-2048 slice; no live mutation has been performed.\n",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5446111938,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Degraded v4-2048 slice</p>\n<p dir=\"auto\">The training child remains pending with all 256 tasks unstarted. The scheduler reports <code class=\"notranslate\">need 256 workers in same tpu-name group, largest group has 254</code>.</p>\n<p dir=\"auto\">The slice has 255 registered Iris workers. TPU host <code class=\"notranslate\">t1v-n-25bf471b-w-74</code> has empty TPU metadata and registers as <code class=\"notranslate\">worker-0</code>, colliding with the real <code class=\"notranslate\">worker-0</code>. Controller logs show the same worker ID alternating between two IP addresses. The autoscaler therefore sees a degraded slice at its one-slice limit and cannot form the 256-worker gang.</p>\n<p dir=\"auto\">No training step has run. Stopping and resubmitting only the job would retain this slice. Recovery requires replacing the degraded v4-2048 slice; no live mutation has been performed.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8734#issuecomment-5446129792",
+      "body": "🤖 Recovery caveat\n\nSix unrelated CPU tasks are bin-packed onto healthy workers in the degraded v4-2048 slice. Slice replacement would interrupt jobs owned by `dlwh`, `marin`, `michaelryan`, and `runner`.\n\nThe safe sequence is to preempt those six tasks so Iris reschedules them elsewhere, then force-delete the degraded queued resource and let the pending production job provision a fresh v4-2048 slice. No recovery action has been taken.\n",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5446129792,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Recovery caveat</p>\n<p dir=\"auto\">Six unrelated CPU tasks are bin-packed onto healthy workers in the degraded v4-2048 slice. Slice replacement would interrupt jobs owned by <code class=\"notranslate\">dlwh</code>, <code class=\"notranslate\">marin</code>, <code class=\"notranslate\">michaelryan</code>, and <code class=\"notranslate\">runner</code>.</p>\n<p dir=\"auto\">The safe sequence is to preempt those six tasks so Iris reschedules them elsewhere, then force-delete the degraded queued resource and let the pending production job provision a fresh v4-2048 slice. No recovery action has been taken.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8734#issuecomment-5447155367",
+      "body": "🤖 Update: v4-2048 slice healed\n\n- Change: restarted the worker daemon on `t1v-n-7eb9ad44-w-43` after its GCP worker-index metadata recovered.\n- Result: Iris moved from 255 to 256 distinct TPU worker IDs. All 256 training tasks are now `RUNNING`.\n- Confidence: high for this mitigation. The registration bug remains open in #8743.\n- Links: https://echo.oa.dev/wiki/274\n- Next: verify W&B initialization and the first training step.\n",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5447155367,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Update: v4-2048 slice healed</p>\n<ul dir=\"auto\">\n<li>Change: restarted the worker daemon on <code class=\"notranslate\">t1v-n-7eb9ad44-w-43</code> after its GCP worker-index metadata recovered.</li>\n<li>Result: Iris moved from 255 to 256 distinct TPU worker IDs. All 256 training tasks are now <code class=\"notranslate\">RUNNING</code>.</li>\n<li>Confidence: high for this mitigation. The registration bug remains open in <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5273090061\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8743\" data-hovercard-type=\"issue\" data-hovercard-url=\"/marin-community/marin/issues/8743/hovercard\" href=\"https://github.com/marin-community/marin/issues/8743\">#8743</a>.</li>\n<li>Links: <a href=\"https://echo.oa.dev/wiki/274\" rel=\"nofollow\">https://echo.oa.dev/wiki/274</a></li>\n<li>Next: verify W&amp;B initialization and the first training step.</li>\n</ul>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8734#issuecomment-5482519122",
+      "body": "🤖 Completed.\n\n- Final checkpoint: `gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2-ec6741/checkpoints/step-157000/`\n- W&B: https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2\n- Iris job: https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260827-194841\n\nThe Iris job succeeded, and the final checkpoint metadata is present in GCS.",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5482519122,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Completed.</p>\n<ul dir=\"auto\">\n<li>Final checkpoint: <code class=\"notranslate\">gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2-ec6741/checkpoints/step-157000/</code></li>\n<li>W&amp;B: <a href=\"https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2\" rel=\"nofollow\">https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew2</a></li>\n<li>Iris job: <a href=\"https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260827-194841\" rel=\"nofollow\">https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260827-194841</a></li>\n</ul>\n<p dir=\"auto\">The Iris job succeeded, and the final checkpoint metadata is present in GCS.</p>"
+    }
+  ],
+  "url": "https://github.com/marin-community/marin/issues/8734",
+  "title": "marin-community/marin Issue #8734 comments",
+  "display_url": "https://github.com/marin-community/marin/issues/8734",
+  "display_title": "marin-community/marin Issue #8734 comments"
+}

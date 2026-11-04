@@ -1,0 +1,191 @@
+\section{Fitted Parameters}
+\label{app:fitted_params}
+
+In \autoref{tab:fitted_params}, we list the parameters of the fitted functions in \autoref{fig:step1} and \autoref{fig:step2}.
+
+\input{floats/fitted_params}
+
+\section{Additional Analyses}
+\label{app:analyses}
+
+\subsection{Additional variance analysis results}
+\label{app:variance}
+
+\autoref{fig:variance} shows the intermediate checkpoints for the largest ladder model across all tasks, along with the relative standard deviation over the final 10 checkpoints (\% SD$_{10}$). In \autoref{tab:variance_analysis}, we show that this intermediate checkpoint noise corresponds to the difficulty of predicting the task performance for the target model.
+
+\input{floats/variance_analysis_all}
+
+\subsection{Predicting task accuracy under the MC format}
+\label{sec:mc}
+In this paper we have been focusing on the ranked classification (RC) format of tasks.
+Here, we explore if we can make predictions when problems are written in the multiple-choice (MC) format. This is a challenging problem, as small models often exhibit random performance on standard downstream tasks (e.g., MMLU) until a certain size threshold \citep{Hu2023PredictingEA}. 
+Thus, it is not practical to fit the mapping from task loss to MC accuracy in step 2 with data points from the ladder models.
+Instead, we use data points from early intermediate checkpoints of the target models.
+
+Observing the MC accuracy curves during training of the 7B-4T and 13B-5T models (\autoref{fig:step2_mc} upper), we find that they have three phases: (1) very early in training, MC accuracy is random; (2) at some point, MC accuracy increases rapidly; (3) finally, it starts growing steadily with more training steps.
+The phase of rapid growth for a model is strikingly identical across all tasks: around 70k steps for the 7B-4T model, and around 20k steps for the 13B-5T model.
+As a result, the data points $\{(L_i, Acc_i)\}$ fall on a peculiar shape that cannot be described by a sigmoidal function (\autoref{fig:step2_mc} lower left).
+
+Therefore, we fit the sigmoidal curve on data points collected from intermediate checkpoints during the third phase of the MC accuracy curve.
+For 7B-4T, we use steps between 170k and 450k; for 13B-5T, we use steps between 50k and 150k.
+Noticing that the curves for the two models do not coincide, we fit a function for each model separately (as opposed to a single joint fitting in RC).
+We conduct a case study with MMLU and show the fitting and prediction in \autoref{fig:step2_mc} (lower right).
+Using data points from the third phase, we can reliably extrapolate the mapping from task loss to MC accuracy.
+We predicted the MC accuracy of 7B-4T with 3.0\% relative error, and that of 13B-5T with 1.0\% relative error.
+When chaining this with the step 1 fitted function, our end-to-end prediction of MMLU accuracy has an absolute error of 0.3 points on the 7B-4T model, and 0.4 points on the 13B-5T model.
+
+\paragraph{Compute overhead.}
+To fit the step 2 function for MC accuracy, we do need to collect data points from an early part of the target model training.
+7B-4T is trained for 928k steps, and we use data points up to 450k, which is about 50\% of the full training compute.
+13B-5T is trained for 596k steps, and we use data points up to 150k, which is about 25\% of the full training compute.
+We note this is significantly more compute than used in the model ladders for predicting RC performance. However, as noted above, smaller models (which are less compute intensive) don't provide useful signal here. This is an opportunity for future work.
+
+\input{floats/step2_mc}
+
+\input{floats/compute_vs_error/flops_compute_vs_error}
+
+\subsection{Compute requirements for predicting each task}
+\label{app:ablate_compute}
+
+We consider the impact of the scale of the model ladder on the prediction for the target model. In general, the prediction is harder if the difference of scale between the ladder and the target models is larger. We explore this trade-off using the \textbf{7B-4T} model as the target. 
+
+In \autoref{fig:compute_vs_error_flops}, we progressively increase the compute-FLOPs used for function fitting. 
+ The prediction error is significantly worse with fewer FLOPs. On MMLU, our full ladder (3.2\% compute of the target model) gets 1.3\% error. Reducing the number of FLOPs to 0.1\% of the target model compute increases the error to $\sim$12\% which is an order of magnitude higher. This is more observable in certain tasks. Interestingly, we see a slight improvement in errors with less compute in ARC-C and ARC-E, potentially due to the variance as seen in \S\ref{sec_variance_analysis}.
+
+We also consider the impact of each axis of the ladder models (model size $N$ and Chinchilla multiplier $xC$) on the prediction error for each task. 
+
+\autoref{fig:compute_vs_error_N} shows the prediction errors for each step as we progressively increase the model size included in the ladder (i.e., ladder upto 760M will include 190M, 370M, 760M). We observe a downward trend in the prediction error for most tasks as the ladder size gets closer to the target model. 
+
+\input{floats/compute_vs_error/N_compute_vs_error}
+
+\autoref{fig:compute_vs_error_xC} similarly shows the impact of including models with longer training regimes. Interestingly, we do not see a significant reduction in the prediction error as we include the ladder models trained to higher Chinchilla multipliers\footnote{The target model 7B-4T is trained to approximately 28xC.}. There is a slight downward trend (noticeable in MMLU), but this dimension has more flexibility. 
+
+For users of our approach, and future work, we encourage exploration in reducing the overall cost by considering both these dimensions. Concretely, given a fixed budget for the ladder models, increasing the model size $N$ is more likely to improve the prediction error, compared to training for longer.
+
+\input{floats/compute_vs_error/xC_compute_vs_error}
+
+\section{Additional Details on Design Choices}
+\label{app:ablations}
+
+\subsection{Compute-FLOPs $C$ instead of $(N, D)$ for task loss prediction}
+\label{app:flops_as_feature}
+
+We test if compute-FLOPs $C$ can be used directly for task loss prediction instead of $(N, D)$ in the over-trained regime with the ladder models.
+We fit a similar power function
+\begin{align}
+L(C) &= A / C^\alpha + E
+\label{eqn:flops_fit}
+\end{align}
+where $A, \alpha, E$ are parameters to fit.
+
+\input{floats/step1_flops}
+
+\autoref{fig:step1_flops} shows the function fitting and prediction.
+Compared with \autoref{fig:step1}, the relative fitting error is higher than using $(N, D)$ on all tasks, likely because \autoref{eqn:flops_fit} has fewer free parameters than \autoref{eqn:power}.
+For the target models, the task loss prediction errors are generally worse than using $(N, D)$, including on MMLU; ARC-Challenge and ARC-Easy are the outliers (\autoref{tab:design_choices}).
+
+Overall, compute-FLOPs are not expressive enough to distinguish between compute-optimal and overtrained models with equal FLOPs but different losses \citep{Hoffmann2022TrainingCL}.
+Thus, we do not use it in our main method.
+
+% \autoref{fig:step1_flops} shows the function fitting and prediction in step 1, using compute-FLOPs as the input feature.
+
+\subsection{Task cross-entropy as the intermediate feature}
+\label{app:task_ce}
+
+Task loss only considers the correct choice of each problem. However, task RC accuracy is determined by the losses of both correct and incorrect choices, which is a major challenge for predicting downstream performance \citep{schaeffer2024why}:
+
+\begin{equation} \label{eqn:task_acc}
+\text{Acc} = \frac{1}{N} \sum_{i=1}^N \mathbbm{1} \left[ \arg\max_{k} \left( {-L_k^{(i)}} \right) = \hat k^{(i)} \right],
+\end{equation}
+where $L_k^{(i)}$ is the loss over the $k$'th answer option of the $i$'th example and $\hat k^{(i)}$ is the label of the correct answer \footnote{Loss terms may include some normalization, e.g., by the number of characters in each answer or the unconditional answer probability \citep{gu2024olmes}.}. 
+
+To account for incorrect answers, we define an alternative intermediate feature. We commonly maximize the accuracy by minimizing the task cross-entropy as a surrogate loss, in which the $L_k$ terms are used as logits:
+\begin{equation} \label{eqn:task_ce}
+\text{TaskCE} = \frac{1}{N} \sum_{i=1}^N \left( {L^{(i)}_{\hat k^{(i)}}} + \log {\sum_k \exp \left( -L^{(i)}_{k} \right) } \right).
+\end{equation}
+We refer to this as TaskCE to distinguish it from the language modeling cross-entropy over tokens.
+
+\input{floats/taskce}
+
+% Our intermediate feature in step 1 is the conditional loss of the \textit{correct answer} of a task, from which we predict the accuracy in step 2. However, the accuracy is computed from the losses of both correct and incorrect continuations, as seen in \autoref{eqn:task_acc}.
+
+\paragraph{Step 2 scaling with Task Cross-Entropy.} When inspecting the ladder models, we notice that the task cross-entropy correlates with accuracy in a more linear fashion than is the case for BPB.
+We therefore seek for a function $Acc(TaskCE)$ that is linear for large values of $TaskCE$, but for small values of $TaskCE$ should approach an asymptote of perfect accuracy (where all the probability mass is concentrated on the correct answer). 
+A good candidate for this transition is the log-sigmoid function, leading us to conjecture the following formula:
+
+\begin{equation} \label{eqn:log_sigmoid}
+Acc(TaskCE) = 1 - a\log \sigma\left(-k (TaskCE - TaskCE_0)\right),
+\end{equation}
+
+where $\sigma(\cdot)$ is the sigmoid function, and $a, k, TaskCE_0$ are constants to be fit.
+This expression is not valid in the regime of large task cross-entropies, where models perform random guessing. Thus, we only use data points from the last 50\% of training for curve fitting.
+
+
+
+\paragraph{Results.} \autoref{fig:step1_taskce} and \autoref{fig:step2_taskce} show the results of fitting step 1 and step 2 with the task cross-entropy as output and input variable, respectively. 
+\autoref{fig:chained_taskce} visualizes the predictions of combining these two steps, and  \autoref{tab:updated_pred_taskce} compares the predictions errors between using task cross-entropy or the correct answer loss as the intermediate feature. We make the following observations:
+\begin{itemize}[leftmargin=16pt]
+\item In step 2, the task cross-entropy is overall a more accurate predictor of RC accuracy: The average prediction errors across 7B and 13B models is 2.75\% vs. 3.6\% for the correct answer loss in \autoref{fig:step2}. 
+We note that the step 2 fit in \autoref{fig:step2_taskce} is particularly good on ARC-Challenge and OpenBookQA, but substantially worse on HellaSwag. We note all our observations for HellaSwag are in the ``linear'' regime of the log-sigmoid, making it difficult to estimate the curvature of the transition to the horizontal asymptote.
+
+\item The average fitting and extrapolation errors in step 1 of \autoref{fig:step1_taskce} are moderate and comparable to \autoref{fig:step1}. However, we notice that the fitting errors for TaskCE tend to be more skewed, i.e., the fitted Chinchilla curves tend to underestimate the performance of the 190M-1xC model and overstimate the 190M-10xC, while underestimating the 1B-1xC and overestimating the 1B-10xC. As these errors appear more systematic, it raises questions whether this parametric form is a good fit over much larger scales. Notably, it results in substantial errors in the task cross-entropy of MMLU and ARC-Challenge (4.2\% - 4.8\%).
+
+\item Finally, we note that the values for TaskCE fall into a narrow range. This means that the predictions in step 2 are highly sensitive to small changes in the task cross-entropy, e.g., a difference in task cross-entropy of less than $0.05$ nats in PIQA can make the difference between random task accuracy (at $TaskCE = 0.69$) and 83\% accuracy (at $TaskCE = 0.65$). As a consequence, small relative errors in step 1 (0.6\% for the 13B model on PIQA) are amplified in Step 2 and result in larger overall errors in accuracy (2.9\% for PIQA), despite a good fit in step 2 (0.9\% prediction error for the 13B accuracy). Similarly, a step-1 prediction error of 4.7\% for the 13B model on ARC-Challenge results in an overall error of 19.5\%.
+\end{itemize}
+
+\subsection{General language modeling loss as the intermediate feature}
+\label{app:c4}
+
+Language modeling loss (LM loss) on held-out sets has been shown to follow the power law \citep{Hoffmann2022TrainingCL}.
+Here, we consider if we can map it to task performance.
+
+We experiment with using the LM loss on the C4-en validation set \citep{Raffel2019ExploringTL} as the intermediate feature.
+
+\input{floats/c4}
+
+\autoref{fig:c4} shows the function fitting and predictions.
+
+In step 1, the fitted function underestimates the C4 loss by 2.0\% for 7B-4T and 3.8\% for 13B-5T.
+This error is higher than that on task loss prediction for 4 out of 8 tasks.
+The step 2 error is also higher than using task loss on 4 out of 8 tasks.
+When chaining the two steps to predict task accuracy, using C4 loss as intermediate feature resulted in higher error on 5 tasks -- MMLU, HellaSwag, CommonsenseQA, Social IQA, and OpenBookQA.
+Prediction error is lower on ARC-Challenge and ARC-Easy.
+We conclude that using C4 loss can benefit certain tasks where task loss does not work well. %\footnote{We use task loss in our main method because of its superiority on predicting MMLU.}.
+
+\subsection{Comparison of three intermediate features}
+
+\input{floats/intermediate_feature_comparison}
+
+\subsection{Combining step 1 and 2 into a single step}
+\label{app:single_step}
+
+Here, we try to directly predict task accuracy from the training scale $(N, D)$ in one step, by combining \autoref{eqn:power} and \autoref{eqn:sigmoid} into a single parameterized function, and merging parameters $k$ and $L_0$ into $A, B, E$, so that we reduce to 7 free parameters:
+% \begin{align*}
+% Acc(N, D) = \frac{a}{1 + \exp \big( -k (A / N^\alpha + B / D^\beta + E - L_0) \big)} + b
+% \end{align*}
+% and we merge parameters $k$ and $L_0$ into $A, B, E$, so that we reduce to 7 free parameters:
+\begin{align}
+Acc(N, D) = \frac{a}{1 + \exp \big( -(A / N^\alpha + B / D^\beta + E) \big)} + b
+\label{eqn:single_step}
+\end{align}
+
+With this, we remove the \textit{a priori} definition of a specific intermediate feature (i.e., the $A / N^\alpha + D / D^\beta + E$ expression no longer carries a specific meaning), while preserving the representation power of the function.
+This function can be harder to fit, since it has more free parameters, is not convex, and we cannot use any data points collected from intermediate checkpoints as we did in step 2.
+
+We fit this function with data points from the final checkpoints of the ladder models, using the same optimization method as in step 1 (\autoref{fig:single_step}). 
+The prediction error is higher on 4 out of 8 tasks -- MMLU, ARC-Challenge, CommonsenseQA, and Social IQA.
+In particular, on CommonsenseQA the fitted functions does not vary with respect to model size, indicating a degenerated function fitting.
+We conclude that the single-step approach is not as robust as the two-step approach.
+
+\input{floats/single_step}
+
+\section{Scaling law predictions for 32B-6T}
+\label{app:32B-6T}
+
+We demonstrated our method on 7B-4T and 13B-5T models, using only 1\% of the compute required for the target models. Here, we test the robustness of the ladder, by trying to predict the accuracies for a much larger model of the same family: \basemodelname{} 32B, trained to 6T tokens (32B-6T). This model was trained with $1.15 \times 10^{24}$ FLOPs, and the ladder models account for only 0.45\% of the compute of this model. 
+
+\input{floats/stacked_preds_32b}
+
+\autoref{tab:stacked_preds_32b} shows the predictions and errors for 32B-6T model. As expected, and following from \ref{app:ablate_compute}, the overall prediction error is higher %\footnote{We do not report MMLU predictions as MMLU-RC is over-saturated for 32B.}.
+We also observe a similar trend of higher errors for high variance tasks like ARC-C and ARC-E as with the smaller target models.
+However, for lower-variance tasks such as HellaSwag, PiQA, and SocialIQA, we can still predict the accuracy within an absolute error of 3 points.  This indicates that the ladder models are fairly robust in their prediction abilities even as the target model is scaled to be much larger.

@@ -1,0 +1,33 @@
+---
+title: "Holdouts, stability, and production decisions"
+---
+
+> **Reading note.** This is an explanatory reconstruction of Jiaxuan Zou’s literature synthesis. Published experiments belong to the cited teams. Numbered protocols and illustrative matrices are our planning synthesis unless explicitly attributed.
+
+The blog's §10 treats validation as a set of different experiments. Predicting endpoint loss, remaining numerically stable, and achieving efficient production throughput each require evidence.
+
+## Validation sequence
+
+1. **Extrapolation:** evaluate the frozen fit and recipe on larger sizes or longer horizons excluded from selection. Record error relative to the predeclared tolerance and seed variation.
+2. **Combined recipe:** assemble winning data, architecture, and optimizer changes and compare against the baseline. Independent wins need not add; the combined recipe may require new tuning.
+3. **Stability:** test learning rates above the intended operating point and long-horizon runs. Log gradient norms, update/weight ratios, nonfinite values, attention logits, and MoE load/drop statistics. The blog proposes LR multiples as stress tests; choose affordable magnitudes appropriate to the implementation.
+4. **Implementation parity:** compare research and production updates on the same batch and state; then compare short trajectories and checkpoint resume. Define tolerances appropriate to precision and reduction order.
+5. **Realized efficiency:** measure sustained tokens/second, peak memory, communication overhead, failures, and recovery. Match context length, batch, and parallelism assumptions.
+6. **Dress rehearsal:** run the selected stack at an intermediate scale when the target is far beyond the evidence.
+
+For a measured throughput $r$ tokens/second on $G$ accelerators, the idealized device-time estimate is $GD/r$. Add setup, evaluation, checkpoints, and recovery to obtain a usable budget. When reporting efficiency, specify whether $r$ is aggregate throughput or per-device throughput.
+
+## Launch record
+
+| Gate | Evidence | Pass condition |
+|---|---|---|
+| Loss forecast | Untouched larger runs | Error within declared tolerance |
+| Capabilities | Fixed downstream suite | Required domain floors |
+| Stability | Stress and long-horizon logs | No unexplained numerical failures |
+| Systems | Production-stack measurements | Fits memory and time budget |
+
+A holdout used to revise the fit or recipe becomes development data. Reserve a new holdout for the revised recipe. A failure should identify what was learned, which decision changed, and what fresh evidence is needed.
+
+**Sources:** [blog §10](../reading/scientific-scaling-ladder.md#10-extrapolation-validation-and-launch-decisions); [Marin Delphi](https://openathena.ai/blog/delphi/); [Marin efficiency follow-up](https://openathena.ai/blog/pretraining-speedup/); [OLMo 3, Appendix A](https://arxiv.org/abs/2512.13961).
+
+[Blog/notes crosswalk](../reading/jiaxuan-reading-guide.qmd) · [Detailed companion](../deep-dives/capabilities-and-validation.qmd)

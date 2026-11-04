@@ -1,0 +1,133 @@
+\section{Discussion and Recommendations}
+\label{sec:ablations}
+
+% \akshita{We can rename this section recommendations, as we would have already discussed ablations earlier.}
+
+In \S\ref{sec:results}, we observed that different design choices work well for different tasks. Here, we discuss factors that affect final predictions, and present some guidelines to develop task scaling laws for a new overtrained model or new task (Figure \ref{fig:intermediate_feature_comparison} illustrates these findings):
+
+\tightparagraph{Target variance.}
+Variance analysis is useful for determining if it is feasible to predict the target metrics (both intermediate loss and accuracy). For tasks with high variance, especially for task accuracy, we generally expect to see lower predictability. High variance in a particular intermediate loss can potentially be mitigated with alternative intermediate features. For new tasks, \textbf{variance analysis should be conducted on the largest ladder model} that can be trained with available compute (we used 1B-10xC). 
+
+\tightparagraph{Choice of intermediate features.}
+It is important for the intermediate feature to be both 1) predictable, and 2) a good predictor for task accuracy. Tasks with a noisy mapping between their intermediate feature and accuracy (e.g., ARC-C, ARC-E and OpenBookQA) may have compounded errors in the two-step prediction. For ARC-C and OpenBookQA in particular, their high variance for both the intermediate task loss and accuracy make them challenging to predict with the ladder.
+HellaSwag and PIQA, the tasks where we observe the least variance, are the easiest to predict across all design choices, including the combined single step approach. 
+We also note that while LM loss on C4 is a reasonable predictor of task accuracy for several tasks in our setup, this may not hold for other novel downstream tasks on different domains. As a general rule, using \textbf{a task-specific loss may work across a wider range of downstream tasks}.
+
+\tightparagraph{Number of task instances.}
+Tasks with fewer instances show inconsistent results. E.g. OpenBookQA has only 500 instances and  has a high prediction error for most design choices. Even using LM loss as the intermediate feature, while the prediction error is low, the fitting error is actually high (2.35\%) as shown in \S\ref{app:c4}, indicating randomness. On the other hand, MMLU and HellaSwag have large sample sizes – 5x larger than the other tasks. Given their low sample variance and noise around the prediction target, we expect that their errors are most representative of the true difficulty of predicting downstream performance, so even though taskCE and task loss perform comparably for several tasks, task loss is better considering task size. If the goal is to select a single design choice that works for all tasks, the \textbf{design choice should be validated on tasks with a large number of instances}.
+
+\tightparagraph{Robustness of the ladder models.}
+In \S\ref{app:32B-6T}, we predict the task accuracies for a larger \basemodelname{} target model: 32B-6T, using the same ladder models (0.45\% of the target model compute). While the absolute errors are higher, they still follow the same trend as the smaller target models (lower variance tasks exhibit relatively lower prediction errors), indicating that \textbf{the same ladder can reliably be used to estimate the performance of much larger models}.
+
+% We made several design choices in our method, e.g., the two-step approach, using the task loss as an intermediate feature.
+% Here, we explore some alternative choices (discussed further in \S\ref{app:ablations}), namely 
+% %(1) using compute-FLOPs $C$ instead of $(N, D)$ for task loss prediction, (2) using task cross-entropy (CE loss over all answer choices) as the intermediate feature, (3) using language modeling loss as the intermediate feature, and (4) predicting task accuracy directly from $(N, D)$.
+
+% \begin{enumerate}[leftmargin=16pt]
+%     \item Using compute-FLOPs $C$ instead of $(N, D)$ for task loss prediction (\S\ref{app:flops_as_feature}).
+%     \item Using task cross-entropy loss over all answer choices as the intermediate feature for step 1 prediction (\S\ref{app:task_ce}).
+%     \item Using LM loss on C4 as the intermediate feature (\S\ref{app:c4}).
+%     \item Predicting task accuracy directly from ($N$, $D$) (\S\ref{app:single_step}).
+% \end{enumerate}
+
+% \akshita{work in progress notes}
+
+% \begin{itemize}[leftmargin=16pt]
+%     \item We validated our method on 8 common tasks present in OLMES. These exhibit enough overlap with C4-en validation set, so we are able to use LM loss as a proxy for task loss. This may not hold true for novel downstream tasks. Hence, a task-specific loss can be more useful as the intermediate feature.
+%     \item Tasks with fewer instances show inconsistent results. E.g. OpenBookQA has only 500 instances and  has a high prediction error for most design choices; even with using LM loss as the intermediate feature, while the prediction error is low, the fitting error is actually high (2.35\%) as shown in \S\ref{app:c4}, which indicates that low prediction error can be due to randomness. If the goal is to select a single design choice that works for all tasks, it should be validated on tasks with a large number of instances. In our case, MMLU and HellaSwag have large sample sizes – 5x larger than the other tasks. Given their low sample variance and noise around the prediction target, we expect their errors are most representative of the true difficulty of predicting downstream performance. 
+%     \item Variance analysis is useful for determining if it is feasible to predict the target metrics (both intermediate loss and accuracy). For tasks with high variance, especially for task accuracy, we generally expect to see lower predictability. High variance in a particular intermediate loss can potentially be mitigated with alternative intermediate features.
+% \end{itemize}
+
+% \autoref{tab:design_choices} provides a summary of the design choices and the corresponding prediction errors. An overarching discussion is presented in \S\ref{sec:design_choices_discussion}.
+
+% \subsection{Compute-FLOPs $C$ for task loss prediction}
+% \label{sec:flops_as_feature}
+
+% We test if compute-FLOPs $C$ can be used directly for task loss prediction instead of $(N, D)$ in the over-trained regime with the ladder models.
+% We fit a similar power function
+% \begin{align}
+% L(C) &= A / C^\alpha + E
+% \label{eqn:flops_fit}
+% \end{align}
+% where $A, \alpha, E$ are parameters to fit.
+
+% \autoref{fig:step1_flops} shows the function fitting and prediction.
+% Compared with \autoref{fig:step1}, the relative fitting error is higher than using $(N, D)$ on all tasks, likely because \autoref{eqn:flops_fit} has fewer free parameters than \autoref{eqn:power}.
+% For the target models, the task loss prediction errors are generally worse than using $(N, D)$, including on MMLU; ARC-Challenge and ARC-Easy are the outliers (\autoref{tab:design_choices}).
+
+% Compute-FLOPs are not expressive enough to distinguish between compute-optimal and overtrained models with equal FLOPs but different losses \citep{Hoffmann2022TrainingCL}.
+% Thus, we do not use it in our main method.
+
+% % \subsection{Task loss formulation: Incorporating both correct and incorrect answers}
+
+% \subsection{Task cross-entropy as the intermediate feature}
+% \label{sec:task_ce_loss}
+
+% Task loss only considers the correct choice of each problem. However, task RC accuracy is determined by the losses of both correct and incorrect choices:
+% \begin{equation} \label{eqn:task_acc}
+% \text{Acc} = \frac{1}{N} \sum_{i=1}^N \mathbbm{1} \left[ \arg\max_{k} \left( {-L_k^{(i)}} \right) = \hat k^{(i)} \right],
+% \end{equation}
+% where $L_k^{(i)}$ is the loss over the $k$'th answer option of the $i$'th example and $\hat k^{(i)}$ is the label of the correct answer \footnote{Loss terms may include some normalization, e.g., by the number of characters in each answer or the unconditional answer probability \citep{gu2024olmes}.}.
+
+% This is a major challenge for predicting downstream performance \citep{schaeffer2024why}. We take incorrect answers into account by computing the \textit{task cross-entropy}, defined as the CE loss over all answer choices using the $-L_k$ terms as logits. In \S\ref{app:task_ce}, we investigate whether this is a suitable intermediate feature in our task prediction framework. 
+% We observe that (1) on some tasks, this intermediate feature improves accuracy prediction, but (2) the two-step predictions are overall worse due to severe errors on MMLU and ARC-Challenge.
+% These tasks incur sizable extrapolation errors of 4-5\% in step 1, suggesting that a Chinchilla formulation from \autoref{eqn:power} may not fully capture the scaling behavior of the task cross-entropy.
+% These errors are amplified in step 2, as the accuracy tends to be far more sensitive to changes in the task cross-entropy than the loss of the correct answer.
+
+% \subsection{Task loss vs. general language modeling loss}
+% \label{sec:c4}
+
+% Language modeling loss (LM loss) on held-out sets has been shown to follow the power law \citep{Hoffmann2022TrainingCL}.
+% Here, we consider if we can map it to task performance.
+
+% We experiment with using the LM loss on the C4-en validation set \citep{Raffel2019ExploringTL} as the intermediate feature.
+% \autoref{fig:c4} shows the function fitting and predictions.
+% Using C4 loss results in higher average prediction error on the task we care most about -- MMLU.
+% Prediction error is lower on ARC-Challenge and ARC-Easy.
+% We conclude that using C4 loss can benefit certain tasks where task loss does not work well \footnote{We use task loss in our main method because of its superiority on predicting MMLU.}.
+% We discuss the results in more detail in \S\ref{app:c4}.
+
+% \subsection{Single-step prediction}
+% \label{sec:single_step}
+
+% Here, we try to directly predict task accuracy from the training scale $(N, D)$ in one step, by combining \autoref{eqn:power} and \autoref{eqn:sigmoid} into a single parameterized function, and merging parameters $k$ and $L_0$ into $A, B, E$, so that we reduce to 7 free parameters:
+% % \begin{align*}
+% % Acc(N, D) = \frac{a}{1 + \exp \big( -k (A / N^\alpha + B / D^\beta + E - L_0) \big)} + b
+% % \end{align*}
+% % and we merge parameters $k$ and $L_0$ into $A, B, E$, so that we reduce to 7 free parameters:
+% \begin{align}
+% Acc(N, D) = \frac{a}{1 + \exp \big( -(A / N^\alpha + B / D^\beta + E) \big)} + b
+% \label{eqn:single_step}
+% \end{align}
+
+% With this, we remove the \textit{a priori} definition of a specific intermediate feature (i.e., the $A / N^\alpha + D / D^\beta + E$ expression no longer carries a specific meaning), while preserving the representation power of the function.
+% This function can be harder to fit, since it has more free parameters, is not convex, and we cannot use any data points collected from intermediate checkpoints as we did in step 2.
+
+% We fit this function with data points from the final checkpoints of the ladder models, using the same optimization method as in step 1 (\autoref{fig:single_step}). 
+% The prediction error is worse than using the two-step approach on 4 out of 8 tasks, and the function fitting degenerated on CommonsenseQA.
+% This single-step approach is not as robust as the two-step approach.
+% We discuss the results in more detail in \S\ref{app:single_step}.
+
+% \subsection{Discussion of design choices for each task}
+% \label{sec:design_choices_discussion}
+
+% \input{floats/table_design_choices_new}
+
+% \autoref{tab:design_choices} compares prediction errors against these alternative design choices. Our two-step method has low error for MMLU, PIQA, HellaSwag, and Social IQa, corresponding to the tasks with the lowest variance around task loss and accuracy, as observed in \autoref{tab:variance_analysis}.
+
+% Tasks with a noisy mapping between their intermediate feature and accuracy (e.g., ARC-Challenge, ARC-Easy and OpenBookQA) may have compounded errors in the two-step prediction. 
+% This may explain the higher prediction errors for the design choices in \autoref{tab:design_choices} which directly or indirectly rely on an intermediate representation of the task loss. For ARC-Challenge and OpenBookQA in particular, their high variance for both the intermediate task loss and accuracy make them challenging to predict with the ladder. 
+% HellaSwag and PIQA, the tasks where we observe the least variance, are the easiest to predict across all design choices, including the combined single step approach. 
+% Finally, MMLU and HellaSwag have large sample sizes -- 5x larger than the other tasks in this work. Given their low sample variance and noise around the prediction target, we expect their errors are most representative of the true difficulty of predicting downstream performance. Thus, we present the two-step prediction as our main approach.
+
+% \tightparagraph{Recommendations.}
+
+% \akshita{recs: conduct var analysis for all possible intermediate features you're considering, pick most stable one with least variance for each task}
+
+% Based on our experiments, we present the following guidelines to develop task scaling laws for a new overtrained model / new task: 
+% \begin{itemize}[leftmargin=16pt]
+%     \item Conduct variance analysis as described in \S\ref{sec_variance_analysis} for the task(s) using the largest ladder model that can be trained with available compute (we used 1B-10xC).
+%     \item Construct the ladder as described in \S\ref{sec:ladder} with a wider range of model sizes $N$ compared to $xC$ (but do train the models beyond 1xC), as discussed in \S\ref{sec:ablate_compute}.
+%     \item For tasks with high variance, especially for \textit{task accuracy}, we generally expect to see lower predictability. High variance in \textit{task loss} can potentially be mitigated with alternative intermediate features.
+% \end{itemize}
+  

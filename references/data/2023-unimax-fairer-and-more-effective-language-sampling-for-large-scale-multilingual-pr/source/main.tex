@@ -1,0 +1,849 @@
+
+\documentclass{article} % For LaTeX2e
+
+\usepackage{iclr2023_conference,times}
+
+% \usepackage{todonotes}
+
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\usepackage{float}
+
+% for subfigures
+\usepackage{caption}
+\usepackage{subcaption}
+
+% for Algorithm
+\usepackage[ruled, lined, longend]{algorithm2e}
+
+\usepackage[utf8]{inputenc}
+
+\usepackage{xcolor}
+\newcommand\mycommfont[1]{\small\ttfamily\textcolor{blue}{#1}}
+\SetCommentSty{mycommfont}
+
+% For scientific notation, e.g. \num{1e-10}
+\usepackage{siunitx}
+\sisetup{output-exponent-marker=\ensuremath{\mathrm{e}}}
+
+
+\title{UniMax: Fairer and more Effective Language Sampling for Large-Scale Multilingual Pretraining}
+
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+
+\author{Hyung Won Chung\thanks{equal contribution}\,,~Noah Constant\footnotemark[1]\,,~Xavier Garcia\footnotemark[1] \\ \textbf{Adam Roberts, Yi Tay, Sharan Narang, Orhan Firat} \\
+Google Research \\
+\texttt{h.w.chung27@gmail.com, \{nconstant, xgarcia\}@google.com}
+}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+% === EXTRA USER-DEFINED MACROS AND PACKAGES ===
+
+\newcommand{\unimax}{\textsc{UniMax}}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Pretrained multilingual large language models have typically used heuristic temperature-based sampling to balance between different languages. However previous work has not systematically evaluated the efficacy of different pretraining language distributions across model scales. In this paper, we propose a new sampling method, \unimax{}, that delivers more uniform coverage of head languages while mitigating overfitting on tail languages by explicitly capping the number of repeats over each language's corpus. We perform an extensive series of ablations testing a range of sampling strategies on a suite of multilingual benchmarks, while varying model scale. We find that \unimax{} outperforms standard temperature-based sampling, and the benefits persist as scale increases. As part of our contribution, we release: (i) an improved and refreshed mC4 multilingual corpus consisting of 29 trillion characters across 107 languages, and (ii) a suite of pretrained umT5 model checkpoints trained with \unimax{} sampling.\footnote{\url{https://github.com/google-research/t5x/blob/main/docs/models.md}}
+
+\end{abstract}
+
+\section{Introduction}
+
+State-of-the-art multilingual models~\citep[][\textit{inter alia}]{xue-etal-2021-mt5,xue-etal-2022-byt5,goyal_xlmr_scaled} utilize large-scale self-supervised learning, which involves jointly training on many languages. Because data availability varies greatly across languages, multilingual pretraining can be characterized as multitask learning (or multi-objective optimization) with severe data imbalance. Typically English is the highest-resource language (or task) with orders of magnitude larger size than lower-resource languages. For example, in the mC4 corpus~\citep{xue-etal-2021-mt5}, English has roughly $9.7$ trillion characters, which is over $92{,}000$ times larger than the lowest resource language, Yoruba. As a result, a key problem in designing such models is the ``language balancing" problem: in what proportions should we balance the pretraining languages? Deriving the optimal balance is a difficult open research problem due to the high cost of pretraining.
+
+\begin{figure}
+     \centering
+     \begin{subfigure}[t]{0.48\textwidth}
+         \centering
+    \includegraphics[width=6.5cm]{figures/pretraining_epochs.pdf}
+    \caption{Number of training epochs for each language. Temperature sampling results in a large number of data repeats for low-resource languages, whereas \unimax{} explicitly caps repeats.}
+    \label{fig:pretraining_epochs}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[t]{0.48\textwidth}
+         \centering
+    \includegraphics[width=6.5cm]{figures/main_figure_color_coded.pdf}
+    \caption{Pretraining sampling distribution. Temperature sampling results in poorly balanced distributions, whereas \unimax{} provides more uniform distributions without excessive upsampling.}
+    \label{fig:pretraining_sampling_rate}
+     \end{subfigure}
+        \caption{The x-axis is the rank of the language based on the character count. $1/8$ budget refers to the 250,000 steps with sequence length of 512, which is one-eights of the full-scaling training budget (1M steps with 1024 sequence length) referred to as 1x, matching that of mT5.}
+        \label{fig:pretraining_epochs_and_sampling_rate}
+\end{figure}
+
+The standard approach to this problem has been to upsample languages with smaller datasets, using a temperature hyperparameter $\tau$ \citep{devlin-etal-2019-bert}. However, one shortcoming of this approach is that choosing $\tau$ based on the desired distribution among higher-resources languages may result in examples from the lowest-resource languages being repeated excessively. Figure~\ref{fig:pretraining_epochs} shows the number of epochs covered for each language in the mC4 corpus. When using $\tau=3.33$ and a trillion token budget (the values used in popular models such as mT5 and ByT5), the lowest-resource languages are repeated over $100$ times. This excessive repetition can have several unwanted consequences: (i) it leads to overfitting, which degrades performance on downstream tasks \citep{raffel_t5, lee-etal-2022-deduplicating, hernandez2022scaling}, (ii) it increases the risk of memorizing private or sensitive content \citep{carlini2021extracting, lee-etal-2022-deduplicating}, and (iii) it wastes training cycles that could have been devoted to unique examples.  As models continue to grow in scale
+\citep{chowdhery_palm,brown_gpt3,smith_megatron}, these issues with temperature sampling grow more pressing, as larger models benefit from longer training \citep{hoffmann_chinchilla}, overfit more easily, and have a greater capacity to memorize.
+
+This paper proposes a new paradigm for sampling across languages and datasets that ameliorates the above mentioned problems. We propose \unimax{} (uniform + max), a conceptually simple but highly effective two-pronged sampling approach that results in fairer and more effective language distributions for pretraining multilingual language models that work well across model scales. One of the main assumptions we make is that practical large-scale training jobs operate with a fixed amount of compute, which is often translated into a fixed training token budget~\citep{raffel_t5}. \unimax{} starts by pre-allocating training tokens to underrepresented datasets based on the number of allowed \textbf{max} repeats ($N$). For the remaining budget, we prioritize ``linguistic utility'' \citep{blasi-etal-2022-systematic} by allocating \textbf{uniformly} across all languages with sufficient data to avoid exceeding the prescribed number of per-language epochs. Unlike previous approaches, this means \unimax{} is relatively resistant to distribution biases that arise due to artifacts of the corpus generation process (i.e., web crawlers). To take a concrete example, the mC4 corpus contains $70\times$ more English than Chinese text. While mT5's temperature sampling ($\tau=3.33$) results in training on $3.4\times$ more English than Chinese, \unimax{} will assign equal training tokens to the two languages, provided that this doesn't result in repeating the 39 billion available Chinese tokens more than $N$ times.
+
+Another key benefit of \unimax{} is that it is robust to model scaling. In considering language sampling strategies at scale, it is important to carefully control how many times a dataset can be repeated during training to avoid overfitting and memorization. Our proposed method explicitly controls the extent of data repeats of any language, providing a direct countermeasure to overfitting on low-resource languages, without imposing any reprioritization on higher-resource languages.
+
+Our key contributions are to: (1)~Propose \unimax{}, a simple but effective language sampling strategy that provides more uniform coverage of high-resource languages while mitigating overfitting on low-resource languages. (2)~Perform an extensive series of ablations testing a range of sampling strategies on a suite of multilingual benchmarks, while varying model scale. (3)~Release an improved and refreshed variant of the mC4 multilingual corpus consisting of 29 trillion characters across 107 languages. (4)~Release pretrained model checkpoints using \unimax{} sampling.
+
+\section{Related Work}
+
+While (massively-)multilingual models enjoy the benefits of positive transfer across languages, the sheer number of languages reduces the effective capacity of the model per task. This competition among languages for limited model capacity is the well-known problem of ``capacity bottleneck'' \citep{DBLP:journals/corr/abs-1907-05019}, also known as the ``curse of multilinguality'' \citep{conneau-etal-2020-unsupervised}. 
+
+In exploring the interaction between language balancing and model scale, previous work has ablated sampling temperature with models at or below $1$ billion parameters \citep{conneau-etal-2020-unsupervised, xue-etal-2021-mt5}, but we believe our study is the first to systematically explore balancing strategies at scales above $1$ billion parameters. Additionally, our work targets general-purpose encoder-decoder models, whereas most previous work used encoder-only models or targeted machine translation exclusively. \citet{michel2021balancing} explore adaptive mixing strategies in a similar setting, and also find that fixed uniform mixing is a strong baseline for multilingual pretraining.
+
+Within the context of machine translation\footnote{We view the translation literature as directly relevant for language balancing research. However one key difference is that translation models used in balancing studies have assumed that English is always either the source or the target language. This may lead to preferring language distributions that cover more English.}, \citet{jean2019adaptive} proposed using a bi-level optimization algorithm maximizing the validation utility to adjust the sampling weights per language. \citet{DBLP:journals/corr/abs-1907-05019} was the first testing various temperatures ($\tau=1,5,100$) to train a multilingual translation model for 212 language pairs. The study suggested over-sampling low-resource while sub-sampling high-resource languages to maximize a uniform utility. The over-training/over-fitting due to over-sampling was alleviated by increasing the number of tasks in that study. \citet{wang-etal-2020-balancing} proposed another bi-level approach, using differentiable data selection \citep{wang2020optimizing}. The study includes a uniform language distribution baseline ($\tau=\infty$), but this differs from UniMax in having no limit on repetition of examples in low-resource languages. Recently \citet{ wang2021gradient} proposed using the gradient alignment information across languages to adjust the language weights, but it is unclear if this can be practically scaled to $100$ or more languages.
+
+Work on cross-lingual transfer learning has repeatedly found that English may not be the ``ideal'' source language for transfer. \citet{malkin-etal-2022-balanced} conduct an analysis of zero-shot transfer, and calculate a ``donation score'' for each of $22$ languages, measuring whether its inclusion in pretraining helps or hurts performance in other languages.  They find English is among the ``least donating''---one of only four languages whose inclusion results in an overall degradation in performance for other languages. In a similar exploration, \citet{turk2021revisiting} find that German and Russian are more effective source languages for zero-shot transfer than English. These findings support the idea of testing sampling strategies where English doesn't outweigh other languages.
+
+We focus here on the problem of balancing languages with significant web data. In particular, we limit our scope to the approximately hundred languages that occur with some frequency in the CommonCrawl corpus, as detected by CLD3 language detection. Other methods are likely needed to scale NLP methods to thousands of languages, e.g., see \citet{wang-etal-2022-expanding} and \citet{bapna2022ntl}.
+
+\section{Sampling Methods}
+\label{sec:sampling_methods}
+
+\paragraph{Temperature-based sampling}
+
+In order to define a sampling distribution over languages, we use an empirical distribution for each language
+%
+\begin{equation}
+    p_{l} = \frac{n_{l}}{\sum_{l' \in L} n_{l'}}
+\end{equation}
+%
+where $n_l$ represents the ``size'' of language $l$, as discussed in Section~\S\ref{sec:vocab_generation_process}. A temperature-based sampling strategy uses a distribution $q$ defined by exponentiating $p_{l}$ by the inverse of the temperature and renormalizing.
+\begin{equation}
+    q_{l} = \frac{p_{l}^{1/\tau}}{\sum_{l' \in L} p_{l'}^{1/\tau}}.
+\end{equation}
+
+Commonly used temperature values in the literature are summarized in Table~\ref{table:temperature_literature}. Higher temperature makes the distribution ``flatter'', approaching the uniform distribution as $\tau \to \infty$. In the other extreme with $\tau = 0$, the entire probability mass is contained in the language with the highest probability. Note, there is no guarantee that there exists a value of $\tau$ that achieves the desired balance on high- and mid-resource languages while still avoiding overfitting on the tail languages.
+
+\begin{table}[]
+\caption{Language sampling temperatures of recent multilingual LLMs trained on unlabeled data.}
+\label{table:temperature_literature}
+\begin{center}
+\resizebox{0.5\columnwidth}{!}{
+\footnotesize
+\begin{tabular}{lc}
+\toprule
+      & \multicolumn{1}{l}{Temperature ($\tau$)} \\
+      \midrule
+mBERT~\citep{devlin-etal-2019-bert} & 1.43 \\
+XLM~\citep{conneau_xlm} & 2.00 \\
+XLM-R~\citep{conneau-etal-2020-unsupervised} & 3.33 \\
+mT5~\citep{xue-etal-2021-mt5} & 3.33 \\
+XLM-E~\citep{chi-etal-2022-xlm} & 1.43 \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+\end{table}
+
+\paragraph{\unimax{} sampling}
+
+For \unimax{} sampling, we start with a predefined character budget $C$. In practice, this is typically defined by the training compute allocated for the training job. The goal of \unimax{} sampling is to allocate the character budget to languages as uniformly as possible, without using more than $N$ epochs of any language. The first step is to sort the languages based on the character count in the training corpus. We iterate over languages starting from the one with the lowest character count. At each iteration, we check if the remaining character budget can be split evenly among the remaining languages without using more than $N$ epochs of any language. If so, we allocate the budget uniformly. If not, language $l$ is allocated $N$ epochs worth of characters and the remaining budget is reduced. Algorithm~\ref{alg:unimax} formalizes this procedure.
+
+\begin{algorithm}[h]
+    \SetKwFunction{len}{len}
+    \SetKwFunction{min}{min}
+    \SetKwFunction{sort}{sortByCount}
+    \SetKwFunction{normalize}{normalize}
+    % \SetKwInput{Input}{Input}
+    % \SetKwInput{Output}{Output}
+    \SetKwInOut{KwIn}{Inputs}
+    \SetKwInOut{KwOut}{Output}
+
+    \KwIn{Character count $c_l$ of each language $l$ in all the languages $L$ of the training corpus\\Total character budget $C$\\The number of epochs per language $N$}
+    \KwOut{Sampling distribution $p_l$ of each language\\}
+    
+    \tcp{Sort the languages by increasing number of character counts}
+    $L \leftarrow \sort(L)$
+    
+    $B \leftarrow C$ \tcp{Initialize the remaining budget to the total character budget}
+    
+    $i \leftarrow 0$
+    
+    \For{$l$ in $L$}{
+        
+        $b_l \leftarrow \frac{B}{\len(L) - i}$  \tcp{Compute the remaining budget per-language}
+
+        \eIf{$b_l > c_l \times N$}{
+            \tcp{If per-language budget exceeds $N$ epochs of $l$, use $N$ epochs}
+            $U_l \leftarrow c_l \times N$
+         }{
+            $U_l \leftarrow b_l$  \tcp{Otherwise use uniform per-language budget}
+         }
+
+        $B \leftarrow B - U_l$  \tcp{Update the remaining budget}
+
+        $i \leftarrow i + 1$
+
+    }
+
+    $p \leftarrow \normalize(U)$
+    
+    \KwRet{$p$}
+    \caption{\unimax{}}
+    \label{alg:unimax}
+\end{algorithm}
+
+
+\subsection{Vocabulary generation process}
+\label{sec:vocab_generation_process}
+
+Following \citet{xue-etal-2021-mt5}, we use SentencePiece tokenization~\citep{Kudo2018_SPM}, which consumes a corpus to produce a subword-level tokenizer. This corpus is sampled from the available training data, typically using the same distribution used during model training. In the multilingual setting, however, this amounts to an instance of the language balancing problem. While many works explore varying the temperature of the \textit{training} distribution, few perform the analogous change on the \textit{vocabulary-learning} distribution. This could have drastic consequences in certain situations. For example, if the vocabulary learning distribution heavily favors Chinese, but the training distribution heavily favors English, models using this vocabulary may experience poor performance due to insufficient vocabulary coverage~\citep{chung2020_clustering}.
+
+Most sampling strategies require some notion of ``size'' ($n_{l}$) of each language $l$. This is typically computed by counting words or tokens using a pre-existing multilingual tokenizer. But beyond the unwanted complexity of requiring one ``pre-tokenizer'' to train a second tokenizer, such strategies do not generalize well to the massively multilingual setting, as tokenization across $100$+ languages is non-trivial, particularly in languages written without spaces (e.g.~Chinese, Japanese, Thai).
+
+We propose to resolve the above issues by training separate vocabularies for each sampling strategy, using \emph{character} counts as our measure of sub-corpus size. As previous work has tended to measure training budget in \emph{tokens}, when comparing against such approaches, we assume a token contains $4$ characters on average, following \citet{xue-etal-2022-byt5}. We use this same conversion rate to determine the total character budget $C$ in Algorithm~\ref{alg:unimax}, given a real training budget in terms of tokens.
+
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Pretraining Corpus} \label{sec:pretraining_corpus}
+
+To ensure meaningful results when comparing language sampling strategies, it is critical that the examples in our pretraining corpus are \emph{correctly} labeled for language. However language detection is far from a solved problem \citep{caswell-etal-2020-language}, and audits have found low accuracy across a range of public multilingual datasets \citep{kreutzer-etal-2022-quality}. As one severe example, only 40\% of the documents in the Marathi language bucket of the popular mC4 dataset (3.0.1) were found to be well-formed Marathi, with 50\% coming from other languages, and 10\% being non-language.
+
+To mitigate this problem, we construct a new multilingual corpus by filtering mC4 \citep{xue-etal-2021-mt5} to remove documents whose language ID confidence is below $0.95$. Compared to the original mC4 corpus (which used a threshold of $0.7$), this removes 6.1\% of documents; however only 5.1\% of characters are removed, as the filtered low-confidence documents also tend to be shorter. The most filtered languages are Welsh ($86$\%), Sindhi ($85$\%) and Luxembourgish ($84$\%). Inspection of several hundred examples across a subset of languages indicated a clear reduction in mislabeled documents.
+
+\subsection{Vocabulary}
+
+As discussed in Section \S\ref{sec:vocab_generation_process}, we train a dedicated SentencePiece vocabulary for each language sampling method considered. We analyze these vocabularies in terms of token lengths and coverage of various writing scripts in Appendix~\ref{sec:vocab_analysis}. Overall, the expected trends are observed that (i) higher temperature, (ii) smaller \unimax{} training budget, and (iii) higher \unimax{} max-epoch threshold ($N$) all lead to vocabularies that allocate capacity more uniformly across languages. This more uniform allocation results in fewer tokens from higher-resource language scripts (e.g.~Latin), more tokens from lower-resource language scripts (e.g.~Devanagari), and a shift towards shorter tokens.
+
+\subsection{Evaluation Tasks} \label{sec:eval_tasks}
+
+In selecting evaluation tasks, we aim to satisfy several key properties.  First, tasks should be \textbf{linguistically diverse}, covering a range of languages from distinct families and regions, including both high- and low-resource languages.  Second, tasks should be \textbf{free of language bias}.  For example, the task training data and evaluation metrics should be well-balanced across languages.  We also avoid benchmarks where English plays a special role, including datasets constructed in English and translated post-hoc to other languages, as well as zero-shot transfer tasks where English is the sole source language.  Finally, to the degree possible, benchmarks should be \textbf{realistic}, such that performing better on the benchmark gives us confidence that a model will do better on actual tasks facing language technology users.  This is in contrast to ``intermediate structure'' tasks such as part-of-speech tagging.
+
+\textbf{TyDi QA} \citep{clark-etal-2020-tydi} is a multilingual question-answering benchmark covering a range of typologically diverse languages. Questions are written from scratch by native speakers in each language, ensuring culturally relevant content and the absence of ``translationese''.  We use the ``GoldP'' task, which covers 9 languages.  To evaluate candidate models, we use the ``in-language multitask'' setting \citep{hu2020xtreme}---fine-tuning on a mixture of all available languages, and evaluating in each language separately.  To maximize per-language performance, we select per-language checkpoints based on the validation performance, and report validation metrics, as no test set is provided.
+
+The \textbf{WMT21} shared task on large-scale multilingual machine translation \citep{wenzek-etal-2021-findings} tests the ability of single model to translate across many languages.  We focus on the ``small track'' tasks, each testing translation between $6$ languages, in all $30$ combinations.  As with TyDi QA, we fine-tune a single multilingual model on the mixture of all tasks and select per-language-pair checkpoints based on the test set performance.\footnote{We exclude results on language pairs with Serbian as the target language, due to unstable performance. The WMT21 Serbian training data covers Cyrillic and Latin scripts, and we observed high variance in eval metrics across checkpoints, depending on whether the model happened to use the same script as the references.} To reduce heavy English bias, we restrict training data to $1{,}000$ examples per language pair by randomly subsampling from the training data.  Limiting the size of the fine-tuning dataset also increases the importance of transferring knowledge from pretraining, thereby making more apparent the differences between various pretraining sampling strategies.
+
+We also evaluate on several widely adopted multilingual benchmarks: XNLI \citep{conneau-etal-2018-xnli}, XQuAD \citep{artetxe-etal-2020-cross}, MLQA \citep{lewis-etal-2020-mlqa} and PAWS-X \citep{yang-etal-2019-paws}. While these do not satisfy all of our desiderata above (e.g., some are translated from English and some skew towards high-resource languages), their popularity still makes them valuable points of reference.
+
+
+\subsection{Training Setup}
+
+We closely follow mT5~\citep{xue-etal-2021-mt5} for model architecture and training procedure. Specifically, we use an encoder-decoder Transformer architecture. We use the span corruption pretraining objective from T5~\citep{raffel_t5} on a multilingual corpus consisting of $101$ languages plus $6$ Latin-script variants (e.g.~\texttt{ru-Latn}). We use batch size of $1024$ sequences where each sequence is defined by selecting a chunk of $568$ tokens from the training corpus. This is then split into $512$ input and $114$ target tokens. For the results in Section~\S\ref{sec:results}, the number of training steps is $250{,}000$ unless otherwise stated. Additional training details can be found in Appendix~\ref{sec:training_detail}.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Pretraining loss} \label{sec:pretraining_loss}
+
+\begin{figure}[h!]
+\captionsetup[subfigure]{aboveskip=1pt,belowskip=-4pt}
+     \centering
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/loss_temp1.pdf}
+         \caption{$\tau = 1$}
+         \label{fig:pretraining_loss_temp1}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/loss_temp3.pdf}
+         \caption{$\tau = 3.33$}
+         \label{fig:pretraining_loss_temp3}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/loss_um1e.pdf}
+         \caption{\unimax{}}
+         \label{fig:pretraining_loss_unimax}
+     \end{subfigure}
+        \caption{Pretraining cross-entropy loss on the held-out data over the training steps. With too-low temperature, low-resource languages are sampled too little, and their losses are relatively high. With higher temperature, overfitting becomes more severe with increasing model size. Note that loss values are not directly comparable across sampling strategies due to the difference in vocabulary.}
+        \label{fig:pretraining_loss}
+\vspace{5pt}
+% \end{figure}
+%
+% \begin{figure}[h!]
+     \centering
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/loss_temp1_1M.pdf}
+         \caption{$\tau = 1$}
+         \label{fig:pretraining_loss_1M_steps_temp1}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/loss_temp3_1M.pdf}
+         \caption{$\tau = 3.33$}
+         \label{fig:pretraining_loss_1M_steps_temp3}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/loss_um1e_1M.pdf}
+         \caption{\unimax{}}
+         \label{fig:pretraining_loss_1M_steps_unimax}
+     \end{subfigure}
+        \caption{Pretraining cross-entropy loss on the held-out data over 1M training steps. With the sequence length of 512, this corresponds to $1/2$ character budget. The overfitting behavior emerges only after sufficient number of training steps for $\tau = 3.33$.}
+        \label{fig:pretraining_loss_1M_steps}
+\vspace{5pt}        
+% \end{figure}
+%
+% \begin{figure}[h!]
+     \centering
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/scaling_tydi.pdf}
+         \caption{All languages}
+         \label{fig:scaling_tydi_all}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/scaling_tydi_high5.pdf}
+         \caption{Higher-resource}
+         \label{fig:scaling_tydi_high5}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.32\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{figures/scaling_tydi_low4.pdf}
+         \caption{Lower-resource}
+         \label{fig:scaling_tydi_low4}
+     \end{subfigure}
+        \caption{Average TyDi QA GoldP performance across three model sizes. Overall, \unimax{} outperforms both baselines at all model sizes considered. Breakdowns on higher-resource (top-5) and lower-resource (bottom-4) languages show \unimax{} outperforms $\tau = 3.33$ on both high- and low-resource, and only underperforms $\tau = 1$ on high-resource at large model scales.}
+        \label{fig:scaling_tydi}
+\end{figure}
+
+
+One challenge in evaluating multilingual models is the relative paucity of benchmarks that cover a broad range languages and are free from language bias (see Section \S\ref{sec:eval_tasks}). Numerous studies have established strong correlation between pretraining and fine-tuning performance~\citep[][\textit{inter alia}]{devlin-etal-2019-bert,narang-etal-2021-transformer,tay2022scale}. Thus, in addition to targeted downstream evaluations, it can be valuable to monitor and analyze performance on held-out pretraining data, which by definition covers all pretraining languages. Figure~\ref{fig:pretraining_loss} shows pretraining loss curves of models trained with three sampling strategies, for both English (\texttt{en}) and Yoruba (\texttt{yo}), the highest and lowest-resource languages in our study. We plot three model sizes, as model scale controls the tradeoffs between positive cross-lingual transfer and overfitting.
+
+In Figure~\ref{fig:pretraining_loss_temp1}, we observe that the loss values for \texttt{en} are much lower than for \texttt{yo}, and model scale alone does little to close this gap. This suggests that downstream performance on low-resource languages will suffer if they are not upsampled. On the other hand, too much upsampling is problematic, as shown in Figure~\ref{fig:pretraining_loss_temp3}. Crucially, overfitting only emerges with scale: \texttt{Large} shows no obvious overfitting, \texttt{XL} shows weak overfitting, and it becomes conspicuous at \texttt{XXL} size.  Moreover, while the effects of repetition may appear to be limited to Yoruba, results from \citet{hernandez2022scaling} suggest that overfitting in one language is likely to hurt performance across the board; the authors find that even repeating $0.1\%$ of data $100$ times can be as harmful as halving model size.
+
+Figure~\ref{fig:pretraining_loss_1M_steps} shows the pretraining loss curve for a longer train, corresponding to $1/2$ character budget. In this case, overfitting emerges even for the \texttt{Large} model after around 300,000 steps. Given that previous work \citep{conneau-etal-2020-unsupervised, xue-etal-2021-mt5} studied sampling distributions at smaller model sizes or for shorter training steps, the importance of overfitting may have been overlooked. Notably, across Figures \ref{fig:pretraining_loss_unimax} and \ref{fig:pretraining_loss_1M_steps_unimax}, \unimax{} closes the loss gap between high- and low-resource languages without showing any sign of overfitting.
+
+\subsection{Downstream evaluations}
+\label{sec:downstream_evaluations}
+
+% Reduce space between floats and text
+\setlength{\textfloatsep}{14pt plus 1.0pt minus 4.0pt}
+
+Figure~\ref{fig:scaling_tydi} shows the average TyDi QA performance for the three sampling strategies discussed in Section~\S\ref{sec:sampling_methods}. Our first observation is that \unimax{} outperforms the other two consistently across model scales. We can get additional insights by correlating per-language performance with the pretraining portion of each language, as shown in Figure~\ref{fig:tydi_per_language}. Generally, languages seen more during pretraining tend to have higher performance, but this benefit seems to have its limit. For example, $\tau = 1$ sampling allocates 47.7\% of training to \texttt{en} but this only translates to 1\% better performance than \unimax{}, which allots only 1\% to \texttt{en}. We believe this surprisingly small delta is attributable to the benefit of positive transfer from non-English languages onto English. Additionally, we note that \unimax{} outperforms $\tau = 3.33$ on Swahili, despite seeing fewer Swahili examples during training. See Table~\ref{table:tydi_scale_per_lang} for full per-language metrics across sampling strategies and model scales.
+
+\begin{figure}[h]
+     \centering
+     \begin{subfigure}[t]{0.45\textwidth}
+         \centering
+        \includegraphics[width=5.0cm, trim={0 6pt 0 6pt},clip]{figures/tydi_xxl_per_lang.pdf}
+        % \caption{TyDi QA performance.}
+        \label{fig:tydi_xxl_per_lang}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[t]{0.45\textwidth}
+         \centering
+        \includegraphics[width=5.0cm, trim={0 6pt 0 6pt},clip]{figures/tydi_lang_pretraining_proportion.pdf}
+        % \caption{Pretraining sampling rate.}
+        % \label{fig:tydi_lang_pretraining_proportion}
+     \end{subfigure}
+        \caption{\textbf{Left}: Per-language TyDi QA performance of \texttt{XXL} models pretrained using three different sampling strategies. \textbf{Right}: Pretraining sampling rates of the three models.}
+        % \label{fig:tydi_pretraining_correlation}
+        \label{fig:tydi_per_language}
+\end{figure}
+
+\begin{figure}
+     \centering
+     \begin{subfigure}[t]{0.44\textwidth}
+         \centering
+    \includegraphics[height=3.8cm, trim={0 6pt 0 12pt},clip]{figures/scaling_wmt.pdf}
+    % \caption{Performance averaged across all language pairs for the three sampling methods.}
+    % \label{fig:scaling_wmt}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[t]{0.52\textwidth}
+         \centering
+         \includegraphics[height=3.4cm, trim={0 6pt 0 6pt},clip]{figures/wmt_best_method_bar.pdf}
+        %  \caption{Rates of sampling methods performing best on WMT21, covering all language pairs.}
+        %  \label{fig:wmt_best_method_all_pairs}
+     \end{subfigure}
+        % \caption{WMT21 performance. \unimax{} outperforms both baselines at all model sizes and the majority of the language pairs benefit.}
+        \caption{\textbf{Left}: WMT21 performance averaged across all language pairs. \unimax{} outperforms both baselines at all model sizes. \textbf{Right}: The majority of the language pairs benefits with \unimax{}.}
+        \label{fig:wmt}
+\end{figure}
+
+Figure~\ref{fig:wmt} (left) shows that \unimax{} also outperforms temperature sampling on WMT21, across all model sizes considered. Figure~\ref{fig:wmt} (right) shows that the benefit is spread out across the majority of language pairs, as opposed to only benefiting a small subset. We also note that the benefit is more pronounced for languages pairs where the target language is non-English, see Fig.~\ref{fig:wmt_best_method_non_en_target} for details. Appendix~\ref{sec:additional_benchmarks} provides evaluations on additional benchmarks, which show similar trends.
+
+\subsection{Further ablations}
+Our core experiments described in the previous sections were done across three model scales, but limited the character budget to $1/8$, due to compute resource constraints. In this section, we perform two additional ablations, but limiting to \texttt{Large} size.
+
+First, in Table~\ref{table:additional_ablations} (left) we show the effect of increasing the budget by $4\times$. Note, longer training changes the ``shape'' of the \unimax{} distribution (cf.~Figure~\ref{fig:pretraining_sampling_rate}), as the increased budget means more languages will hit their max-$N$ epoch cap. Overall, we find that \unimax{} still outperforms temperature sampling, with the longer train boosting performance across the board.
+
+Second, we ablate the \unimax{} max-epoch parameter $N$. So far, we have used $N = 1$, i.e.~no example is repeated. Table~\ref{table:additional_ablations} (right) shows TyDi QA results for $N\,{\in}$~\{\,$1$,\,$5$,\,$10$\,\}. We observe the best performance when disallowing repeats entirely, but the effect is small. We also note that the optimal setting of $N$ likely depends on the character budget, as for large enough budgets, \unimax{}-1 will see vanishingly little of the lowest-resource languages.
+
+\begin{table}[]
+\begin{center}
+\caption{Average TyDi QA results of additional \texttt{Large}-size models. \textbf{Left}: Comparison of sampling strategies at larger ($1/2$) character budget. \textbf{Right}: Ablation of \unimax{} max-epochs ($N$) parameter.}
+\label{table:additional_ablations}
+\resizebox{3in}{!}{%
+\begin{tabular}{lc}
+\toprule
+              & \multicolumn{1}{l}{TyDi QA} \\
+\midrule
+$\tau=1.0$ & 81.2                        \\
+$\tau=3.33$ & 82.8                        \\
+\unimax{}        & \textbf{83.1}                        \\
+\bottomrule
+\end{tabular}
+\quad
+\hspace{20pt}
+\begin{tabular}{lc}
+\toprule
+         & \multicolumn{1}{l}{TyDi QA} \\
+         \midrule
+$N = 1$  & \textbf{82.2}               \\
+$N = 5$  & 81.5                        \\
+$N = 10$ & 81.8                        \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+\end{table}
+
+\section{umT5 Models}
+\label{sec:final_models}
+
+We put our above findings into practice by training a suite of ``umT5'' models over a trillion tokens.  For these final models, we also update the training corpus and add analysis comparing to mT5, which is the most direct point of comparison. As large language models are increasingly used for knowledge-intensive tasks \citep{petroni-etal-2019-language, roberts-etal-2020-much, petroni-etal-2021-kilt}, it is important that training corpora are up-to-date.  Given that the mC4 corpus is over two years old, we update the corpus (update version 3.1.0) to cover crawled documents through August 2022.
+
+Beyond adding fresh documents, we make three changes to mC4\@.  First, as in Section~\S\ref{sec:pretraining_corpus}, we raise the language detection confidence threshold from $0.7$ to $0.95$, which we found to increase accuracy and reduce documents with little or no natural language.  Second, we adjust the mC4 bad word filters to be \emph{soft} filters, allowing a random $0.1\%$ of documents with bad words to pass through.  This ensures that models trained on our corpus will have at least a minimal exposure to any term, which is likely to help on tasks like toxicity detection. Finally, we remove from mC4's bad words lists any term that results in filtering ${>}10\%$ of documents from the language in question.\footnote{On inspection, we found these terms occurred in non-spaced languages (specifically, Chinese or Japanese), and generated frequent false positives as they were substrings of common, unoffensive words.  This change more than doubled the size of the resulting Chinese sub-corpus.} Applying these changes, our resulting training corpus consists of $28.8$ trillion characters from $9.0$ billion documents---a $35\%$ increase in documents over mC4.  This increase is due primarily to added documents, and persists despite the more aggressive filtering during language detection.  See Table~\ref{table:mc4_character_count} for full corpus statistics.
+
+We closely follow the training setup and evaluation tasks from the mT5 paper for a fair comparison. Table~\ref{table:final_model} shows that umT5 outperforms mT5 on most tasks, across all sizes, and particularly at the largest size.\footnote{We exclude Large size, as umT5-Large exhibited pretraining instability and underperformed umT5-Base on all metrics.} See Appendix~\ref{sec:mc4_refresh} for an additional ablation isolating the effect of the data refresh.
+
+\begin{table}[]
+\caption{Comparison to mT5\@. XNLI and PAWS-X show average per-language accuracy; the rest show average per-language EM/F1. We use the translate-train setting except for TyDi QA, which uses ``in-language''. We omit results for the \texttt{Large} configuration due to instabilities in training.}
+\centering
+\resizebox{\columnwidth}{!}{
+\footnotesize
+\begin{tabular}{l cc cc cc cc cc}
+\toprule
+& \multicolumn{2}{c}{XNLI} & \multicolumn{2}{c}{PAWS-X} & \multicolumn{2}{c}{XQuAD} & \multicolumn{2}{c}{MLQA} & \multicolumn{2}{c}{TyDi QA} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9} \cmidrule(lr){10-11}
+Model & mT5 & umT5 & mT5 & umT5 & mT5 & umT5 & mT5 & umT5 & mT5 & umT5 \\
+\midrule
+Small & 72.0 & \textbf{76.2} & 79.9 & \textbf{87.2} & 49.4 / 64.5 & \textbf{60.5} / \textbf{74.0} & 38.8 / 56.6 & \textbf{41.8} / \textbf{60.7} & \textbf{62.7} / \textbf{74.0} & 56.6 / 70.0 \\
+Base & 79.8 & \textbf{80.8} & 89.3 & \textbf{90.4} & 59.7 / 75.3 & \textbf{67.3} / \textbf{79.8} & 48.5 / 67.6 & \textbf{51.6} / \textbf{70.5} & 68.4 / 79.7 & \textbf{68.4} / \textbf{81.0} \\
+XL & 85.3 & \textbf{86.5} & \textbf{91.0} & 90.7 &  68.1 / 82.7 & \textbf{75.0} / \textbf{86.1} & 56.6 / 75.1 & \textbf{58.3} / \textbf{76.8} & \textbf{78.4} / \textbf{87.6} & 74.1 / 85.2 \\
+XXL & 87.1 & \textbf{87.8} & \textbf{91.5} & 91.2 & 71.3 / 85.2 & \textbf{77.9} / \textbf{88.2} & 58.3 / 76.9& \textbf{70.5} / \textbf{78.6} & 79.5 / 88.7 & \textbf{81.2} / \textbf{89.7} \\
+\bottomrule
+\end{tabular}}
+\label{table:final_model}
+\end{table}
+
+\section{Conclusion}
+
+In this paper, we introduced \unimax{}, a language sampling strategy that comes close to being uniform across languages---as close as possible without introducing harmful repetition.  We showed this method performs well across several benchmarks and model scales, up to $13$ billion parameters.  Given the guarantees it provides against repetition, we expect \unimax{} is also well-suited to even larger model sizes, where issues of overfitting and memorization are known to grow more severe.
+
+Our study focused on a single pretraining paradigm. Future work is needed to test if \unimax{} confers gains in other settings, such as: (i) encoder-only or decoder-only models, (ii) models trained with parallel data, and (iii) models with dedicated parameters per language \citep{pfeiffer-etal-2022-lifting}.
+
+Beyond evaluation metrics, there is an \textit{a priori} reason to prefer more uniform language distributions: they can be seen as more equitable, in that they come closer to treating each language as an equally priority.  However there is an important remaining question about whether ``language'' is the right unit over which to normalize.  One alternative that we think deserves further exploration is inspired by the notion of ``demographic utility'' discussed by \citet{blasi-etal-2022-systematic}, which treats each \emph{speaker} as equal in balancing across languages. See Appendix~\ref{sec:representation} for further analysis.
+
+We are eager to see if future research can formulate successful sampling strategies that take into account \emph{both} linguistic and demographic utility.  Ideally the language distributions output by these strategies can lead to stronger-performing and more equitable pretrained models that better serve a wider range of users and use cases.
+
+\subsubsection*{Acknowledgments}
+
+We are grateful to Yuan Cao, Noah Fiedel, Ben Hutchinson, Kathy Meier-Hellstern, Slav Petrov, Sebastian Ruder and Siamak Shakeri for helpful comments and discussion.
+
+\bibliography{iclr2023_conference}
+\bibliographystyle{iclr2023_conference}
+
+\appendix
+
+\section{Vocabulary Analysis} \label{sec:vocab_analysis}
+
+\begin{table}[]
+\caption{Frequency (\%) of tokens satisfying various conditions across vocabularies generated using different sampling strategies, as well as the mT5 vocabulary.}
+\label{tab:vocab_analysis}
+\centering
+\footnotesize
+\begin{tabular}{lccccccc}
+\toprule
+ &
+  \multicolumn{1}{l}{$\tau = 1$} &
+  \multicolumn{1}{l}{$\tau = 3.33$} &
+  \multicolumn{1}{l}{UM1 4x} &
+  \multicolumn{1}{l}{UM10 4x} &
+  \multicolumn{1}{l}{UM1 1x} &
+  \multicolumn{1}{l}{UM10 1x} &
+  \multicolumn{1}{l}{mT5} \\
+  \midrule
+Latin                   & 67.0 & 54.0 & 56.3 & 47.9 & 50.2 & 49.5 & 46.6 \\
+Cyrillic (e.g.~Russian) & 17.7 & 13.0 & 12.0 & 14.6 & 14.1 & 12.6 & 10.7 \\
+Han (Chinese/Japanese)  & 3.2  & 4.3  & 4.9  & 4.2 & 4.5  & 4.0  & 7.2  \\
+Arabic                  & 2.8  & 4.6  & 5.6  & 4.2 & 4.5  & 4.6  & 3.0  \\
+Greek                   & 1.3  & 1.9  & 3.1  & 1.5 & 2.0  & 1.3  & 2.1  \\
+Hangul (Korean)         & 0.8  & 1.5  & 2.1  & 1.5 & 1.8  & 1.4  & 1.7  \\
+Devanagari (e.g.~Hindi) & 0.5  & 2.2  & 1.9  & 3.0 & 2.9  & 2.6  & 1.3  \\
+Thai                    & 0.3  & 0.9  & 1.2  & 1.0 & 1.3  & 0.9  & 1.8  \\
+\midrule
+Contains whitespace (\underline{\hspace{0.7em}}) & 56.1 & 51.8 & 52.8 & 51.5 & 52.3 & 50.9 & 22.5 \\
+Contains punctuation    & 0.4  & 0.4  & 0.4  & 0.5 & 0.4  & 0.5  & 4.2  \\
+\midrule
+1-char   & 6.1  & 8.2  & 8.6  & 8.3 & 8.6  & 8.2  & 7.8  \\
+2-char   & 4.3  & 6.6  & 6.2  & 6.5 & 6.3  & 6.7  & 10.1 \\
+3-char   & 8.9  & 12.6 & 11.7 & 13.1 & 12.6 & 13.4 & 17.8 \\
+4-char   & 12.4 & 15.4 & 14.3 & 16.0 & 15.4 & 16.3 & 21.8 \\
+5-char   & 13.1 & 15.2 & 14.3 & 15.5 & 15.1 & 15.9 & 17.2 \\
+6-char   & 12.1 & 12.8 & 12.6 & 12.9 & 12.8 & 13.1 & 10.5 \\
+7-char   & 10.6 & 9.6  & 9.9  & 9.6 & 9.7  & 9.4  & 6.0  \\
+8-char   & 9.1  & 7.0  & 7.6  & 6.7 & 7.0  & 6.5  & 3.8  \\
+9-char   & 7.4  & 5.0  & 5.7  & 4.8 & 5.1  & 4.6  & 2.2  \\
+10+ char & 15.9 & 7.5  & 9.2  & 6.7 & 7.5  & 5.9  & 2.7  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+We analyze the makeup of the sub-word vocabularies resulting from different language sampling strategies in Table \ref{tab:vocab_analysis}.  To see how capacity is allocated across languages, we measure the proportion of tokens using scripts associated with specific languages or language groups.  We observe that increasing $\tau$ from $1$ to $3.33$ reduces the amount of Latin-script and Cyrillic tokens, presumably due to heavy reduction of English and Russian, the two most prevalent languages in mC4.  However, as expected, raising temperature increases allocation to lower-ranking languages (Arabic, Chinese, Greek,  Hindi, Japanese, Korean, Thai).  Overall, the \unimax{} vocabularies are fairly similar to $\tau=3.33$, with the expected trend that increasing pretraining budget ($1\times \rightarrow 4\times$) shifts more allocation to high-resource languages, while increasing the max-epoch threshold (UM1 $\rightarrow$ UM10) shifts more allocation to low-resource languages.
+
+Looking at token lengths, we observe three factors contribute to shorter tokens: higher temperature, smaller \unimax{} budget, and higher \unimax{} max-epoch threshold.  This is expected, as if a few high-resource languages dominate the vocabulary training corpus, the sub-word optimizer will assign more capacity to rare words from these languages, as opposed to covering more frequent (and shorter) words from a wider range of languages.
+
+Comparing to mT5, we note that our vocabularies have longer tokens overall, and include more tokens containing the SentencePiece meta-symbol indicating whitespace (\underline{\hspace{0.7em}}).  We suspect these differences stem from mT5 using a whitespace-splitting ``pre-tokenizer'' to derive preliminary word counts which are fed to the sub-word training algorithm.  By comparison, our vocabulary is trained on raw text, with no need for a pre-tokenizer.  We also note that mT5 contains many more tokens including punctuation.  This is most likely due to the presence of low-quality non-language documents that are filtered by our higher language detection threshold, as described in section \S\ref{sec:pretraining_corpus}.
+
+\section{Representation Ratios} \label{sec:representation}
+
+To shed light on how moving towards a more population-based sampling strategy would reshape language distributions, we define the ``representation ratio'' $R(l, t)$ of a language $l$ within a training distribution $t$ to be the ratio between the language's rate of use within $t$ and its rate of native speakers ($s$) among the world population ($w$), as shown in equation (\ref{eq:representation}). We say a language is ``overrepresented'' ($R > 1$) or ``underrepresented'' ($R < 1$) to indicate that its prevalence in training is more or less than expected based on its global L1 speaker population.
+
+\begin{equation} \label{eq:representation}
+R(l, t) = \frac{t_{l} / \sum_{l' \in L} t_{l'}}{s_{l} / {w}} = \frac{w \, t_{l}}{s_l \sum_{l' \in L} t_{l'}}
+\end{equation}
+
+\begin{figure*}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/representation.pdf}
+    \caption{Representation ratios (mT5 pretraining rate / L1 speaker rate) of mT5 training languages. Esperanto (\texttt{eo}) and Latin (\texttt{la}) are clipped to $1{,}000$; with few or no native speakers, the actual values are much higher.}
+    \label{fig:representation}
+\end{figure*}
+
+Figure~\ref{fig:representation} plots representation ratios for the mT5 language distribution, with native speaker counts taken from Wikipedia.\footnote{Languages not covered by mT5 are not plotted, but have a representation ratio of zero.  As one example, Odia is a language of India spoken by 33 million native speakers, but not included in mT5 training.}  We observe a wide range of representation, ranging from $7\times$ underrepresented to over $900\times$ overrepresented. We also note a clear pattern whereby languages of Europe tend to have higher representation (Mann–Whitney $U{=}566$, $p{<}$\num{1e-5}, two-tailed), echoing a general bias observed by \citet{blasi-etal-2022-systematic} for NLP resources.
+
+Overall, we find that languages with large speaker populations, and particularly non-European languages are heavily underrepresented in commonly used pretraining distributions.  For example, the top $5$ underrepresented languages in mT5 training are all languages of Asia and Africa with $50$ million or more native speakers: Chinese, Punjabi, Yoruba, Bengali and Hindi.
+
+\section{Additional training details} \label{sec:training_detail}
+
+The model architectures used in this study are the same as mT5 models, except that relative position embeddings are not shared across layers. In all of our models, the vocabulary size is 256,000 subwords, and byte-level fallback is enabled, so unknown tokens are broken down into UTF-8 bytes.
+
+We use the T5X library~\citep{roberts_t5x} to train the models using Google Cloud TPUs. For pretraining, we use Adafactor optimizer~\citep{shazeer_adafactor} with a constant learning rate of $0.01$ in the first $10{,}000$ steps and inverse square root decay afterwards. For finetuning, we use Adafactor with a constant learning rate of \num{5e-5}. Unlike mT5, we do not use loss normalization factor. Instead we use the number of real target tokens as the effective loss normalization.
+
+Finally, we do not factorize the second moment of the Adafactor states and we also use momentum, neither of which are used in T5 and mT5 studies.
+
+\section{Additional benchmarks}
+\label{sec:additional_benchmarks}
+
+\begin{table}[]
+\caption{Additional benchmark results across sampling strategy and model scale. XNLI scores are average per-language accuracy. XQuAD is run in the translate-train setting and scores are average per-language EM/F1.}
+\label{table:additional_benchmarks}
+\begin{center}
+%\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+ &
+  XNLI zero-shot &
+  XNLI translate-train &
+  XQuAD \\
+  \midrule
+\textit{Large (1.2B)} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &  
+  \multicolumn{1}{l}{} \\
+  \midrule
+$\tau=1.0$ & 74.8 & 82.0 & 71.0/82.6 \\
+$\tau=3.33$ & 78.2 & 82.3 & \textbf{71.6}/\textbf{83.2} \\
+\unimax{} & \textbf{78.3} & \textbf{82.7} & \textbf{71.6}/83.1 \\
+
+  \midrule
+\textit{XL (3.7B)} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} \\
+  \midrule
+$\tau=1.0$ & - & 84.1 & 73.8/84.9 \\
+$\tau=3.33$ & - & \textbf{85.0} & 74.2/85.3 \\
+\unimax{} & - & \textbf{85.0} & \textbf{74.5}/\textbf{85.5} \\
+
+\midrule
+\textit{XXL (13B)} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} \\
+  \midrule
+$\tau=1.0$ & - & 85.1 & 75.1/86.0 \\
+$\tau=3.33$ & - & \textbf{85.5} & 75.4/86.3 \\
+\unimax{} & - & \textbf{85.5} & \textbf{75.6}/\textbf{86.4} \\
+\bottomrule
+\end{tabular}
+%}
+\end{center}
+\end{table}
+
+As a further comparison, we fine-tune and evaluate the nine pretrained models from Sections~\ref{sec:experiments} and \ref{sec:results} on three additional benchmarks: XNLI zero-shot, XNLI translate-train, and XQuAD\@. We observe \unimax{} performs the best overall, although $\tau=3.33$ is a close second.
+
+\section{Ablation on mC4 refresh}
+\label{sec:mc4_refresh}
+
+\begin{table}[]
+\caption{Ablation on mC4 refresh. XNLI scores are average per-language accuracy in the translate-train setting.}
+\label{table:mc4_refresh}
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+& \multicolumn{1}{l}{XNLI} \\
+\midrule
+mC4 & 77.6 \\
+Refreshed mC4 & 77.7 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+To isolate the effect of refreshing the mC4 data, we train two additional models to $100,000$ steps using \unimax{} sampling, under the same ``full-budget'' setting as in Section \S\ref{sec:final_models}. These models differ only in that one trains on the original mC4 data, while the other uses our refreshed mC4 corpus.
+
+Table \ref{table:mc4_refresh} shows results fine-tuning these two models on the XNLI task. We observe that the data refresh alone only gives a small boost ($+0.1$), supporting the view that the gains of \unimax{} over mT5 ($+1.0$) in Table \ref{table:final_model} are primarily due to improved language sampling. While the inclusion of more recently crawled documents does not help on this particular benchmark (which is also several years old), we expect that the refreshed data will be useful to practitioners, and should help on tasks requiring up-to-date knowledge.
+
+\section{Additional tables}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=6.5cm]{figures/wmt_best_method_bar_non_en_target.pdf}
+    \caption{WMT21 results restricting to language pairs with non-English target. \unimax{} performs best on the vast majority of pairs, across all scales.}
+    \label{fig:wmt_best_method_non_en_target}
+\end{figure}
+
+\begin{table}[]
+\caption{Per-language TyDi QA GoldP performance, as average of exact-match and F1 metrics. Numbers in brackets represent the rank of the language in the pretraining corpus (e.g. \texttt{ru} has the second largest character count).}
+\label{table:tydi_scale_per_lang}
+\begin{center}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccccc}
+\toprule
+ &
+  Avg &
+  en {[}1{]} &
+  ru {[}2{]} &
+  ar {[}15{]} &
+  fi {[}23{]} &
+  ko {[}27{]} &
+  id {[}33{]} &
+  bn {[}37{]} &
+  te {[}59{]} &
+  sw {[}62{]} \\
+  \midrule
+\textit{Large (1.2B)} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &  
+  \multicolumn{1}{l}{} \\
+  \midrule
+$\tau=1.0$ & 80.1 & \bf 78.7 & 77.8 & 81.0 & 79.0 & 76.1 & 83.4 & 79.4 & 85.5 & 80.0 \\
+$\tau=3.33$ & 82.0 & 76.2 & 77.3 & \bf 81.5 & 80.1 & 77.6 & \bf 85.9 & 84.2 & 87.7 & 84.7 \\
+\unimax{} & \bf 83.3 & 76.5 & \bf 78.6 & 80.8 & \bf 80.4 & \bf 77.9 & \bf 85.9 & \bf 86.5 & \bf  87.9 & \bf 85.6 \\
+
+  \midrule
+\textit{XL (3.7B)} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} \\
+  \midrule
+$\tau=1.0$    & 81.7 & 78.4 & 81.0 & 82.5 & 81.7 & 77.5 & \bf 87.0 & 81.7 & 86.4 & 82.2 \\  
+$\tau=3.33$    & 83.4 & \bf 79.0 & 79.5 & \bf 83.1 & 81.2 & 79.6 & 86.3 & 86.5 & 88.3 & 87.2 \\
+\unimax{}    & \bf 83.9 & 78.0 & \bf 81.3 & 82.3 & \bf 81.9 & \bf 80.4 & 86.8 & \bf 88.9 & \bf 88.4 & \bf 87.7 \\
+  \midrule
+\textit{XXL (13B)} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} &
+  \multicolumn{1}{l}{} \\
+  \midrule
+$\tau=1.0$   & 82.2 & \bf 79.1 & \bf 82.9 & 82.7 & \bf 83.1 & 80.0 & 86.7 & 83.8 & 86.4 & 85.2 \\
+$\tau=3.33$   & 84.0 & 77.8 & 81.3 & \bf 83.4 & 82.7 & 79.9 & 88.4 & 86.6 & \bf 88.8 & 86.2 \\
+\unimax{}   & \bf 84.4 & 78.1 & 81.0 & 83.1 & 82.2 & \bf 81.5 & \bf 89.2 & \bf 89.5 & 88.5 & \bf 86.6 \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+\end{table}
+
+\begin{table*}[t]
+\caption{Statistics for our improved and refreshed variant of the mC4 corpus, as well as the sampling rates (\%) of the sampling methods studied in the paper.}
+\label{table:mc4_character_count}
+\begin{center}
+\resizebox{5.5in}{!}{%
+
+\begin{tabular}{lrrrrr}
+\toprule
+& \multicolumn{1}{r}{Chars} & & &
+  \multicolumn{1}{r}{UniMax} &
+  \multicolumn{1}{r}{UniMax} \\
+Lang &
+  \multicolumn{1}{r}{(B)} &
+  \multicolumn{1}{r}{$\tau = 3.33$} &
+  \multicolumn{1}{r}{$\tau = 1$} &
+  \multicolumn{1}{r}{(1$\times$)} &
+  \multicolumn{1}{r}{($1/8$)} \\
+  \midrule
+en  & 13,396 & 5.75 & 46.58 & 3.22 & 1.48 \\
+ru  & 3,018  & 3.68 & 10.49 & 3.22 & 1.48 \\
+es  & 2,052  & 3.28 & 7.13  & 3.22 & 1.48 \\
+de  & 1,799  & 3.15 & 6.26  & 3.22 & 1.48 \\
+fr  & 1,433  & 2.94 & 4.98  & 3.22 & 1.48 \\
+it  & 779    & 2.45 & 2.71  & 3.22 & 1.48 \\
+pt  & 658    & 2.33 & 2.29  & 3.22 & 1.48 \\
+zh  & 556    & 2.21 & 1.93  & 3.22 & 1.48 \\
+pl  & 527    & 2.18 & 1.83  & 3.22 & 1.48 \\
+vi  & 409    & 2.02 & 1.42  & 3.22 & 1.48 \\
+nl  & 371    & 1.96 & 1.29  & 3.22 & 1.48 \\
+tr  & 349    & 1.93 & 1.22  & 3.22 & 1.48 \\
+ar  & 252    & 1.75 & 0.88  & 3.22 & 1.48 \\
+ro  & 250    & 1.74 & 0.87  & 3.22 & 1.48 \\
+ja  & 240    & 1.72 & 0.83  & 3.22 & 1.48 \\
+cs  & 236    & 1.71 & 0.82  & 3.22 & 1.48 \\
+fa  & 202    & 1.63 & 0.70  & 3.22 & 1.48 \\
+sv  & 201    & 1.63 & 0.70  & 3.22 & 1.48 \\
+hu  & 185    & 1.59 & 0.64  & 3.22 & 1.48 \\
+uk  & 171    & 1.55 & 0.59  & 3.22 & 1.48 \\
+el  & 166    & 1.54 & 0.58  & 3.22 & 1.48 \\
+da  & 132    & 1.44 & 0.46  & 2.83 & 1.48 \\
+fi  & 120    & 1.40 & 0.42  & 2.58 & 1.48 \\
+no  & 116    & 1.38 & 0.40  & 2.49 & 1.48 \\
+bg  & 99     & 1.32 & 0.35  & 2.13 & 1.48 \\
+th  & 92     & 1.29 & 0.32  & 1.97 & 1.48 \\
+sk  & 79     & 1.23 & 0.27  & 1.69 & 1.48 \\
+hi  & 75     & 1.21 & 0.26  & 1.60 & 1.48 \\
+ko  & 74     & 1.21 & 0.26  & 1.59 & 1.48 \\
+lt  & 63     & 1.15 & 0.22  & 1.35 & 1.48 \\
+iw  & 57     & 1.12 & 0.20  & 1.23 & 1.48 \\
+ca  & 55     & 1.11 & 0.19  & 1.19 & 1.48 \\
+id  & 51     & 1.08 & 0.18  & 1.09 & 1.48 \\
+sl  & 47     & 1.05 & 0.16  & 1.00 & 1.48 \\
+et  & 42     & 1.02 & 0.15  & 0.91 & 1.48 \\
+lv  & 38     & 0.99 & 0.13  & 0.83 & 1.48 \\
+bn  & 34     & 0.95 & 0.12  & 0.72 & 1.48 \\
+sq  & 18     & 0.79 & 0.06  & 0.39 & 1.48 \\
+az  & 18     & 0.79 & 0.06  & 0.39 & 1.48 \\
+sr  & 18     & 0.79 & 0.06  & 0.39 & 1.48 \\
+ta  & 17     & 0.78 & 0.06  & 0.37 & 1.48 \\
+ms  & 15     & 0.75 & 0.05  & 0.32 & 1.48 \\
+is  & 14     & 0.73 & 0.05  & 0.30 & 1.48 \\
+kk  & 13     & 0.72 & 0.05  & 0.28 & 1.48 \\
+mr  & 13     & 0.72 & 0.05  & 0.28 & 1.48 \\
+ne  & 11     & 0.68 & 0.04  & 0.23 & 1.48 \\
+ur  & 11     & 0.68 & 0.04  & 0.23 & 1.48 \\
+ka  & 10     & 0.67 & 0.04  & 0.22 & 1.48 \\
+hy  & 10     & 0.66 & 0.03  & 0.21 & 1.48 \\
+mk  & 10     & 0.65 & 0.03  & 0.20 & 1.48 \\
+fil & 9.5    & 0.65 & 0.03  & 0.20 & 1.48 \\
+ml  & 9.4    & 0.65 & 0.03  & 0.20 & 1.48 \\
+mn  & 9.3    & 0.65 & 0.03  & 0.20 & 1.48 \\
+gl  & 8.8    & 0.64 & 0.03  & 0.19 & 1.48 \\
+\bottomrule
+\end{tabular}
+
+\quad
+\begin{tabular}{lrrrrr}
+\toprule
+& \multicolumn{1}{r}{Chars} & & &
+  \multicolumn{1}{r}{UniMax} &
+  \multicolumn{1}{r}{UniMax} \\
+Lang &
+  \multicolumn{1}{r}{(B)} &
+  \multicolumn{1}{r}{$\tau = 3.33$} &
+  \multicolumn{1}{r}{$\tau = 1$} &
+  \multicolumn{1}{r}{(1$\times$)} &
+  \multicolumn{1}{r}{($1/8$)} \\
+  \midrule
+af      & 7.4 & 0.61 & 0.03 & 0.16 & 1.27 \\
+be      & 7.4 & 0.60 & 0.03 & 0.16 & 1.26 \\
+kn      & 6.9 & 0.59 & 0.02 & 0.15 & 1.18 \\
+eu      & 6.3 & 0.58 & 0.02 & 0.13 & 1.08 \\
+te      & 5.9 & 0.57 & 0.02 & 0.13 & 1.01 \\
+tg      & 5.4 & 0.55 & 0.02 & 0.12 & 0.93 \\
+mt      & 5.2 & 0.54 & 0.02 & 0.11 & 0.89 \\
+uz      & 4.8 & 0.53 & 0.02 & 0.10 & 0.82 \\
+la      & 4.5 & 0.52 & 0.02 & 0.10 & 0.78 \\
+so      & 4.4 & 0.52 & 0.02 & 0.10 & 0.76 \\
+my      & 4.2 & 0.51 & 0.01 & 0.09 & 0.72 \\
+sw      & 4.1 & 0.51 & 0.01 & 0.09 & 0.70 \\
+ky      & 3.7 & 0.49 & 0.01 & 0.08 & 0.64 \\
+gu      & 3.6 & 0.49 & 0.01 & 0.08 & 0.61 \\
+km      & 3.5 & 0.48 & 0.01 & 0.07 & 0.60 \\
+eo      & 3.3 & 0.48 & 0.01 & 0.07 & 0.57 \\
+cy      & 3.1 & 0.47 & 0.01 & 0.07 & 0.53 \\
+si      & 3.0 & 0.46 & 0.01 & 0.06 & 0.52 \\
+ru-Latn & 2.6 & 0.44 & 0.01 & 0.06 & 0.44 \\
+pa      & 2.2 & 0.42 & 0.01 & 0.05 & 0.37 \\
+ga      & 2.1 & 0.42 & 0.01 & 0.05 & 0.36 \\
+zh-Latn & 1.9 & 0.40 & 0.01 & 0.04 & 0.33 \\
+ps      & 1.4 & 0.37 & 0.01 & 0.03 & 0.25 \\
+ku      & 1.3 & 0.36 & 0.00 & 0.03 & 0.22 \\
+lb      & 1.3 & 0.36 & 0.00 & 0.03 & 0.22 \\
+ha      & 1.1 & 0.34 & 0.00 & 0.02 & 0.19 \\
+ceb     & 1.1 & 0.34 & 0.00 & 0.02 & 0.19 \\
+fy      & 1.0 & 0.33 & 0.00 & 0.02 & 0.17 \\
+mg      & 0.9 & 0.33 & 0.00 & 0.02 & 0.16 \\
+am      & 0.9 & 0.32 & 0.00 & 0.02 & 0.16 \\
+el-Latn & 0.9 & 0.32 & 0.00 & 0.02 & 0.15 \\
+sd      & 0.9 & 0.32 & 0.00 & 0.02 & 0.15 \\
+gd      & 0.8 & 0.31 & 0.00 & 0.02 & 0.14 \\
+ht      & 0.8 & 0.31 & 0.00 & 0.02 & 0.14 \\
+yi      & 0.8 & 0.31 & 0.00 & 0.02 & 0.13 \\
+lo      & 0.8 & 0.31 & 0.00 & 0.02 & 0.13 \\
+hi-Latn & 0.7 & 0.30 & 0.00 & 0.02 & 0.12 \\
+zu      & 0.7 & 0.30 & 0.00 & 0.02 & 0.12 \\
+jv      & 0.7 & 0.30 & 0.00 & 0.01 & 0.12 \\
+hmn     & 0.6 & 0.29 & 0.00 & 0.01 & 0.11 \\
+mi      & 0.6 & 0.28 & 0.00 & 0.01 & 0.10 \\
+co      & 0.5 & 0.27 & 0.00 & 0.01 & 0.09 \\
+su      & 0.5 & 0.27 & 0.00 & 0.01 & 0.09 \\
+ny      & 0.5 & 0.27 & 0.00 & 0.01 & 0.08 \\
+xh      & 0.5 & 0.27 & 0.00 & 0.01 & 0.08 \\
+st      & 0.5 & 0.27 & 0.00 & 0.01 & 0.08 \\
+sm      & 0.4 & 0.25 & 0.00 & 0.01 & 0.07 \\
+sn      & 0.4 & 0.25 & 0.00 & 0.01 & 0.07 \\
+ig      & 0.4 & 0.25 & 0.00 & 0.01 & 0.07 \\
+ja-Latn & 0.4 & 0.25 & 0.00 & 0.01 & 0.06 \\
+haw     & 0.4 & 0.24 & 0.00 & 0.01 & 0.06 \\
+yo      & 0.3 & 0.24 & 0.00 & 0.01 & 0.06 \\
+bg-Latn & 0.1 & 0.16 & 0.00 & 0.00 & 0.01 \\
+  & & & & & \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+\end{table*}
+
+\end{document}

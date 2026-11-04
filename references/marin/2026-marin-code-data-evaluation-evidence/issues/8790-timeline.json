@@ -1,0 +1,118 @@
+{
+  "comments": [
+    {
+      "url": "https://github.com/marin-community/marin/issues/8790#issuecomment-5467319774",
+      "body": "🤖 **Analysis — not opening a PR.**\n\nThis is a launch/tracking issue for a production-priority v4-2048 hero run, not a self-contained code fix. Two reasons an agent should not carry it to a PR:\n\n- Submitting a production-priority Iris training run needs express human authorization (`AGENTS.md`) and falls under `manage-hero-run`, not `fix-issue`.\n- The work is already in flight on its author's branch. The status line says \"Preparing the pinned launcher and production-priority Iris submission,\" and the 2x twin (#8734) is still open and unmerged. Opening a parallel PR would duplicate that.\n\n**Where the code lives.** The entire treatment stack exists only on [`held/qk157-long-context-skew`](https://github.com/marin-community/marin/tree/held/qk157-long-context-skew) (from #8734); none of it is on `main`:\n\n- `experiments/grug/moe/long_context_datakit_moe_mix.py` — `LONG_CONTEXT_SKEW = 2`, and `long_context_datakit_components(skew)` / `long_context_treatment_step(...)` already take a skew argument and repeat each phase-1 long-document child `skew` times.\n- `experiments/grug/moe/moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk175_long_context_skew.py` — the qk=1.75 launcher, whose run id and tags read the module-level `LONG_CONTEXT_SKEW`.\n\n**The 4x delta is small.** The components/step helpers are already skew-parametric, so a 4x twin is a launcher change, not new mixture logic. The one snag: skew is a shared module constant that the run id, tags, and description all key off. Bumping it to `4` in place would retag the existing 2x run. A clean 4x should thread `skew=4` through the launcher instead — e.g. give `long_context_treatment_step` a `skew` parameter (defaulting to the current constant) and pass `4` plus a `...qk175_longctx_skew4` run id from a new launcher file, leaving the 2x launcher untouched. Confirm the resulting >64K sampling mass matches the intended 4x target before submitting.\n\n**Proposed path for a human.** Land #8734's stack first (or branch from it), add the `skew=4` launcher as above, then run the production submission under `manage-hero-run` with explicit authorization. I can prepare the launcher diff on top of that branch if you want it staged for review, but I will not launch the run.\n",
+      "user": {
+        "login": "claude[bot]",
+        "name": "claude[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1236702?v=4",
+        "id": 209825114
+      },
+      "id": 5467319774,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 <strong>Analysis — not opening a PR.</strong></p>\n<p dir=\"auto\">This is a launch/tracking issue for a production-priority v4-2048 hero run, not a self-contained code fix. Two reasons an agent should not carry it to a PR:</p>\n<ul dir=\"auto\">\n<li>Submitting a production-priority Iris training run needs express human authorization (<code class=\"notranslate\">AGENTS.md</code>) and falls under <code class=\"notranslate\">manage-hero-run</code>, not <code class=\"notranslate\">fix-issue</code>.</li>\n<li>The work is already in flight on its author's branch. The status line says \"Preparing the pinned launcher and production-priority Iris submission,\" and the 2x twin (<a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5270859495\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8734\" data-hovercard-type=\"issue\" data-hovercard-url=\"/marin-community/marin/issues/8734/hovercard\" href=\"https://github.com/marin-community/marin/issues/8734\">#8734</a>) is still open and unmerged. Opening a parallel PR would duplicate that.</li>\n</ul>\n<p dir=\"auto\"><strong>Where the code lives.</strong> The entire treatment stack exists only on <a href=\"https://github.com/marin-community/marin/tree/held/qk157-long-context-skew\"><code class=\"notranslate\">held/qk157-long-context-skew</code></a> (from <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5270859495\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8734\" data-hovercard-type=\"issue\" data-hovercard-url=\"/marin-community/marin/issues/8734/hovercard\" href=\"https://github.com/marin-community/marin/issues/8734\">#8734</a>); none of it is on <code class=\"notranslate\">main</code>:</p>\n<ul dir=\"auto\">\n<li><code class=\"notranslate\">experiments/grug/moe/long_context_datakit_moe_mix.py</code> — <code class=\"notranslate\">LONG_CONTEXT_SKEW = 2</code>, and <code class=\"notranslate\">long_context_datakit_components(skew)</code> / <code class=\"notranslate\">long_context_treatment_step(...)</code> already take a skew argument and repeat each phase-1 long-document child <code class=\"notranslate\">skew</code> times.</li>\n<li><code class=\"notranslate\">experiments/grug/moe/moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk175_long_context_skew.py</code> — the qk=1.75 launcher, whose run id and tags read the module-level <code class=\"notranslate\">LONG_CONTEXT_SKEW</code>.</li>\n</ul>\n<p dir=\"auto\"><strong>The 4x delta is small.</strong> The components/step helpers are already skew-parametric, so a 4x twin is a launcher change, not new mixture logic. The one snag: skew is a shared module constant that the run id, tags, and description all key off. Bumping it to <code class=\"notranslate\">4</code> in place would retag the existing 2x run. A clean 4x should thread <code class=\"notranslate\">skew=4</code> through the launcher instead — e.g. give <code class=\"notranslate\">long_context_treatment_step</code> a <code class=\"notranslate\">skew</code> parameter (defaulting to the current constant) and pass <code class=\"notranslate\">4</code> plus a <code class=\"notranslate\">...qk175_longctx_skew4</code> run id from a new launcher file, leaving the 2x launcher untouched. Confirm the resulting &gt;64K sampling mass matches the intended 4x target before submitting.</p>\n<p dir=\"auto\"><strong>Proposed path for a human.</strong> Land <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5270859495\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8734\" data-hovercard-type=\"issue\" data-hovercard-url=\"/marin-community/marin/issues/8734/hovercard\" href=\"https://github.com/marin-community/marin/issues/8734\">#8734</a>'s stack first (or branch from it), add the <code class=\"notranslate\">skew=4</code> launcher as above, then run the production submission under <code class=\"notranslate\">manage-hero-run</code> with explicit authorization. I can prepare the launcher diff on top of that branch if you want it staged for review, but I will not launch the run.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8790#issuecomment-5467424408",
+      "body": "🤖 Launch contract pinned\n\nThe treatment matches the qk=1.75 control and completed 2x run except for a 4x long-document sampling skew.\n\n- Runtime source: `3c82e92a3d4c0d6b286038811dc7c330a2253017`\n- Pull request: #8791, stacked on #8656\n- Executor: v4-2048, non-preemptible, production priority\n- Steps: resume at 156000 and finish at 157000\n- Checkpoint: `gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep8_bs1024_seq65536_sw2k_v4_2048_muon_cooldown_step141k-a30ef8/checkpoints/step-156000/`\n- Checkpoint metadata: present\n- Source checkpoint size: 1,078,866,901,949 bytes\n- Retention: four permanent checkpoints; projected maximum 4,315,467,607,796 bytes. Hourly resume checkpoints use the region-local 14-day temporary prefix.\n- Output: `gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4-102e3c`\n- Output collision check: absent\n- W&B: `marin-community/marin_moe/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4`, online, resume policy `allow`\n- DRI: held\n- Raw trajectory, session, and Ray spill outputs: not applicable\n\nScrubbed submission command:\n\n```bash\n/home/held/marin-lcr/.venv/bin/iris --cluster=marin job run --no-wait --region us-central2 \\\n  --priority production --no-preemptible --max-retries 100 \\\n  -e WANDB_API_KEY REDACTED \\\n  -- python -m experiments.grug.moe.moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk175_long_context_skew\n```\n",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5467424408,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Launch contract pinned</p>\n<p dir=\"auto\">The treatment matches the qk=1.75 control and completed 2x run except for a 4x long-document sampling skew.</p>\n<ul dir=\"auto\">\n<li>Runtime source: <code class=\"notranslate\">3c82e92a3d4c0d6b286038811dc7c330a2253017</code></li>\n<li>Pull request: <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5290945784\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8791\" data-hovercard-type=\"pull_request\" data-hovercard-url=\"/marin-community/marin/pull/8791/hovercard\" href=\"https://github.com/marin-community/marin/pull/8791\">#8791</a>, stacked on <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5242087848\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8656\" data-hovercard-type=\"pull_request\" data-hovercard-url=\"/marin-community/marin/pull/8656/hovercard\" href=\"https://github.com/marin-community/marin/pull/8656\">#8656</a></li>\n<li>Executor: v4-2048, non-preemptible, production priority</li>\n<li>Steps: resume at 156000 and finish at 157000</li>\n<li>Checkpoint: <code class=\"notranslate\">gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep8_bs1024_seq65536_sw2k_v4_2048_muon_cooldown_step141k-a30ef8/checkpoints/step-156000/</code></li>\n<li>Checkpoint metadata: present</li>\n<li>Source checkpoint size: 1,078,866,901,949 bytes</li>\n<li>Retention: four permanent checkpoints; projected maximum 4,315,467,607,796 bytes. Hourly resume checkpoints use the region-local 14-day temporary prefix.</li>\n<li>Output: <code class=\"notranslate\">gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4-102e3c</code></li>\n<li>Output collision check: absent</li>\n<li>W&amp;B: <code class=\"notranslate\">marin-community/marin_moe/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4</code>, online, resume policy <code class=\"notranslate\">allow</code></li>\n<li>DRI: held</li>\n<li>Raw trajectory, session, and Ray spill outputs: not applicable</li>\n</ul>\n<p dir=\"auto\">Scrubbed submission command:</p>\n<div class=\"highlight highlight-source-shell notranslate position-relative overflow-auto\" dir=\"auto\" data-snippet-clipboard-copy-content=\"/home/held/marin-lcr/.venv/bin/iris --cluster=marin job run --no-wait --region us-central2 \\\n  --priority production --no-preemptible --max-retries 100 \\\n  -e WANDB_API_KEY REDACTED \\\n  -- python -m experiments.grug.moe.moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk175_long_context_skew\"><pre class=\"notranslate\">/home/held/marin-lcr/.venv/bin/iris --cluster=marin job run --no-wait --region us-central2 \\\n  --priority production --no-preemptible --max-retries 100 \\\n  -e WANDB_API_KEY REDACTED \\\n  -- python -m experiments.grug.moe.moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk175_long_context_skew</pre></div>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8790#issuecomment-5467436797",
+      "body": "🤖 Launched\n\n- Iris job: [`/held/iris-run-job-20260830-073840`](https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260830-073840)\n- Priority: `production`\n- Runtime source: `3c82e92a3d4c0d6b286038811dc7c330a2253017`\n- Pull request: #8791\n- W&B run ID: `moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4`\n- Output: `gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4-102e3c`\n\nThe entrypoint was submitted in `us-central2` as non-preemptible with `--max-retries 100`. Startup monitoring is attached.\n",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5467436797,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Launched</p>\n<ul dir=\"auto\">\n<li>Iris job: <a href=\"https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260830-073840\" rel=\"nofollow\"><code class=\"notranslate\">/held/iris-run-job-20260830-073840</code></a></li>\n<li>Priority: <code class=\"notranslate\">production</code></li>\n<li>Runtime source: <code class=\"notranslate\">3c82e92a3d4c0d6b286038811dc7c330a2253017</code></li>\n<li>Pull request: <a class=\"issue-link js-issue-link\" data-error-text=\"Failed to load title\" data-id=\"5290945784\" data-permission-text=\"Title is private\" data-url=\"https://github.com/marin-community/marin/issues/8791\" data-hovercard-type=\"pull_request\" data-hovercard-url=\"/marin-community/marin/pull/8791/hovercard\" href=\"https://github.com/marin-community/marin/pull/8791\">#8791</a></li>\n<li>W&amp;B run ID: <code class=\"notranslate\">moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4</code></li>\n<li>Output: <code class=\"notranslate\">gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4-102e3c</code></li>\n</ul>\n<p dir=\"auto\">The entrypoint was submitted in <code class=\"notranslate\">us-central2</code> as non-preemptible with <code class=\"notranslate\">--max-retries 100</code>. Startup monitoring is attached.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8790#issuecomment-5467501334",
+      "body": "🤖 Tracker correction\n\n- Actual W&B run: https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4\n- JAX process 0 is on Iris task 57 for this allocation.\n- The `dummy-*` W&B names on non-primary tasks are expected disabled trackers.\n- All 256 workers are running and loading the step-156000 checkpoint.\n- Incident note: https://echo.oa.dev/wiki/292\n",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5467501334,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Tracker correction</p>\n<ul dir=\"auto\">\n<li>Actual W&amp;B run: <a href=\"https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4\" rel=\"nofollow\">https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4</a></li>\n<li>JAX process 0 is on Iris task 57 for this allocation.</li>\n<li>The <code class=\"notranslate\">dummy-*</code> W&amp;B names on non-primary tasks are expected disabled trackers.</li>\n<li>All 256 workers are running and loading the step-156000 checkpoint.</li>\n<li>Incident note: <a href=\"https://echo.oa.dev/wiki/292\" rel=\"nofollow\">https://echo.oa.dev/wiki/292</a></li>\n</ul>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/issues/8790#issuecomment-5482519627",
+      "body": "🤖 Completed.\n\n- Final checkpoint: `gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4-102e3c/checkpoints/step-157000/`\n- W&B: https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4\n- Iris job: https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260830-073840\n\nThe Iris job succeeded, and the final checkpoint metadata is present in GCS.",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 5482519627,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": null,
+      "updated_at": null,
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">🤖 Completed.</p>\n<ul dir=\"auto\">\n<li>Final checkpoint: <code class=\"notranslate\">gs://marin-us-central2/grug/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4-102e3c/checkpoints/step-157000/</code></li>\n<li>W&amp;B: <a href=\"https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4\" rel=\"nofollow\">https://wandb.ai/held/marin_moe/runs/moe_67b_a2b_d2560_ep1_rep1_ctx4_bs256_seq262144_ctxext_step156k_qk175_longctx_skew4</a></li>\n<li>Iris job: <a href=\"https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260830-073840\" rel=\"nofollow\">https://iris.oa.dev/#/job/%2Fheld%2Firis-run-job-20260830-073840</a></li>\n</ul>\n<p dir=\"auto\">The Iris job succeeded, and the final checkpoint metadata is present in GCS.</p>"
+    }
+  ],
+  "url": "https://github.com/marin-community/marin/issues/8790",
+  "title": "marin-community/marin Issue #8790 comments",
+  "display_url": "https://github.com/marin-community/marin/issues/8790",
+  "display_title": "marin-community/marin Issue #8790 comments"
+}

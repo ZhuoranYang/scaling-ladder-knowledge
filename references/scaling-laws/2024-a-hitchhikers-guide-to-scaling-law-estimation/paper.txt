@@ -1,0 +1,1754 @@
+                                                                  A Hitchhiker’s Guide to Scaling Law Estimation
+
+
+                                                                           Leshem Choshen 1 2 3 Yang Zhang 2 3 Jacob Andreas 1
+
+
+                                                                  Abstract
+                                                                                                                                                   L(t)
+                                                                                                                                                              ARE
+
+
+
+
+                                                                                                                        Model Performance L
+                                               Scaling laws predict the loss of a target language
+                                               model by extrapolating from easier-to-train mod-                                                    L(t)
+                                               els with fewer parameters or smaller training
+arXiv:2410.11840v2 [cs.LG] 2 Jun 2025
+
+
+
+
+                                               sets. This provides an efficient way for practi-
+                                               tioners and researchers alike to choose optimiz-
+                                               ers, datasets, and model architectures. Despite
+                                               the widespread use of scaling laws to model the
+                                               dynamics of language model training, there has
+                                                                                                                                                          f model
+
+
+
+                                                                                                                            Model
+                                               been little work on understanding how to best
+                                               estimate and interpret them. We collect (and re-
+
+
+                                                                                                                                  #toks
+                                               lease) a large-scale dataset containing losses and
+                                               downstream evaluations for 485 previously pub-
+                                                                                                                                              Model #params
+                                               lished pretrained models. We use these to estimate
+                                               more than 1,000 scaling laws, then derive a set of                Figure 1: Illustration of a scaled family, an estimated scaling
+                                               best practices for estimating scaling laws in new                 law, and its prediction error for a target model.
+                                               model families. We find that fitting scaling laws
+                                               to intermediate checkpoints of training runs (and
+                                               not just their final losses) substantially improves
+                                               accuracy, and that—all else equal—estimates of                    models’ architecture or training data. There is thus an acute
+                                               performance are generally most accurate when de-                  need for efficient decision-making aids that can evaluate new
+                                               rived from other models of similar sizes. However,                methods without full-scale training. A large body of work
+                                               because there is a significant degree of variabil-                motivates or evaluates these changes using small models
+                                               ity across model seeds, training multiple small                   (Warstadt et al., 2023; Hu et al., 2024a; Hillier et al., 2024),
+                                               models is sometimes more useful than training a                   synthetic tasks (Akyürek et al., 2024; Wortsman et al., 2023)
+                                               single large one. Moreover, while different model                 or theory (Jelassi et al., 2024). But one of the most important
+                                               families differ in scaling behavior, they are often               tools for current practitioners is the estimation of scaling
+                                               similar enough that a target model’s behavior can                 laws for LLMs (Ivgi et al., 2022; Dubey et al., 2024).
+                                               be predicted from a single model with the same ar-                A scaling law extrapolates the performance of a target model
+                                               chitecture, along with scaling parameter estimates                from the performance of a set of models with fewer pa-
+                                               derived from other model families.1                               rameters or smaller training sets. Typically, this requires
+                                                                                                                 models to belong to the same model family, differing only
+                                                                                                                 in parameter count and training size, but using the same ar-
+                                        1. Introduction                                                          chitecture and training distribution. A high-quality scaling
+                                                                                                                 law accurately predicts the target model’s test performance
+                                        Substantial effort and cost are required to train even a single          (Rosenfeld et al.; Kaplan et al., 2020; Hoffmann et al., 2022).
+                                        large language model (LLM), and even greater cost and                    Most past work fixes a model family and exhaustively trains
+                                        effort are required to evaluate proposed changes to language             models to relate scale and performance through a new scal-
+                                           1                                                                     ing law. One question that has received comparatively little
+                                            MIT 2 MIT-IBM Watson AI Lab 3 IBM Research. Correspon-
+                                        dence to: Leshem Choshen <leshem.choshen@mit.edu>.                       attention is how to create such laws in the first place.
+                                                                                                                 This paper offers a practical guide to when, how and which
+                                        Proceedings of the 42 nd International Conference on Machine
+                                        Learning, Vancouver, Canada. PMLR 267, 2025. Copyright 2025              small models to use, to efficiently obtain meaningful predic-
+                                        by the author(s).                                                        tions about large models’ behavior—maximizing prediction
+                                            1
+                                              See our repository for code, data, and experimental results.       reliability while minimizing the budget for preliminary ex-
+
+                                                                                                             1
+                                       A Hitchhiker’s Guide to Scaling Law Estimation
+
+perimentation, which necessarily involves tradeoffs between          2. Defining a scaling law
+the number of preliminary models trained, the size of the
+largest preliminary model, and size of the dataset used to           A scaling law estimates the loss of a costly model by training
+train it. To answer those questions one requires analysis            cheaper ones (see Fig. 1) typically with fewer parameters
+across model families and scaling law procedures.                    (#params) and training tokens (#toks). A scaling law is a
+                                                                     function that predicts a target model’s loss on held-out data
+We begin by collecting data to perform a large-scale meta-           when setting the value of one hyperparameter (Kaplan et al.,
+analysis of scaling laws (§3). Usually, scaling law research         2020) or both (Rosenfeld et al.; Hoffmann et al., 2022).
+relies on a single collection of closely related models, or          Comparing laws’ predictions about different pretraining
+alters only a minimal aspect of pretraining (e.g. data size;         choices (e.g. data Ge et al., 2024) allows informed decisions
+Muennighoff et al., 2024). We instead gather a large and             about which large-scale model to train. A scaling law also
+diverse set of scaled families, to allow this and future meta-       enables finding the optimal choice of hyperparameters under
+analysis of scaling laws that generalize across architectures,       computational constraints on pretraining (Hoffmann et al.,
+datasets and settings.                                               2022) or inference (Touvron et al., 2023; Sardana et al.).
+The rest of the paper uses this data to analyze a number of          Formally, we call a model f any single neural language
+key questions around scaling law estimation:                         model with a specific set of parameters. Different seeds,
+1. What reliability is achievable and expected from scal-            or even different checkpoints from the same training run,
+   ing laws? Variation between LLM initializations pro-              correspond to different models. We define a scaled model
+   duce unpredictable changes of up to 4% in loss. Most              family F as a set of models, with each f ∈ F differing only
+   published controlled experiments on pretraining deci-             in size #params(f ) and number of tokens #toks(f ). We
+   sions, report changes between 4% and 50% (§4).                    note that a change in size is usually applied in a systematic
+2. How much does the shape of scaling laws vary across               manner that affects the number of attention heads, width,
+   model families? Different model families have scaling             depth and such network characteristics that in all our data
+   laws with a different functional dependence on model              changes with it in a one-to-one mapping.
+   size. However, transformer LLMs are similar enough                Two subsets of scaled model families will be especially im-
+   that, with a single model from a target family and a              portant in our analysis. First, the maximal parameter fam-
+   scaling law from a different model family, it is some-            ily FmaxP contains only models with the largest number of
+   times possible to accurately estimate target model per-           parameters. Formally, define m = maxf ∈F #params(f );
+   formance. (§5).                                                   then FmaxP = {f ∈ F : #params(f ) = m}. FmaxP
+3. Must scaling laws be estimated only from fully                    will generally contain the target model(s) whose behavior
+   trained models? Even though optimization procedures               we wish to predict t ∈ Ftarget . Second, the q-maximal
+   are typically sensitive to the full size of a training run,       token family F#tok>q contains all models trained on at
+   (unprincipled) estimation of scaling laws from interme-           least a q-sized fraction of the training set. Formally, de-
+   diate training checkpoints greatly improves scaling law           fine t = q · (maxf ∈F #toks(f )); then F#tok>q = {f ∈
+   fit (§6). It is generally possible to estimate a model’s          F : #toks(f ) ≥ t}. Note that this definition does not
+   final loss beginning roughly 1/3 of the way through train-        distinguish between partially trained models, and models
+   ing.                                                              trained to convergence on a subset of the training set. These
+                                                                     two types of models generally differ, but as current theory
+4. How large must models be to produce reliable scaling
+                                                                     does not predict in what manner and the former are cheap
+   laws? All else equal, experimenting with large models
+                                                                     substitutes, we test empirically if those are similar enough
+   is typically more useful than with small models (§7), but
+                                                                     to make good predictions in Section 6.
+   may be outweighed by the benefits of reduced variance
+   from training more, smaller models (§8).                          A scaling law L̂(f | F ) estimates the performance of a
+5. Taken together, cost-effective estimation of a scaling            new model f given a model family F . (We will simply
+   law should consider the number of models, the size of             write L̂(f ) when the family is clear from the context.) All
+   the models, and the number of training tokens for each            experiments in this paper use the widely used functional
+   model. We highlight those size, tokens and number of              form proposed by Hoffmann et al. (2022):
+   models effects in Fig. 2.
+                                                                                                eA            eB
+Our experiments also provide insight into the functional                   L̂(f ) := eE +              α
+                                                                                                         +            .        (1)
+                                                                                            #params(f )    #toks(f )β
+form of scaling laws themselves, suggesting that they may
+have fewer degrees of freedom than typically assumed (§9).           Here E captures the scaled family’s general performance;
+We conclude with discussion of other work on scaling law             A, α and B, β describe the scaling effect of #params and
+estimation that may be of interest to practitioners (§10).           #toks respectively. The parameters are in an exponent
+                                                                     to ensure positivity, i.e., more training data improves the
+
+                                                                 2
+                                                                                                                   A Hitchhiker’s Guide to Scaling Law Estimation
+
+                                                                                                                                                                                                                                                                                                35
+
+
+
+
+                                                                                                                              (X26) (X64) (X134) (X230) (X500)
+                                                                                                                                                                                                                                        <15               <10
+
+
+
+
+                                                                                                                                                                2
+                                                                1.3B <10
+             Largest model parameters (scale up predicted)
+
+
+
+
+                                                                                                                                                                                                                         2
+                                                              (X134)                                                                                                                                                                                                                            30
+
+
+
+
+                                                                                                                             #train models (scale up predicted)
+                                                                                                                                                            3
+
+
+
+
+                                                                                                                                                                                                                         3
+                                                                                                                                                                                                                                                                                                25
+                                                                      2.7B
+                                                                      (X64)                                                                                               <10
+
+
+
+
+                                                                                                                                                                                                                    #train models
+                                                                                                                                                    4
+                                                                                                                                                                                                                                                                                                20
+
+
+
+
+                                                                                                                                                                                                                              4
+    GPT3
+
+
+
+                                                                                                                                                                                                                                                                                                15
+
+
+
+
+                                                                                                                                          5
+
+
+
+
+                                                                                                                                                                                                                     5
+                                                                      6.7B
+                                                                      (X26)
+                                                                                                                                                                                                                                                                             <5                 10
+                                                                                                                                                                                <5
+
+
+
+
+                                                                                                                                  6
+
+
+
+
+                                                                                                                                                                                                                         6
+                                                                  13.0B                                                                                                                                                                                                                         5
+                                                                   (X13)
+
+
+
+
+                                                                                                                                          (X13)
+
+
+
+
+                                                                                                                                                                                                                         7
+                                                                                                                                             7
+                                                                                                                                                                                                                                                                                                0
+                                                                                                                                                                                                                                        0.35B 0.76B 1.3B          2.7B      6.7B 13.0B
+                                                                              0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                                     0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                       (X500) (X230) (X134) (X64) (X26) (X13)
+                                                                                              Percentage                                                                                  Percentage                                       Largest model parameters (scale up predicted)
+                                                                                                                                                                                                                                                                                            35
+
+
+
+
+                                                                                                                             (<X8) (X9) (X12) (X29) (X34) (X75) (X171)
+                                                                      0.3B       <10                                                                                                                                                                            <15               <5
+
+
+
+
+                                                                                                                                                                      2
+                                                                      (X34)
+                      Largest model parameters (scale up predicted)
+
+
+
+
+                                                                                                                                                                                                                            2
+                                                                                                                                                                                                                                                                                            30
+                                                                      0.4B
+
+
+
+
+                                                                                                                                   #train models (scale up predicted)
+                                                                                                                                                                    3
+                                                                      (X29)
+
+
+
+
+                                                                                                                                                                                                                            3
+                                                                                                                                                                                                                                                                                            25
+                                                                      1.0B                                                                                                      <15
+
+
+
+
+                                                                                                                                                            4
+
+
+
+
+                                                                                                                                                                                                                                    4
+                                                                      (X12)
+
+
+
+
+                                                                                                                                                                                                                       #train models
+                                                                                                                                                                                                                                                                                            20
+    Pythia
+
+
+
+
+                                                                      1.3B                                        <5                                                            <10                           <5
+
+
+
+
+                                                                                                                                                                                                                             5
+                                                                                                                                                    5
+                                                                       (X9)                                                                                                                                                                                                                 15
+                                                                      1.4B
+
+
+
+
+                                                                                                                                                                                                                      6
+                                                                                                                                            6
+                                                                       (X8)                                                                                                                                                                                                                 10
+                                                                      2.8B
+
+
+
+
+                                                                                                                                                                                                                            7
+                                                                                                                                     7
+                                                                       (X4)                                                                                                                                                                                                                 5
+
+
+
+
+                                                                                                                                                                                                                            8+
+                                                                      6.9B
+                                                                                                                               8+
+
+
+                                                                       (X1)                                                                                                                                                                                                                 0
+
+
+
+
+                                                                                                                                                                                                                                        (X171)
+
+
+
+
+                                                                                                                                                                                                                                          (X12)
+                                                                                                                                                                                                                                         (X75)
+                                                                                                                                                                                                                                         (X34)
+                                                                                                                                                                                                                                         (X29)
+
+
+                                                                                                                                                                                                                                           (X9)
+                                                                                                                                                                                                                                           (X8)
+                                                                                                                                                                                                                                           (X4)
+                                                                                                                                                                                                                                           (X1)
+                                                                                                                                                                                                                                        0.16B
+                                                                                                                                                                                                                                        0.35B
+                                                                                                                                                                                                                                        0.41B
+
+
+                                                                                                                                                                                                                                          1.3B
+                                                                                                                                                                                                                                          1.4B
+                                                                                                                                                                                                                                          2.8B
+                                                                                                                                                                                                                                          6.9B
+                                                                                                                                                                                                                                        0.07B
+
+
+
+
+                                                                                                                                                                                                                                          1.0B
+                                                                              0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                                     0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                              Percentage                                                                                  Percentage                                        Largest model parameters (scale up predicted)
+
+         (a) Scale up vs. Train Percentage                                                                                        (b) #Models vs. Train Percentage                                                      (c) #Models vs. Scale up predicted
+
+Figure 2: The effects of 3 variables on scaling law accuracy. Each cell corresponds to a single scaling law estimated from a
+set of model checkpoints Ftrain , with the color denoting the error when predicting the largest model. Each column shows a
+subset of the three axes along which these training sets differ: (1) the number of tokens used to train each LM in Ftrain
+(expressed as a fraction of the full training corpus), (2) the number of distinct models trained; and (3) the size of the largest
+model trained (expressed as a scale-up factor—the ratio between the target model and the largest model in Ftrain ). In (a), all
+laws are estimated from four models. In (c) all laws use the full corpus. Orange lines show iso-FLOP contours (sets of
+scaling laws whose training sets require the same computational cost to produce).          represent the most efficient ways to
+obtain 15%, 10% and 5% ARE. One of the most immediate conclusions from these plots is that scaling law estimation is
+quite noisy—the inclusion of a single badly-behaved model in the estimation procedure can produce large errors, and in
+small model families error does not reliably decrease with additional computation. However—because of noise—it is often
+preferable to extrapolate from a large number of small, partially trained models rather than a small number of large models.
+
+
+scaling. 2 These parameters are estimated by first collect-                                                                                                                               3. Data for 1000+ scaling laws and more
+ing a set of training models Ftrain , then minimizing the
+reconstruction error                                                                                                                                                                      As part of this work, we have collected and released the
+                                                                                                                                                                                          largest-scale public dataset describing scaling behavior
+                                                                                                                                                                                          across model families. This dataset aggregates informa-
+                                                                                                X                                                                                         tion from a large number of LLM training efforts that have
+                                                                          arg min                       (L̂(f ) − L(f ))2                                                                 released information about the behavior of multiple models
+                                                                         E,A,α,B,β
+                                                                                            f ∈Ftrain                                                                                     of different sizes or scales. While experiments in this paper
+                                                                                                                                                                                          focus on scaling laws that measure loss, the dataset also
+                                                                                                                                                                                          includes information about model performance on down-
+                                                                                                                                                                                          stream evaluation benchmarks where available. We have
+where L(f ) denotes the empirical negative log-likelihood                                                                                                                                 focused on language models where the largest one is more
+of some held-out data under the model f .                                                                                                                                                 than 3B parameters and where data was shared publicly or
+In this sense, a scaling law is an ordinary parametric model,                                                                                                                             in private correspondence. Our repository accepts further
+and we may ask many of the questions about L̂ that we                                                                                                                                     contributions and requests for additions. In addition to those,
+ask about LLMs themselves—what training data (Ftrain ) to                                                                                                                                 we have manually extracted some data from papers that did
+collect? How to estimate accuracy? However, to provide                                                                                                                                    not release models but reported losses in figures.
+empirical answers to these questions, we first require data.
+   2
+     We believe many of our findings apply to other functional                                                                                                                            Other data sources. We want to highlight other sources
+forms (Caballero et al.), and even suggest new ones in §9.                                                                                                                                for data on model results. Resources on the training check-
+
+                                                                                                                                                                                      3
+                                       A Hitchhiker’s Guide to Scaling Law Estimation
+
+points and dynamics are scarce and perhaps the only other            We additionally experimented with an L-BFGS-based solver
+collection of such will be in the data-limited babyLM mod-           but found it to be less stable. It converged to similar results,
+els of 2025 (Charpentier et al., 2025). There are some efforts       but often did not converge, was slow and required multiple
+to collect large sets of downstream evaluations for models           trials. Some past work has Huber loss to improve the ro-
+that have been useful in other works. Those include DoVE,            bustness of estimates; we repeat the analysis from the main
+which aims to collect all LLM evaluations (Habba et al.,             paper with Huber loss in §E and find the same trends as
+2025), and data collected to create observational scaling            in our main analysis. We only estimate scaling laws for
+laws (Maia Polo et al., 2024; Ruan et al., 2024).                    families that contain at least three models.
+
+3.1. Data sources                                                    Evaluation To evaluate estimated scaling laws reliably,
+For each model in this dataset, we collect any downstream            we need to account for loss fluctuations during large-scale
+evaluation and loss during training that was reported, as well       model training. Thus, we test against a few checkpoints
+as #toks for each, links to matching checkpoints when                near the end of training: we choose as target models Ftarget
+available, links to data sources, and information about com-         the 30%-maximal token family from the set F#tok>30% de-
+putational cost (in FLOPs) and number of training epochs             fined in the previous paragraph—that is, we take Ftarget =
+(i.e. passes over the training set). Each model is identified        FP,#tok>30% . We then report the mean absolute relative
+by a unique name, a type (e.g. llama), #toks, #params,               error (ARE) Ef ∈Ftarget |L(f ) − L̂(f | Ftrain )|/L(f ) be-
+architecture type (e.g. encoder-decoder), and seed.                  tween the empirical loss L and the loss L̂ predicted by the
+Models (families) in this dataset include Pythia (Biderman           scaling law.
+et al., 2023), OPT (Zhang et al., 2022, collected thanks to
+Xia et al., 2023; Biderman et al., 2023), OLMO (Groeneveld           4. How well should scaling laws predict?
+et al., 2024), Amber (Liu et al., 2023), K2 (LLM360 Team,
+2024), Mamba (Liu et al., 2023), RedPajamas(Together,                  4% is the best ARE typically obtained; ARE up to 20% can
+2023)ModuleFormer mixture of experts (Shen et al., 2023),              still distinguish between many modeling choices.
+overtrained models (Gadre et al., 2024), Mamba, Llama and
+hybrid architecture variations from Poli et al. (2024), trans-       To establish how accurate a scaling law must be to be useful
+former architectures (Alabdulmohsin et al., 2022), Bloom             to practitioners, we first assess what changes in model ac-
+(Le Scao et al., 2023), T5-Pile (Sutawika et al., 2024),             curacy have been considered meaningful in past work. We
+Pandey (2024) models, GPT-family models with different               have surveyed experiments in the literature where an A/B
+data regimes (Muennighoff et al., 2024), Gopher (Hoffmann            test was performed, i.e., two models were trained similarly,
+et al., 2022) and GPT-3 (Brown et al., 2020).                        manipulating one attribute to see how it affects scores. Em-
+                                                                     pirically, we found no widely adopted modeling changes
+The data consists of 1.9M steps of training evaluated on loss        that were motivated with less than a 4% relative difference
+or perplexity, usually on multiple data sources belonging            between models. Additionally, reported variance across ran-
+to 485 unique pretrained models, and more than 40 scaled             dom restarts of the same model architecture reaches up to
+families. We hope this will provide a useful resource for            3.5% (c.f.,§8; Sellam et al., 2021). We take this to mean that
+the community and plan to extend it further as models get            this is approximately the minimal effect size experimenters
+released and their training dynamics are shared. We see              care, as well the minimal effect that can be reliably mea-
+such a resource as a facilitator to more research on model           sured. Accordingly, this bounds the best goodness of fit we
+development (e.g. A/B testing), scaling laws, downstream             should expect or require of scaling laws.
+scaling laws (Gadre et al., 2024; Ruan et al., 2024; Owen,
+2024; Isik et al., 2024), training dynamics (Choshen et al.,         To offer several concrete points of comparison: Pythia 6.9B
+2022) and more.                                                      models fixed inconsistencies in their code and hence have
+                                                                     two versions (c.f. App. B; Biderman et al., 2023) which
+3.2. Scaling law estimation                                          differ in loss by 40%. They also provide a data deduplication
+                                                                     A/B test that decreased loss by roughly 5%. Gadre et al.
+In the rest of the paper, we present findings from estimating        (2024) tested the effect of training 400M parameter models
+hundreds of scaling laws as follows:                                 for different #toks. The smallest modification (doubling
+                                                                     the number of training tokens) decreased loss by roughly
+Fitting For each model family F , we identify the maximal            4%, while 30× more training tokens produced a 50% loss
+parameter family FmaxP , and estimate a scaling law L̂ us-           difference. Instead of varying the amount of data or epochs,
+ing the remaining models Ftrain = F \ FmaxP . Estimation             Ge et al. (2024) found that training on a different kind of
+of scaling law parameters uses the curve_fit function in             data incurred ARE of approximately 10% and different data
+scikit-learn (Pedregosa et al., 2011), with square loss.             mixes led to 6% changes or less.
+
+                                                                 4
+                                           A Hitchhiker’s Guide to Scaling Law Estimation
+
+                                                                                                                                                GPT2
+  1.0                                                                4                                     0                                    GPT3
+                                                                                                                                                Gopher
+                                     Decoder                                                                                                    OPT
+                                                                                                                                                T5-pile
+                                     Encoder-                        2                                    10                                    llama
+  0.5                                Decoder
+
+
+
+
+                                                                                                     E
+                                                                                                                                                overtrain
+                                                                                                                                                pythia
+                                                                                                                                                pythia-baseline
+                                                                                                                                                pythia-intervention
+                                                                     0                                    20                                    pythia-v0
+        0       10       20                                                    10        20                                                     striped hyena 1-11
+                 A                                                                  B                          Scaled model family (discreet)
+            (a) Size parameters                                      (b) Token parameters                               (c) Intercept
+
+Figure 3: Parameters differ between scaled model families. Surprisingly, however, the pairs of parameters controlling the
+influence of model and training set size have similar ratios. The legend shows model architecture (left), scaling families
+(center) and per-family intercept (right).
+
+
+5. When I train a new model, do I even need a                                less than 1% error estimating the accuracy of a 7B model
+   new scaling law?                                                          from a collection of 1B model checkpoints. We find that
+                                                                             predictions generalize, and a constant #params scaling fac-
+  Different model families exhibit different scaling behavior, but           tor is enough for most models (except the encoder-decoder
+  performance can sometimes be estimated using a single model                T5-Pile). However, error rates are larger than in the source
+  in a new family.                                                           family, and predictions for larger models are worse (most
+                                                                             conspicuous in OPT’s error of 37%, 25% and 15% when
+Scaling laws relate performance to scalar training parame-                   extrapolating from 8.7B, 13B and 30B to 175B).
+ters like model or dataset size. For discrete decisions (e.g.
+the choice of nonlinearity), it is unclear how to pool infor-                5.1. Can I train the target model a bit instead of many
+mation across models that differ in these traits (see Ruan                        small models?
+et al., 2024; Maia Polo et al., 2024, for concurrent work that
+performs this pooling based on downstream task behavior).                      Yes, but obtaining reliable estimates in this way requires up to
+Clearly, discrete choices affect loss of pretrained models                     30% of the full training run.
+with the same #params and #toks. But how do they affect
+the form of scaling laws?                                                    The above results (last row of Fig. 6 in App. A) also suggest
+                                                                             the possibility of predicting losses not with just smaller mod-
+One way to answer this question is to look at the param-                     els, but with partially trained versions of the target model
+eter estimates for scaling law parameters E, α, A, β and                     itself. When predicting inside the same #params family—
+B differ across model families. These results are shown in                   that is, estimating L̂(f | Ftarget \ {f })— the #params
+Figure 3, where it can be seen that there are often dramatic                 term in Equation (1) is constant, and extrapolation is only
+differences in all five parameters across families. In this                  required for #toks. As seen in the figures, this form of
+sense, even the rate at which additional data or parameters                  estimation is informative if permitted by computational con-
+improve model performance depend on underlying architec-                     straints. Beyond the immediate usefulness of this approach,
+tural details, suggesting that understanding the behavior of                 it is a promising avenue for future research on alternatives
+a new model family may require a new scaling law.                            to scaling the number of layers.
+But another way to answer this is to ask how reliably we can
+predict final model accuracy when borrowing (or pooling)                     5.2. Are even simpler baselines enough?
+some parameters of scaling laws between families—even if
+these result in poor parameter estimates, they may predict                     Some extrapolation is necessary: scaling laws can produce
+large-scale model behavior within the range of meaningful                      accurate estimates even when the target model vastly outper-
+                                                                               forms any training model.
+differences identified in Section 4. To do so, we set the
+#params scaling parameters (A, α) to fixed values reported                   To provide another form of comparison for the predicted
+in past work, and estimate remaining parameters for indi-                    scaling laws, we compute two baselines. Both base-
+vidual model families. We take the variable values found                     lines adopt a pessimistic evaluation assuming that the tar-
+by Muennighoff et al. (2024) (see Besiroglu et al., 2024;                    get model is no better than the best model in the small
+Porian et al., 2024 for a discussion of estimates from earlier               model family used to estimate a scaling law. Specif-
+work including Hoffmann et al., 2022). We find (see Fig. 6                   ically, the baselines are the best performance L̂(∅ |
+in App. A) that in some cases only a single training run in a                Ftrain ) = minf ∈Ftrain L(f ) and the performance of the
+new model family is necessary to obtain accurate scaling law                 most-trained model, consuming the most compute for train-
+predictions. In the OLMO family, for example, we obtain
+
+                                                                         5
+                                                       A Hitchhiker’s Guide to Scaling Law Estimation
+
+                                                                                                                                                                                             35
+
+
+
+
+                                                                                                                                   11 10 9 8 7 6 5 4 3
+                                                                         3
+             3
+                                                                                                                                                                                             30
+
+
+
+
+                                                                         4
+                                                                                                                                                                                             25
+   #Train models
+
+
+
+
+                                                               #Train models
+
+
+
+
+                                                                                                                         #Train models
+             4
+
+
+
+                                                                                                                                                                                             20
+
+
+
+
+                                                                         5
+                                                                                                                                                                                             15
+
+
+
+
+                                                                         6
+             5
+
+
+
+
+                                                                                                                                                                                             10
+
+
+
+
+                                                                         7
+                                                                                                                                                                                             5
+             6
+
+
+
+
+                                                                         8
+                                                                                                                                                                                             0
+                   0.99 0.95 0.9 0.7 0.5 0.3 0.2 0.1                           0.99 0.95 0.9 0.7 0.5 0.3 0.2 0.1                                         0.99 0.95 0.9 0.7 0.5 0.3 0.2 0.1
+                             Min. percentage                                             Min. percentage                                                           Min. percentage
+
+                           (a) OPT                                                     (b) GPT3                                                                     (c) Pythia
+
+Figure 4: The effect of fitting on more of the training trajectory. Each cell represents the absolute relative error estimating
+scaling laws from a given number of models (vertical axis) trained on a subset of the final checkpoints from a training run
+(so scaling laws on the left are estimated using all checkpoints, and on the right using only the final 10% of checkpoints).
+White cells failed to fit. As long as the first ≈10% of checkpoints are discarded, final loss can often be predicted accurately.
+
+
+ing, i.e. L̂(∅ | Ftrain ) = arg maxf ∈Ftrain #params(f ) ×                                      tokens and sizes depending on the choice of learning rate
+#toks(f ). Those baselines might be the best one can ex-                                        schedule. But it is unknown whether these differences are
+pect without fitting a law to scaling.                                                          large enough to impact the estimation of scaling laws. We
+                                                                                                now test whether this finding extends to larger families—i.e.
+We find (See App. 5.2) that the best performance baseline is
+                                                                                                whether including intermediate checkpoints from all models
+closer to L(Ftarget ), which is to be expected, as the target
+                                                                                                in a model family reduces ARE.
+model performance is better than any other model in F and
+this is the better of the two. In both cases, even with the full                                Results are shown in Figure 4, which plots ARE for scaling
+F , the baselines suffer more than 15% error, mostly above                                      laws estimated from data subsets of the form F#tok>q for
+10%, almost never get below 5%, and 18% ARE on average                                          varying q. We find that including full training curves in scal-
+across all scaled families we study.                                                            ing law estimation can predict losses well. In fact, relying
+                                                                                                merely on the end of training (left in Figure 4) produces
+6. I have some data; what portions should I                                                     significantly worse performance across the board. Our re-
+                                                                                                maining experiments thus fit scaling laws using all these
+   use?                                                                                         intermediate checkpoints, and not final performance alone.
+  Estimate scaling laws from intermediate checkpoints, not just
+  fully trained models!                                                                         6.1. Should I use all intermediate checkpoints?
+
+Most past work on scaling behavior of language models                                             Almost all, but drop very early checkpoints.
+(e.g., Gadre et al., 2024; Muennighoff et al., 2024) has
+trained a separate model for each value of #toks studied.                                       In Fig. 4, we plot ARE for different F#tok>q -maximal token
+This is based on the assumption that changes in the learning                                    families serving as F , i.e., when fitting only with the end of
+rate schedule, which depend on the size of the full dataset                                     training runs. There is not a clear trend indicating whether
+that will be used for training, render losses from intermedi-                                   we should use all data (as might be suggested by GPT-3
+ate checkpoints uninformative.                                                                  results alone) or only some of it. But it is rarely the case that
+                                                                                                best estimates are obtained from the end of training alone.
+However, some recent work has demonstrated the effective-
+ness of learning schedules that do not require prior access to                                  There is, however, a distinctly uninformative phase at the
+the size of the training set (Hu et al., 2024b), and some work                                  beginning of training, as can be seen in the loss curves
+has questioned whether careful choice of the learning rate                                      (App. B) and noted in the literature (e.g., Chen et al.). We
+decay is even necessary for reliable scaling laws (Porian                                       observe that this period is more likely to contain significant
+et al., 2024). Together, these findings motivate revisiting the                                 spikes or an increase in loss (worse performance) despite
+assumption that only a single useful datapoint may be ob-                                       additional training. We hence hypothesize this part should
+tained from each training run. In §5.1, we observed the value                                   always be removed from data used to estimate scaling laws.
+of intermediate checkpoints when only a single #params                                          Indeed, our experiments depicted in Fig. 5 compare scaling
+family is used to fit a scaling law. In general, there may be                                   law AREs with and without including models trained on
+differences between models trained on the same number of                                        less than 10B tokens in F . Evidently, the very beginning
+
+
+                                                                                            6
+                                        A Hitchhiker’s Guide to Scaling Law Estimation
+                                                                                                                                       35                                                                            35
+of training (often not even reported in logs and graphs)
+                                                                                                                                       30                                                                            30
+
+
+
+
+                                                                                                                                                      2
+                                                                                       2
+is sometimes harmful to the prediction. Specifically, we
+                                                                                                                                       25                                                                            25
+
+
+
+
+                                                                                                                                            #Train models
+run the same experiments with and without ignoring the
+
+
+
+
+                                                                   OPT
+
+
+
+
+                                                                                                                                                      3
+                                                                            #Train models
+                                                                                       3
+                                                                                                                                       20                                                                            20
+first 10B tokens seen. We find that for some models (e.g.,
+                                                                                                                                       15                                                                            15
+OPT and Pythia) the ARE exceeds 15% even when using
+
+
+
+
+                                                                                                                                                      4
+                                                                                       4
+                                                                                                                                       10                                                                            10
+the whole data, but drops to 4-10% when ignoring those                                                                                                                                                               5
+                                                                                                                                       5
+
+
+
+
+                                                                                                                                                      5
+                                                                                       5
+tokens. In preliminary experiments, we found that cutting                                                                                                                                                            0
+                                                                                                                                       0
+                                                                                                                                                                           0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+fewer tokens gave noisier results, and cutting more had a                                    0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                                            Percentage                                                                  percentage
+negligible effect.                                                                                                                     35                                                                            35
+
+
+
+
+                                                                                                                                                      10 9 8 7 6 5 4 3 2
+                                                                                       2
+                                                                                                                                       30                                                                            30
+
+
+
+
+                                                                                       3
+                                                                                                                                       25                                                                            25
+
+
+
+
+                                                                                       4
+7. How big a model should I train?
+
+
+
+
+                                                                                                                                            #Train models
+                                                                   Pythia
+                                                                            #Train models
+                                                                                                                                                                                                                     20
+
+
+
+
+                                                                                       5
+                                                                                                                                       20
+
+
+
+
+                                                                                       6
+                                                                                                                                       15                                                                            15
+  Larger models are better, but not necessary. Mainly, beware
+
+
+
+
+                                                                                       7
+                                                                                                                                       10                                                                            10
+  of specific models that might give noisy results.
+
+
+
+
+                                                                                       8
+                                                                                                                                       5                                                                             5
+
+
+
+
+                                                                                       9
+                                                                                                                                                                                                                     0
+
+
+
+
+                                                                                       10
+                                                                                                                                       0
+In Figure 2 we compare scaling laws when controlling the                                     0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                       0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                                            Percentage                                                                  percentage
+amount, percentage, or size of the models (2 at a time). We
+find that choosing models closer in #params to the target                                   (a) Cut 10B first tokens                                                               (b) Fit all data
+model is generally effective (e.g., Fig. 2a, 2c), but the effect
+is neither strong nor monotonic. For example, in all cases                  Figure 5: The effect of fitting with/without the beginning
+fitting on all F provides one of the lowest ARE. However,                   10B tokens seen. Each cell represents the absolute relative
+in GPT, Gopher and OPT, predicting with the smallest 4                      error when estimating a scaling law from a given number
+models available is already enough to achieve less than 10%                 of models (vertical axis) trained on a given subset of check-
+error. In Pythia, the smallest models are not predictive but                points from the beginning of training (horizontal axis).
+the rest of the models provide a similar fit. While relying on
+a larger model is beneficial, predicting many scales up (e.g.,               8. How many models for reliable predictions?
+the behavior of a 34× larger model in Pythia) is still reliable,
+especially if accounting for other factors we discuss next.                                 5 models is a safe bet, more would improve the results’ robust-
+                                                                                            ness. These models can be small.
+In fact, training additional, larger models before fitting a
+scaling law may sometimes decrease accuracy due to in-                      We have seen that predicting with larger models and hence
+creased variance in large model performance—see, for ex-                    extrapolating less yields better results. However, given com-
+ample, Pythia 2.8B in Fig. 1. Unfortunately, it is difficult                pute constraints (and additional hardware constraints like
+to identify whether a seed is exceptionally high or low-                    memory), practitioners may generally wish to use smaller
+performing without additional information. For example,                     models when possible. Consider for example Fig. 2b where
+cross-validation on F fails to detect it (see App. D).                      we compare fitting on 4 models but vary their size. We
+Instead, this instability can be addressed by accounting for                find that more models reduce ARE even without being big-
+seed variability. A wasteful way to do so would be to train                 ger models. As discussed in §7, adding a larger model to
+every model several times. A better alternative is to diversify             a current scaled family serves two goals, it increases the
+and train each model on as differing hyperparameters as                     proximity to the predicted model, as well as increases the
+possible and to maximize the information gained (a common                   number of models seen.
+practice in efficiency-coverage scenarios, e.g., Perlitz et al.,            We separate the contribution of size and number of models.
+2024). Hence, we suggest training more models of differing                  In Fig. 2c, we predict with the largest model being held
+sizes each accounting for both size and seed changes, rather                constant and add (at minimal cost) smaller models. We see
+than training multiple seeds. We further discuss the effects                again that larger models do benefit predictions. For exam-
+of number of models (|F |) in §8.                                           ple, the small models part (left) of the graph indicates large
+Given the choice of the largest model and the number of                     errors (bright). However, we also see again the unwanted
+models, it is unclear how to optimally space the model sizes,               effects a single model may have on the overall prediction.
+whether linearly, log-scale, or otherwise. We leave that                    Consider for example the figure’s diagonal in Pythia. Cells
+optimization problem for future work.                                       in a diagonal share a group of models and each row adds
+                                                                            another one to F . Evidently this specific group hurts results,
+                                                                            even when larger models are added to F . With enough mod-
+                                                                            els (bottom of diagonal), the negative decreases. Switching
+                                                                            the model (next column) also removes the negative effect.
+
+                                                                   7
+                                       A Hitchhiker’s Guide to Scaling Law Estimation
+
+Moreover, across all rows the tendency is never monotonic,           model training. Among the aspects studied are total train-
+implying larger models do not not ensure better predictions.         ing costs including inference (Sardana et al.), effects of
+                                                                     sophisticated data selection (Sorscher et al., 2022; Ge et al.,
+But in general, we see that increasing the number of mod-
+                                                                     2024), training time (Inbar & Sernau, 2024), transfer of
+els tends to improve prediction. For example, in GPT3
+                                                                     learned skills (Hernandez et al., 2021), behavior of models
+the best predictions are with many models. Perhaps intu-
+                                                                     in other modalities (Mikami et al., 2022; Abnar et al.; Al-
+itively, adding a larger model and improving both #params
+                                                                     abdulmohsin et al., 2024; Hesslow et al., 2022) mixtures of
+and number of models aspects improves quite consistently
+                                                                     experts (Ludziejewski et al.), data mixing (Ge et al., 2024),
+(Fig. 2b and diagonals of Fig. 2c).
+                                                                     downstream performance (Muennighoff et al., 2024), vocab-
+                                                                     ulary size (Tao et al., 2024), and architecture comparisons
+9. Are all scaling law parameters crucial?                           (Tay et al., 2023; Poli et al., 2024) including small models
+                                                                     (Muckatira et al., 2024) or other phenomena like finetuning
+  Scaling laws might have fewer degrees of freedom than de-          (Zhang et al.) and the loss in different positions in the train-
+  scribed in the literature.                                         ing sequences (Xiong et al., 2024). Especially relevant to
+                                                                     our context is Ruan et al. (2024); Maia Polo et al. (2024)
+Assuming we do not try to account for aspects other than
+                                                                     that rely on multiple pretraining settings for creating scaling
+#toks and #params (see §10), one might wonder if some
+                                                                     laws that generalize across models or kinds of losses.
+of the observed errors come from model misspecification—
+an incorrect functional form for L̂, which (with a small             Another line of works that can be seen as a scaling law
+number of exceptions including Caballero et al.) has gener-          discusses the relation between model width and hyperpa-
+ally gone uncontested since it was first proposed (Rosenfeld         rameter choices (rather than loss) (Yang et al., 2022; 2021;
+et al.; Hoffmann et al., 2022). Here we specifically evaluate        Blake et al., 2024; Lingle, 2024).
+whether scaling laws empirically exhibit fewer degrees of
+freedom than has been proposed. First, we compute the
+                                                                     11. Limitations
+principal components of the 5 learned parameters and find
+that 3 components explain 99.49% of the variance between             Our primary metric, ARE, does not distinguish between
+the 5 parameters. Inspection reveals that two of these com-          over- or under-estimation of performance. When using
+ponents tightly couple the pairs of parameters dealing with          scaling laws to choose between candidate models to train,
+the same training parameter (#params and #toks). Plot-               these error estimates may be unnecessarily conservative (e.g.
+ting values of A against α and of B against β (Fig. 3), we           if both families’ laws are biased in the same direction).
+see a clear linear relationship between these variables de-
+                                                                     Another difficulty is aggregating information across model
+spite ther non-linear interaction in Eq. 1. There are a few
+                                                                     families. As most published families evaluate models of in-
+exceptions: the Encoder-Decoder model T5-Pile shows a
+                                                                     comparable scales, often over incomparable ranges, we were
+different behavior from the rest of the scaled families, and
+                                                                     unable to produce an informative version of Figure 2 that
+four additional scaled families show a different relationship
+                                                                     aggregated information across all models available, and was
+between B and β. In fact, all these families share the com-
+                                                                     thus able to give general recommendations about compute-
+mon feature that they were trained using multiple passes
+                                                                     optimal choice of preliminary experiments.
+over a single training set Gadre et al. (2024). The outlier
+point with β > 4 is a 70m baseline of Pythia for a continual
+training intervention experiment (Biderman et al., 2023).            12. Discussion
+Future work may consider different function forms tying
+                                                                     This paper provides a first study of open questions in the
+some of the parameters or introducing other ones instead.
+                                                                     estimation of scaling laws and their relation to large-scale
+Another function form change that future work should con-            pretraining decisions. We expect that many of these conclu-
+sider is accounting for the learning rate schedule, as our           sions could be sharpened or extended with the availability
+experiments assumed it was negligible, and previous works            of additional information about model training, and we call
+disregarded the training trajectory. A mismatch between the          on other leaders of large-scale training efforts to share train-
+form and the real dependence might explain the inconsisten-          ing losses and evaluation results from multiple checkpoints
+cies in using the beginning of training. As noted in §6.1, the       during pretraining—even in cases where model parameters
+beginning is not fitting as well as later on.                        themselves cannot be released.
+                                                                     Our findings leave open many important questions, from
+10. Related work                                                     efficient predictions by fitting on many model families to
+                                                                     scaling laws of the deltas between a/b test (e.g. on optimizer
+This work builds on a large number of recent studies re-
+                                                                     choice), and to other methods that efficiently compare archi-
+lating scaling law estimation and decision-making about
+
+                                                                 8
+                                        A Hitchhiker’s Guide to Scaling Law Estimation
+
+tectures without relying on multiple models (e.g. continual             Conference on Machine Learning, volume 202 of Pro-
+learning). In addition, our results in §9 suggest other scaling         ceedings of Machine Learning Research, pp. 2397–2430.
+law parameterizations might better fit data.                            PMLR, 23–29 Jul 2023. URL https://proceedings.
+                                                                        mlr.press/v202/biderman23a.html.
+         Practical reccomendations
+ §4      Set an estimation goal and a budget.                         Blake, C., Eichenberg, C., Dean, J., Balles, L., Prince, L. Y.,
+ §5.1    If budget allows, train the whole model for 30%.               Deiseroth, B., Cruz-Salinas, A. F., Luschi, C., Weinbach,
+ §A      If extremely constrained, predict from one model.              S., and Orr, D. u-mu p: The unit-scaled maximal update
+ §6      Use all training losses (except the beginning).                parametrization. arXiv preprint arXiv:2407.17465, 2024.
+ §7      Train as big as possible, but limit tokens.
+ §7      Train more models, not just larger ones.                     Brown, T. B., Mann, B., Ryder, N., Subbiah, M., Kaplan,
+                                                                        J., Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G.,
+                                                                        Askell, A., Agarwal, S., Herbert-Voss, A., Krueger, G.,
+Impact Statement                                                        Henighan, T., Child, R., Ramesh, A., Ziegler, D. M., Wu,
+This paper presents work whose goal is to advance LLM                   J., Winter, C., Hesse, C., Chen, M., Sigler, E., Litwin, M.,
+research. There are many potential societal consequences of             Gray, S., Chess, B., Clark, J., Berner, C., McCandlish,
+our work, most of which lean towards the positive, environ-             S., Radford, A., Sutskever, I., and Amodei, D. Language
+mental (efficient), open, and collaborative aspects. There-             models are few-shot learners, 2020.
+fore, it is hard to imagine specific issues with the progress
+                                                                      Caballero, E., Gupta, K., Rish, I., and Krueger, D. Bro-
+allowed by this work.
+                                                                        ken neural scaling laws. In The Eleventh International
+                                                                        Conference on Learning Representations.
+Acknowledgments
+                                                                      Charpentier, L., Choshen, L., Cotterell, R., Gul, M. O., Hu,
+This work was funded by the MIT–IBM Watson AI Lab,                      M., Jumelet, J., Linzen, T., Liu, J., Mueller, A., Ross,
+and by a Sloan Research Fellowship to JA.                               C., Shah, R. S., Warstadt, A., Wilcox, E., and Williams,
+                                                                        A. Babylm turns 3: Call for papers for the 2025 babylm
+References                                                              workshop, 2025. URL https://arxiv.org/abs/2502.
+                                                                        10645.
+Abnar, S., Dehghani, M., Neyshabur, B., and Sedghi, H.
+  Exploring the limits of large scale pre-training. In Inter-         Chen, A., Shwartz-Ziv, R., Cho, K., Leavitt, M. L., and
+  national Conference on Learning Representations.                      Saphra, N. Sudden drops in the loss: Syntax acquisition,
+                                                                        phase transitions, and simplicity bias in mlms. In The
+Akyürek, E., Wang, B., Kim, Y., and Andreas, J. In-context              Twelfth International Conference on Learning Represen-
+  language learning: Arhitectures and algorithms. arXiv                 tations.
+  preprint arXiv:2401.12973, 2024.
+                                                                      Choshen, L., Hacohen, G., Weinshall, D., and Abend, O.
+Alabdulmohsin, I. M., Neyshabur, B., and Zhai, X. Revisit-              The grammar-learning trajectories of neural language
+  ing neural scaling laws in language and vision. Advances              models. In Muresan, S., Nakov, P., and Villavicen-
+  in Neural Information Processing Systems, 35:22300–                   cio, A. (eds.), Proceedings of the 60th Annual Meet-
+  22312, 2022.                                                          ing of the Association for Computational Linguistics
+Alabdulmohsin, I. M., Zhai, X., Kolesnikov, A., and Beyer,             (Volume 1: Long Papers), pp. 8281–8297, Dublin, Ire-
+  L. Getting vit in shape: Scaling laws for compute-optimal             land, May 2022. Association for Computational Lin-
+  model design. Advances in Neural Information Process-                 guistics. doi: 10.18653/v1/2022.acl-long.568. URL
+  ing Systems, 36, 2024.                                                https://aclanthology.org/2022.acl-long.568.
+
+Besiroglu, T., Erdil, E., Barnett, M., and You, J. Chinchilla         Dubey, A., Jauhri, A., Pandey, A., Kadian, A., Al-Dahle, A.,
+  scaling: A replication attempt, 2024. URL https://                    Letman, A., Mathur, A., Schelten, A., Yang, A., Fan, A.,
+  arxiv.org/abs/2404.10102.                                             Goyal, A., Hartshorn, A., Yang, A., Mitra, A., Sravanku-
+                                                                        mar, A., Korenev, A., Hinsvark, A., Rao, A., Zhang, A.,
+Biderman, S., Schoelkopf, H., Anthony, Q. G., Bradley,                  Rodriguez, A., Gregerson, A., Spataru, A., Roziere, B.,
+  H., O’Brien, K., Hallahan, E., Khan, M. A., Purohit, S.,              Biron, B., Tang, B., Chern, B., Caucheteux, C., Nayak,
+  Prashanth, U. S., Raff, E., Skowron, A., Sutawika, L.,                C., Bi, C., Marra, C., McConnell, C., Keller, C., Touret,
+  and Van Der Wal, O. Pythia: A suite for analyzing large               C., Wu, C., Wong, C., Ferrer, C. C., Nikolaidis, C., Al-
+  language models across training and scaling. In Krause,               lonsius, D., Song, D., Pintz, D., Livshits, D., Esiobu, D.,
+  A., Brunskill, E., Cho, K., Engelhardt, B., Sabato, S., and           Choudhary, D., Mahajan, D., Garcia-Olano, D., Perino,
+  Scarlett, J. (eds.), Proceedings of the 40th International            D., Hupkes, D., Lakomkin, E., AlBadawy, E., Lobanova,
+
+                                                                  9
+                                     A Hitchhiker’s Guide to Scaling Law Estimation
+
+E., Dinan, E., Smith, E. M., Radenovic, F., Zhang, F.,                 E., Smothers, E., Sun, F., Kreuk, F., Tian, F., Ozgenel, F.,
+Synnaeve, G., Lee, G., Anderson, G. L., Nail, G., Mialon,              Caggioni, F., Guzmán, F., Kanayet, F., Seide, F., Florez,
+G., Pang, G., Cucurell, G., Nguyen, H., Korevaar, H.,                  G. M., Schwarz, G., Badeer, G., Swee, G., Halpern, G.,
+Xu, H., Touvron, H., Zarov, I., Ibarra, I. A., Kloumann,               Thattai, G., Herman, G., Sizov, G., Guangyi, Zhang, Lak-
+I., Misra, I., Evtimov, I., Copet, J., Lee, J., Geffert, J.,           shminarayanan, G., Shojanazeri, H., Zou, H., Wang, H.,
+Vranes, J., Park, J., Mahadeokar, J., Shah, J., van der                Zha, H., Habeeb, H., Rudolph, H., Suk, H., Aspegren, H.,
+Linde, J., Billock, J., Hong, J., Lee, J., Fu, J., Chi, J.,            Goldman, H., Molybog, I., Tufanov, I., Veliche, I.-E., Gat,
+Huang, J., Liu, J., Wang, J., Yu, J., Bitton, J., Spisak,              I., Weissman, J., Geboski, J., Kohli, J., Asher, J., Gaya,
+J., Park, J., Rocca, J., Johnstun, J., Saxe, J., Jia, J., Al-          J.-B., Marcus, J., Tang, J., Chan, J., Zhen, J., Reizenstein,
+wala, K. V., Upasani, K., Plawiak, K., Li, K., Heafield,               J., Teboul, J., Zhong, J., Jin, J., Yang, J., Cummings, J.,
+K., Stone, K., El-Arini, K., Iyer, K., Malik, K., Chiu, K.,            Carvill, J., Shepard, J., McPhie, J., Torres, J., Ginsburg,
+Bhalla, K., Rantala-Yeary, L., van der Maaten, L., Chen,               J., Wang, J., Wu, K., U, K. H., Saxena, K., Prasad, K.,
+L., Tan, L., Jenkins, L., Martin, L., Madaan, L., Malo, L.,            Khandelwal, K., Zand, K., Matosich, K., Veeraraghavan,
+Blecher, L., Landzaat, L., de Oliveira, L., Muzzi, M., Pa-             K., Michelena, K., Li, K., Huang, K., Chawla, K., Lakho-
+supuleti, M., Singh, M., Paluri, M., Kardas, M., Oldham,               tia, K., Huang, K., Chen, L., Garg, L., A, L., Silva, L.,
+M., Rita, M., Pavlova, M., Kambadur, M., Lewis, M.,                    Bell, L., Zhang, L., Guo, L., Yu, L., Moshkovich, L.,
+Si, M., Singh, M. K., Hassan, M., Goyal, N., Torabi, N.,               Wehrstedt, L., Khabsa, M., Avalani, M., Bhatt, M., Tsim-
+Bashlykov, N., Bogoychev, N., Chatterji, N., Duchenne,                 poukelli, M., Mankus, M., Hasson, M., Lennie, M., Reso,
+O., Çelebi, O., Alrassy, P., Zhang, P., Li, P., Vasic, P.,             M., Groshev, M., Naumov, M., Lathi, M., Keneally, M.,
+Weng, P., Bhargava, P., Dubal, P., Krishnan, P., Koura,                Seltzer, M. L., Valko, M., Restrepo, M., Patel, M., Vy-
+P. S., Xu, P., He, Q., Dong, Q., Srinivasan, R., Ganapa-               atskov, M., Samvelyan, M., Clark, M., Macey, M., Wang,
+thy, R., Calderer, R., Cabral, R. S., Stojnic, R., Raileanu,           M., Hermoso, M. J., Metanat, M., Rastegari, M., Bansal,
+R., Girdhar, R., Patel, R., Sauvestre, R., Polidoro, R.,               M., Santhanam, N., Parks, N., White, N., Bawa, N., Sing-
+Sumbaly, R., Taylor, R., Silva, R., Hou, R., Wang, R.,                 hal, N., Egebo, N., Usunier, N., Laptev, N. P., Dong, N.,
+Hosseini, S., Chennabasappa, S., Singh, S., Bell, S., Kim,             Zhang, N., Cheng, N., Chernoguz, O., Hart, O., Salpekar,
+S. S., Edunov, S., Nie, S., Narang, S., Raparthy, S., Shen,            O., Kalinli, O., Kent, P., Parekh, P., Saab, P., Balaji, P.,
+S., Wan, S., Bhosale, S., Zhang, S., Vandenhende, S.,                  Rittner, P., Bontrager, P., Roux, P., Dollar, P., Zvyagina,
+Batra, S., Whitman, S., Sootla, S., Collot, S., Gururangan,            P., Ratanchandani, P., Yuvraj, P., Liang, Q., Alao, R.,
+S., Borodinsky, S., Herman, T., Fowler, T., Sheasha, T.,               Rodriguez, R., Ayub, R., Murthy, R., Nayani, R., Mitra,
+Georgiou, T., Scialom, T., Speckbacher, T., Mihaylov, T.,              R., Li, R., Hogan, R., Battey, R., Wang, R., Maheswari,
+Xiao, T., Karn, U., Goswami, V., Gupta, V., Ramanathan,                R., Howes, R., Rinott, R., Bondu, S. J., Datta, S., Chugh,
+V., Kerkez, V., Gonguet, V., Do, V., Vogeti, V., Petrovic,             S., Hunt, S., Dhillon, S., Sidorov, S., Pan, S., Verma,
+V., Chu, W., Xiong, W., Fu, W., Meers, W., Martinet, X.,               S., Yamamoto, S., Ramaswamy, S., Lindsay, S., Lindsay,
+Wang, X., Tan, X. E., Xie, X., Jia, X., Wang, X., Gold-                S., Feng, S., Lin, S., Zha, S. C., Shankar, S., Zhang, S.,
+schlag, Y., Gaur, Y., Babaei, Y., Wen, Y., Song, Y., Zhang,            Zhang, S., Wang, S., Agarwal, S., Sajuyigbe, S., Chin-
+Y., Li, Y., Mao, Y., Coudert, Z. D., Yan, Z., Chen, Z.,                tala, S., Max, S., Chen, S., Kehoe, S., Satterfield, S.,
+Papakipos, Z., Singh, A., Grattafiori, A., Jain, A., Kelsey,           Govindaprasad, S., Gupta, S., Cho, S., Virk, S., Subrama-
+A., Shajnfeld, A., Gangidi, A., Victoria, A., Goldstand,               nian, S., Choudhury, S., Goldman, S., Remez, T., Glaser,
+A., Menon, A., Sharma, A., Boesenberg, A., Vaughan,                    T., Best, T., Kohler, T., Robinson, T., Li, T., Zhang, T.,
+A., Baevski, A., Feinstein, A., Kallet, A., Sangani, A.,               Matthews, T., Chou, T., Shaked, T., Vontimitta, V., Ajayi,
+Yunus, A., Lupu, A., Alvarado, A., Caples, A., Gu, A.,                 V., Montanez, V., Mohan, V., Kumar, V. S., Mangla, V.,
+Ho, A., Poulton, A., Ryan, A., Ramchandani, A., Franco,                Ionescu, V., Poenaru, V., Mihailescu, V. T., Ivanov, V.,
+A., Saraf, A., Chowdhury, A., Gabriel, A., Bharambe, A.,               Li, W., Wang, W., Jiang, W., Bouaziz, W., Constable, W.,
+Eisenman, A., Yazdan, A., James, B., Maurer, B., Leon-                 Tang, X., Wang, X., Wu, X., Wang, X., Xia, X., Wu, X.,
+hardi, B., Huang, B., Loyd, B., Paola, B. D., Paranjape, B.,           Gao, X., Chen, Y., Hu, Y., Jia, Y., Qi, Y., Li, Y., Zhang,
+Liu, B., Wu, B., Ni, B., Hancock, B., Wasti, B., Spence,               Y., Zhang, Y., Adi, Y., Nam, Y., Yu, Wang, Hao, Y., Qian,
+B., Stojkovic, B., Gamido, B., Montalvo, B., Parker, C.,               Y., He, Y., Rait, Z., DeVito, Z., Rosnbrick, Z., Wen, Z.,
+Burton, C., Mejia, C., Wang, C., Kim, C., Zhou, C., Hu,                Yang, Z., and Zhao, Z. The llama 3 herd of models, 2024.
+C., Chu, C.-H., Cai, C., Tindal, C., Feichtenhofer, C.,                URL https://arxiv.org/abs/2407.21783.
+Civin, D., Beaty, D., Kreymer, D., Li, D., Wyatt, D.,
+Adkins, D., Xu, D., Testuggine, D., David, D., Parikh,               Gadre, S. Y., Smyrnis, G., Shankar, V., Gururangan, S.,
+D., Liskovich, D., Foss, D., Wang, D., Le, D., Holland,               Wortsman, M., Shao, R., Mercat, J., Fang, A., Li, J.,
+D., Dowling, E., Jamil, E., Montgomery, E., Presani, E.,               Keh, S., et al. Language models scale reliably with
+Hahn, E., Wood, E., Brinkman, E., Arcaute, E., Dunbar,                 over-training and on downstream tasks. arXiv preprint
+
+                                                                10
+                                        A Hitchhiker’s Guide to Scaling Law Estimation
+
+  arXiv:2403.08540, 2024.                                              Isik, B., Ponomareva, N., Hazimeh, H., Paparas, D., Vas-
+                                                                          silvitskii, S., and Koyejo, S. Scaling laws for down-
+Ge, C., Ma, Z., Chen, D., Li, Y., and Ding, B. Data mix-                  stream task performance of large language models. arXiv
+  ing made efficient: A bivariate scaling law for language                preprint arXiv:2402.04177, 2024.
+  model pretraining, 2024. URL https://arxiv.org/
+  abs/2405.14908.                                                      Ivgi, M., Carmon, Y., and Berant, J. Scaling laws
+                                                                         under the microscope: Predicting transformer perfor-
+Groeneveld, D., Beltagy, I., Walsh, P., Bhagia, A., Kinney,
+                                                                         mance from small scale experiments. arXiv preprint
+  R., Tafjord, O., Jha, A. H., Ivison, H., Magnusson, I.,
+                                                                         arXiv:2202.06387, 2022.
+  Wang, Y., Arora, S., Atkinson, D., Authur, R., Chandu,
+  K. R., Cohan, A., Dumas, J., Elazar, Y., Gu, Y., Hessel,             Jelassi, S., Brandfonbrener, D., Kakade, S. M., and
+  J., Khot, T., Merrill, W., Morrison, J., Muennighoff, N.,               Malach, E. Repeat after me: Transformers are bet-
+  Naik, A., Nam, C., Peters, M. E., Pyatkin, V., Ravichan-                ter than state space models at copying. arXiv preprint
+  der, A., Schwenk, D., Shah, S., Smith, W., Strubell, E.,                arXiv:2402.01032, 2024.
+  Subramani, N., Wortsman, M., Dasigi, P., Lambert, N.,
+  Richardson, K., Zettlemoyer, L., Dodge, J., Lo, K., Sol-             Kaplan, J., McCandlish, S., Henighan, T., Brown, T. B.,
+  daini, L., Smith, N. A., and Hajishirzi, H. Olmo: Ac-                  Chess, B., Child, R., Gray, S., Radford, A., Wu, J., and
+  celerating the science of language models, 2024. URL                   Amodei, D. Scaling laws for neural language models.
+  https://arxiv.org/abs/2402.00838.                                      arXiv preprint arXiv:2001.08361, 2020.
+Habba, E., Arviv, O., Itzhak, I., Perlitz, Y., Bandel,
+                                                                       Le Scao, T., Fan, A., Akiki, C., Pavlick, E., Ilić, S., Hesslow,
+  E., Choshen, L., Shmueli-Scheuer, M., and Stanovsky,
+                                                                         D., Castagné, R., Luccioni, A. S., Yvon, F., Gallé, M.,
+  G. Dove: A large-scale multi-dimensional predictions
+                                                                         et al. Bloom: A 176b-parameter open-access multilingual
+  dataset towards meaningful llm evaluation, 2025. URL
+                                                                         language model. 2023.
+  https://arxiv.org/abs/2503.01622.
+Hernandez, D., Kaplan, J., Henighan, T., and McCan-                    Lingle, L. A large-scale exploration of mu-transfer. arXiv
+  dlish, S. Scaling laws for transfer. arXiv preprint                    preprint arXiv:2404.05728, 2024.
+  arXiv:2102.01293, 2021.
+                                                                       Liu, Z., Qiao, A., Neiswanger, W., Wang, H., Tan, B., Tao,
+Hesslow, D., Zanichelli, N., Notin, P., Poli, I., and Marks, D.          T., Li, J., Wang, Y., Sun, S., Pangarkar, O., Fan, R., Gu,
+  Rita: a study on scaling up generative protein sequence                Y., Miller, V., Zhuang, Y., He, G., Li, H., Koto, F., Tang,
+  models. arXiv preprint arXiv:2205.05789, 2022.                         L., Ranjan, N., Shen, Z., Ren, X., Iriondo, R., Mu, C.,
+                                                                         Hu, Z., Schulze, M., Nakov, P., Baldwin, T., and Xing,
+Hillier, D., Guertler, L., Tan, C., Agrawal, P., Chen,                   E. P. Llm360: Towards fully transparent open-source
+  R., and Cheng, B. Super tiny language models.                          llms, 2023.
+  ArXiv, abs/2405.14159, 2024. URL https://api.
+  semanticscholar.org/CorpusID:269982112.                              LLM360 Team. Llm360 k2-65b: Scaling up fully transpar-
+                                                                         ent open-source llms. 2024.
+Hoffmann, J., Borgeaud, S., Mensch, A., Buchatskaya, E.,
+  Cai, T., Rutherford, E., Casas, D. d. L., Hendricks, L. A.,          Ludziejewski, J., Krajewski, J., Adamczewski, K., Pióro,
+ Welbl, J., Clark, A., et al. Training compute-optimal                   M., Krutul, M., Antoniak, S., Ciebiera, K., Król, K.,
+  large language models. arXiv preprint arXiv:2203.15556,                Odrzygóźdź, T., Sankowski, P., et al. Scaling laws for fine-
+  2022.                                                                  grained mixture of experts. In Forty-first International
+Hu, M. Y., Mueller, A., Ross, C., Williams, A., Linzen, T.,              Conference on Machine Learning.
+  Zhuang, C., Cotterell, R., Choshen, L., Warstadt, A., and
+                                                                       Maia Polo, F., Somerstep, S., Choshen, L., Sun, Y., and
+ Wilcox, E. G. Findings of the second babylm challenge:
+                                                                        Yurochkin, M. Sloth: scaling laws for llm skills to predict
+  Sample-efficient pretraining on developmentally plausi-
+                                                                        multi-benchmark performance across families. arXiv
+  ble corpora. arXiv preprint arXiv:2412.05149, 2024a.
+                                                                        preprint arXiv:2410.11840, 2024.
+Hu, S., Tu, Y., Han, X., He, C., Cui, G., Long, X., Zheng, Z.,
+  Fang, Y., Huang, Y., Zhao, W., et al. Minicpm: Unveiling             Mikami, H., Fukumizu, K., Murai, S., Suzuki, S., Kikuchi,
+  the potential of small language models with scalable train-           Y., Suzuki, T., Maeda, S.-i., and Hayashi, K. A scaling
+  ing strategies. arXiv preprint arXiv:2404.06395, 2024b.               law for syn2real transfer: How much is your pre-training
+                                                                        effective? In Joint European Conference on Machine
+Inbar, I. and Sernau, L. Time matters: Scaling laws for any             Learning and Knowledge Discovery in Databases, pp.
+  budget. arXiv preprint arXiv:2406.18922, 2024.                        477–492. Springer, 2022.
+
+                                                                  11
+                                     A Hitchhiker’s Guide to Scaling Law Estimation
+
+Muckatira, S., Deshpande, V., Lialin, V., and Rumshisky, A.        Sardana, N., Portes, J., Doubov, S., and Frankle, J. Beyond
+ Emergent abilities in reduced-scale generative language             chinchilla-optimal: Accounting for inference in language
+ models. In Duh, K., Gomez, H., and Bethard, S. (eds.),              model scaling laws. In Forty-first International Confer-
+ Findings of the Association for Computational Linguis-              ence on Machine Learning.
+ tics: NAACL 2024, pp. 1242–1257, Mexico City, Mexico,
+ June 2024. Association for Computational Linguistics.             Sellam, T., Yadlowsky, S., Tenney, I., Wei, J., Saphra, N.,
+ doi: 10.18653/v1/2024.findings-naacl.79. URL https:                 D’Amour, A., Linzen, T., Bastings, J., Turc, I. R., Eisen-
+ //aclanthology.org/2024.findings-naacl.79.                          stein, J., et al. The multiberts: Bert reproductions for ro-
+                                                                     bustness analysis. In International Conference on Learn-
+Muennighoff, N., Rush, A., Barak, B., Le Scao, T., Tazi,             ing Representations, 2021.
+ N., Piktus, A., Pyysalo, S., Wolf, T., and Raffel, C. A.
+ Scaling data-constrained language models. Advances in             Shen, Y., Zhang, Z., Cao, T., Tan, S., Chen, Z., and Gan, C.
+ Neural Information Processing Systems, 36, 2024.                    Moduleformer: Learning modular large language models
+                                                                     from uncurated data. arXiv preprint arXiv:2306.04640,
+Owen, D. How predictable is language model benchmark
+                                                                     2023.
+ performance? arXiv preprint arXiv:2401.04757, 2024.
+
+Pandey, R. gzip predicts data-dependent scaling laws. arXiv        Sorscher, B., Geirhos, R., Shekhar, S., Ganguli, S., and Mor-
+  preprint arXiv:2405.16684, 2024.                                   cos, A. Beyond neural scaling laws: beating power law
+                                                                     scaling via data pruning. Advances in Neural Information
+Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V.,              Processing Systems, 35:19523–19536, 2022.
+  Thirion, B., Grisel, O., Blondel, M., Prettenhofer, P.,
+  Weiss, R., Dubourg, V., et al. Scikit-learn: Machine             Sutawika, L., Komatsuzaki, A., and Raffel, C. Pile-t5,
+  learning in python. the Journal of machine Learning                2024. URL https://blog.eleuther.ai/pile-t5/.
+  research, 12:2825–2830, 2011.                                      Blog post.
+
+Perlitz, Y., Bandel, E., Gera, A., Arviv, O., Ein-Dor, L.,         Tao, C., Liu, Q., Dou, L., Muennighoff, N., Wan, Z., Luo,
+  Shnarch, E., Slonim, N., Shmueli-Scheuer, M., and                  P., Lin, M., and Wong, N. Scaling laws with vocabulary:
+  Choshen, L. Efficient benchmarking (of language mod-               Larger models deserve larger vocabularies. arXiv preprint
+  els). In Duh, K., Gomez, H., and Bethard, S. (eds.),               arXiv:2407.13623, 2024.
+  Proceedings of the 2024 Conference of the North Amer-
+  ican Chapter of the Association for Computational Lin-           Tay, Y., Dehghani, M., Abnar, S., Chung, H., Fedus, W.,
+  guistics: Human Language Technologies (Volume 1:                   Rao, J., Narang, S., Tran, V., Yogatama, D., and Met-
+  Long Papers), pp. 2519–2536, Mexico City, Mexico,                  zler, D. Scaling laws vs model architectures: How
+  June 2024. Association for Computational Linguistics.              does inductive bias influence scaling? In Bouamor, H.,
+  doi: 10.18653/v1/2024.naacl-long.139. URL https:                   Pino, J., and Bali, K. (eds.), Findings of the Associa-
+  //aclanthology.org/2024.naacl-long.139.                            tion for Computational Linguistics: EMNLP 2023, pp.
+                                                                     12342–12364, Singapore, December 2023. Association
+Poli, M., Thomas, A. W., Nguyen, E., Ponnusamy, P., Deis-            for Computational Linguistics. doi: 10.18653/v1/2023.
+  eroth, B., Kersting, K., Suzuki, T., Hie, B., Ermon, S.,           findings-emnlp.825. URL https://aclanthology.
+  Ré, C., Zhang, C., and Massaroli, S. Mechanistic de-               org/2023.findings-emnlp.825.
+  sign and scaling of hybrid architectures, 2024. URL
+  https://arxiv.org/abs/2403.17844.                                Together. Releasing 3b and 7b redpajama-incite family of
+                                                                     models including base, instruction-tuned & chat models,
+Porian, T., Wortsman, M., Jitsev, J., Schmidt, L., and
+                                                                     May 2023. URL https://www.together.ai/blog/
+  Carmon, Y. Resolving discrepancies in compute-
+                                                                     redpajama-models-v1.
+  optimal scaling of language models. arXiv preprint
+  arXiv:2406.19146, 2024.
+                                                                   Touvron, H., Martin, L., Stone, K., Albert, P., Almahairi,
+Rosenfeld, J. S., Rosenfeld, A., Belinkov, Y., and Shavit,           A., Babaei, Y., Bashlykov, N., Batra, S., Bhargava, P.,
+  N. A constructive prediction of the generalization error           Bhosale, S., et al. Llama 2: Open foundation and fine-
+  across scales. In International Conference on Learning             tuned chat models. arXiv preprint arXiv:2307.09288,
+  Representations.                                                   2023.
+
+Ruan, Y., Maddison, C. J., and Hashimoto, T. Observational         Warstadt, A., Mueller, A., Choshen, L., Wilcox, E., Zhuang,
+  scaling laws and the predictability of language model             C., Ciro, J., Mosquera, R., Paranjabe, B., Williams, A.,
+  performance, 2024.                                                Linzen, T., et al. Findings of the babylm challenge:
+
+                                                              12
+                                       A Hitchhiker’s Guide to Scaling Law Estimation
+
+  Sample-efficient pretraining on developmentally plau-               full training. Scaling is constant and follows the literature
+  sible corpora. In Proceedings of the BabyLM Chal-                   (Muennighoff et al., 2024) and the largest model stands as
+  lenge at the 27th Conference on Computational Natu-                 target model (so the bottom line in each figure represents
+  ral Language Learning, pp. 1–34, 2023. URL https:                   predicting from the beginning of training). In parallel to
+  //aclanthology.org/2023.conll-babylm.1/.                            this paper, an even more efficient work on predicting with 1
+                                                                      model was suggested, and the two should be incorporated
+Wortsman, M., Liu, P. J., Xiao, L., Everett, K. E., Alemi,            (Maia Polo et al., 2024).
+ A. A., Adlam, B., Co-Reyes, J. D., Gur, I., Kumar, A.,
+ Novak, R., et al. Small-scale proxies for large-scale trans-
+ former training instabilities. In The Twelfth International          B. Loss curves and predictions
+ Conference on Learning Representations, 2023.                        We provide in Fig. 7 graphs of the loss during training of the
+Xia, M., Artetxe, M., Zhou, C., Lin, X. V., Pasunuru, R.,             target models per originating source (e.g., a paper) together
+  Chen, D., Zettlemoyer, L., and Stoyanov, V. Training                with the predictions by using different percentage of the
+  trajectories of language models across scales. In Rogers,           training.
+  A., Boyd-Graber, J., and Okazaki, N. (eds.), Proceed-
+  ings of the 61st Annual Meeting of the Association for              C. Is scaling working only upwards?
+  Computational Linguistics (Volume 1: Long Papers), pp.
+  13711–13738, Toronto, Canada, July 2023. Association                  No. Small models usually show consistent and predicatable
+  for Computational Linguistics. doi: 10.18653/v1/2023.                 performance.
+  acl-long.767. URL https://aclanthology.org/2023.
+  acl-long.767.                                                       Usually, one does not use a scaling law to extrapolate to a
+                                                                      smaller model as one can just train the small model. How-
+Xiong, Y., Chen, X., Ye, X., Chen, H., Lin, Z., Lian, H., Niu,        ever, under observational scaling laws, where one wants to
+  J., and Ding, G. Temporal scaling law for large language            research a phenomenon without scaling at all (Ruan et al.,
+  models. 2024. URL https://api.semanticscholar.                      2024; Maia Polo et al., 2024), or when many models were
+  org/CorpusID:269449894.                                             trained and one wishes to create smaller models for various
+                                                                      reasons (Hillier et al., 2024; Warstadt et al., 2023), scaling
+Yang, G., Hu, E., Babuschkin, I., Sidor, S., Liu, X., Farhi,
+                                                                      down might prove useful. Moreover, in the context of tra-
+  D., Ryder, N., Pachocki, J., Chen, W., and Gao, J. Tuning
+                                                                      ditional scaling laws this may act as a baseline. Such an
+  large neural networks via zero-shot hyperparameter trans-
+                                                                      experiment may shed another light on the number of models
+  fer. Advances in Neural Information Processing Systems,
+                                                                      |F | versus their size #params. If large models are better
+  34:17084–17097, 2021.
+                                                                      because they are more stable or otherwise fit laws more ro-
+Yang, G., Hu, E. J., Babuschkin, I., Sidor, S., Liu, X.,              bustly, few models will be enough, if the number of models
+  Farhi, D., Ryder, N., Pachocki, J., Chen, W., and Gao,              or scale down difference from the prediction, it will show
+  J. Tensor programs v: Tuning large neural networks                  similar behaviour to scaling up. See more in §8.
+  via zero-shot hyperparameter transfer. arXiv preprint               To test this we reverse the order of models and predict with
+  arXiv:2203.03466, 2022.                                             the largest models the loss on the smallest models. This
+Zhang, B., Liu, Z., Cherry, C., and Firat, O. When scaling            means that for example in the case of 3 models, we predict
+  meets llm finetuning: The effect of data, model and fine-           the smallest model’s loss and fit the scaling law relying on
+  tuning method. In The Twelfth International Conference              the 3 largest models. As before, we break the results by the
+  on Learning Representations.                                        percentage of training done and do not reverse it.
+                                                                      As shown in Fig. 8, the number of models plays an important
+Zhang, S., Roller, S., Goyal, N., Artetxe, M., Chen, M.,
+                                                                      role in fitting well and a minimum of 30-40% of the training
+  Chen, S., Dewan, C., Diab, M., Li, X., Lin, X. V., Mi-
+                                                                      is necessary for good fit, more than that often improves
+  haylov, T., Ott, M., Shleifer, S., Shuster, K., Simig, D.,
+                                                                      further.
+  Koura, P. S., Sridhar, A., Wang, T., and Zettlemoyer,
+  L. Opt: Open pre-trained transformer language models,
+  2022. URL https://arxiv.org/abs/2205.01068.                         D. Can we detect bad models to fit on?
+                                                                        If so, not through cross validataion.
+A. Scale up with 1 model                                              In §7, we raise the issue of instability of scaling law predic-
+We bring errors of data from fitting from a single model              tions, with a single model vastly changing the results. We
+on a given percentage of training to the largest model with           tried to see if, without knowing the ARE, we could remove
+
+                                                                 13
+                                                                                        A Hitchhiker’s Guide to Scaling Law Estimation
+
+                                                                                                              35                                                                                                      35
+
+
+
+
+                                  1.3 0.12
+                                                                                                              30                                                                                                      30
+
+
+
+
+                                                                                                                                     2.8
+                                                                                                              25                                                                                                      25
+
+                  Train model size
+
+
+
+
+                                                                                                                        Train model size
+                                  175.0 30.0 13.0 6.7
+                                                                                                              20                                                                                                      20
+
+
+
+
+                                                                                                                                     4.2
+                                                                                                              15                                                                                                      15
+                                                                                                              10                                                                                                      10
+
+
+
+
+                                                                                                                                     8.7
+                                                                                                              5                                                                                                       5
+                                                                                                              0                                                                                                       0
+                                                                    0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                                                0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                  Percentage                                                                                            Percentage
+                                                                                   (a) OPT                                                                                     (b) GPT2 (trained on C4)
+                                                                                                              35                                                                                                      35
+
+
+
+
+                                                                                                                                     12.0 6.9 2.8 1.4 1.0 0.41 0.16 0.07
+                                                                                                              30                                                                                                      30
+                                  1.0
+
+
+
+
+                                                                                                              25                                                                                                      25
+                  Train model size
+
+
+
+
+                                                                                                                        Train model size
+                                                                                                              20                                                                                                      20
+                                                                                                              15                                                                                                      15
+                                                                                                              10                                                                                                      10
+                                  7.0
+
+
+
+
+                                                                                                              5                                                                                                       5
+                                                                                                              0                                                                                                       0
+                                                                    0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                                                0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                  Percentage                                                                                            Percentage
+                                                                                  (c) OLMO                                                                                       (d) Pythia deduped V0
+                                                                                                              35                                                                                                      35
+                              12.0 6.9 2.8 1.4 1.0 0.41 0.16 0.07
+
+
+
+
+                                                                                                                                                  0.02
+                                                                                                              30                                  0.07                                                                30
+                                                                                                              25                                  0.16
+                                                                                                                                                                                                                      25
+                 Train model size
+
+
+
+
+                                                                                                                                                  0.35
+                                                                                                                         Train model size
+
+
+
+
+                                                                                                              20                                  0.41                                                                20
+                                                                                                                                                   1.0
+                                                                                                              15                                   1.3                                                                15
+                                                                                                              10                                   1.4                                                                10
+                                                                                                                                                   2.8
+                                                                                                              5                                    6.9                                                                5
+                                                                                                                                                  12.0
+                                                                                                              0                                                                                                       0
+                                                                    0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                                                 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                 Percentage                                                                                               Percentage
+                                                                                (e) Pythia V0                                                                                       (f) Pythia deduped
+                                                                                                              35                                                                                                      35
+                              12.0 6.9 2.8 1.4 0.41 0.16 0.07
+
+
+
+
+                                                                                                                                         0.25
+
+
+
+
+                                                                                                              30                                                                                                      30
+                                                                                                              25                                                                                                      25
+                 Train model size
+
+
+
+
+                                                                                                                         Train model size
+                                                                                                                                         0.78
+
+
+
+
+                                                                                                              20                                                                                                      20
+                                                                                                              15                                                                                                      15
+                                                                                                                                         2.85
+
+
+
+
+                                                                                                              10                                                                                                      10
+                                                                                                                                         11.14
+
+
+
+
+                                                                                                              5                                                                                                       5
+                                                                                                              0                                                                                                       0
+                                                                    0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                                                0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                 Percentage                                                                                              Percentage
+                                                                                  (g) Pythia                                                                                            (h) T5-Pile
+
+Figure 6: Fitting scaling laws under the assumption that all models scale similarly. Thus, a single model is needed to predict.
+The last row in each Figure represents predicting a model at the beginning of its training.
+
+                                                                                                                   14
+                                                                                                            A Hitchhiker’s Guide to Scaling Law Estimation
+
+       6.5                                               original_paper:overtrain                                                                7                                                original_paper:datablations
+                                                  overtrain c4_original-d=1024_l=24_h=8-0.25                                                                                                       datablations GPT2-2.80B-c4-1.0
+       6.0                                                                                                                                       6
+
+       5.5
+                                                                                                                                                 5
+       5.0
+Loss
+
+
+
+
+                                                                                                                                          Loss
+                                                                                                                                                 4
+       4.5
+
+       4.0                                                                                                                                       3
+                                                                                                                                                                                                                           2.57
+                                                                                                                                                                                                                         2.56
+                                                                                                                                                                                                                      2.56
+                             3.49                                      3.54                                                                                                                                 2.392.502.54
+       3.5
+                                                  3.32                        3.423.473.49
+                                                              3.27                                                                               2                                                 1.89
+
+              108                                                           109                                                                       108                    109                       1010
+                                             Tokens seen                                                                                                                           Tokens seen
+
+                                                         (a) Overtrain                                                                                                                    (b) Datablations
+                                           original_paper:gpt3 - arxiv.org-abs-2005.14165                                                                                                              original_paper:pythia
+                                                   gpt3 - arxiv.org-abs-2005.14165 GPT-3 13B                                                                                                              pythia pythia-1.3b-deduped
+       3.2
+                                                                                                                                                 6
+       3.0
+                                                                                                                                                 5
+       2.8
+Loss
+
+
+
+
+                                                                                                                                          Loss
+       2.6                                                                                                                                       4
+
+       2.4                          2.40                                                                                                                                                               3.26
+                                                                                                                                                 3                                                            3.053.052.93
+                                                                                                                                                                                                                         2.91
+                                                       2.28
+                                                                 2.21                                                                                                                        2.65
+       2.2                                                                 2.16
+                                                                                  2.122.08
+                                                                                         2.05                                                    2
+       2.0                                                                                                                                                                         1.61
+                  10                                                  11
+             10                                                  10                                                                                                   1010                                           1011
+                                             Tokens seen                                                                                                                           Tokens seen
+
+                                                               (c) GPT-3                                                                                                                           (d) Pythia
+                                                                              original_paper:t5-pile                                             26                                         original_paper:training_trajectories
+       0.11                                                                          t5-pile pile-t5-base                                                                                            training_trajectories OPT-0.17T
+                                                                                                                                                 24
+
+                                                                                                                                                 22
+       0.10
+                                                                                                                                                 20
+Loss
+
+
+
+
+                                                                                                                                          Loss
+
+
+
+
+                                                                                                                                                 18
+       0.09
+                                                                                                                                                 16
+
+                                                                                                                                                 14
+       0.08                                                                                                                                                                    12.41
+                                                                                                                                                 12                                         11.64
+                                                              0.07         0.07 0.070.070.07                                                                                                          10.61
+                                                                                          0.07
+                                                                                            0.07                                                 10                                                        10.039.849.809.74
+       0.07
+                        10                        11                                       12                                                                    10
+                   10                        10                                       10                                                                    10                                         1011
+                                              Tokens seen                                                                                                                           Tokens seen
+
+                                                              (e) T5-Pile                                                                                                          (f) Training Trajectories
+
+Figure 7: In each figure all losses from a specific source and predictions of the scaling loss with different percentage of the
+#toks and all models. Predictions are points where the X axis is the available data for prediction and y the prediction value,
+lines are the actual value. One scaled family per paper was sampled as a representative.
+
+
+bad models from the prediction. We hypothesized that mod-                                                                             E. Huber replication
+els that we can’t predict would mean models that would
+skew our predictions when fitted upon. We performed a                                                                                 Huber loss is sometimes used instead of ARE (Hoffmann
+cross-validation on the #params families in F each time                                                                               et al., 2022). Huber loss is defined as
+setting the models with most #toks as target ans exclusing
+the #params family from F . Our hypothesis was found                                                                                                                         (
+                                                                                                                                                                                   1 2
+to be incorrect. Such cases of hard-to-predict models were                                                                                                                         2a                                    for |a| ≤ δ,
+                                                                                                                                                            Lδ (a) =
+                                                                                                                                                                                           |a| − 12 δ
+                                                                                                                                                                                                                   
+found to indicate that the models left in F are bad predictors                                                                                                                     δ·                                  , otherwise.
+and not that the target is very dissimilar (a "bad" training).
+In 58% of the cases removing that model from the scaling
+law created the worst ARE possible on the actual target,                                                                              We use δ = e10−3 as done in (Hoffmann et al., 2022). The
+more than removing any other model.                                                                                                   overall results are similar but for completeness report them
+                                                                                                                                      in Fig. 9.
+
+
+
+
+                                                                                                                                 15
+                                                        A Hitchhiker’s Guide to Scaling Law Estimation
+
+
+
+                                                                         35                                                                       35
+
+
+
+
+                                                                                              2
+                                                                         30                                                                       30
+        2
+
+
+
+
+                                                                                              3
+                                                                         25                                                                       25
+
+
+
+
+                                                                                   #Train models
+               3
+   #Train models
+
+
+
+
+                                                                         20                                                                       20
+
+
+
+
+                                                                                              4
+                                                                         15                                                                       15
+
+
+
+
+                                                                                              5
+   4
+
+
+
+
+                                                                         10                                                                       10
+
+
+
+
+                                                                                              6
+                                                                         5                                                                        5
+        5
+
+
+
+
+                                                                                              7
+                                                                         0                                                                        0
+                        0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                    0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                        percentage                                                                 Percentage
+                                         (a) OPT                                                             (b) Pythia deduped V0
+                                                                         35                                                                  35
+
+
+
+                                                                                              2
+                   2
+
+
+
+
+                                                                         30                                                                  30
+                                                                                              3
+                   3
+
+
+
+
+                                                                         25                                                                  25
+                                                                                              4
+        #Train models
+
+
+
+
+                                                                                   #Train models
+                                                                                              5
+
+                                                                         20                                                                  20
+                   4
+
+
+
+
+                                                                                              6
+
+
+
+
+                                                                         15                                                                  15
+                   5
+
+
+
+
+                                                                                              7
+
+
+
+
+                                                                         10                                                                  10
+                                                                                              8
+                   6
+
+
+
+
+                                                                         5                                                                   5
+                                                                                              9
+                   7
+
+
+
+
+                                                                                              10
+
+
+
+
+                                                                         0                                                                   0
+                          0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                         Percentage                                                               Percentage
+                                        (c) Pythia V0                                                         (d) Pythia deduped
+                                                                         35                                                                  35
+                   2
+
+
+
+
+                                                                         30                                                                  30
+                                                                                              2
+
+
+
+
+                                                                         25                                                                  25
+                   3
+        #Train models
+
+
+
+
+                                                                                   #Train models
+
+
+
+
+                                                                         20                                                                  20
+                   4
+
+
+
+
+                                                                         15                                                                  15
+
+                                                                         10                                                                  10
+                   5
+
+
+
+
+                                                                                              3
+
+
+
+
+                                                                         5                                                                   5
+                   6
+
+
+
+
+                                                                         0                                                                   0
+                          0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                         Percentage                                                               Percentage
+                                         (e) Pythia                                                               (f) T5-Pile
+
+Figure 8: Fitting scaling laws trying to predict the smallest model, with the largest (Y-axis) models trained on a percentage
+of the data (X-axis).
+
+
+
+                                                                              16
+                                                                              A Hitchhiker’s Guide to Scaling Law Estimation
+
+
+
+
+                                                                  2                                                                                                                    2                                                    1.0
+                         #Train models (Scale up predicted)
+
+
+
+
+                                                                                                                                              #Train models (Scale up predicted)
+                                                              (X500)                                                                                                               (X171)
+                                                                  3                                                                                                                    3                                                    0.8
+                                                              (X230)                                                                                                                (X75)
+                                                                                                                                                                                       4
+                                                                  4                                                                                                                 (X34)                                                   0.6
+                                                              (X134)                                                                                                                   5
+                                                                  5                                                                                                                 (X29)
+                                                               (X64)                                                                                                                   6                                                    0.4
+                                                                  6                                                                                                                 (X12)
+                                                               (X26)                                                                                                                   7
+                                                                                                                                                                                     (X9)                                                   0.2
+                                                                  7                                                                                                                   8+
+                                                               (X13)                                                                                                                (<X8)
+                                                                                                                                                                                                                                            0.0
+                                                                       0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                                                              0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                    Percentage                                                                                                           Percentage
+
+                                                                              (a) GPT3                                                                                                                (b) Pythia
+                                                                                                                                                                                                                                      1.0
+                                  #Train models (Scale up predicted)
+
+
+
+
+                                                                                                                  #Train models (Scale up predicted)
+                                                                                                                                              (X44)
+                                                                                                                                                 2
+
+
+
+
+                                                                                                                                                                                                                                      0.8
+
+                                                                                                                                                                                                                                      0.6
+                                                              (X2)
+
+
+
+
+                                                                                                                                              (X3)
+                                                                2
+
+
+
+
+                                                                                                                                                6
+
+
+
+
+                                                                                                                                                                                                                                      0.4
+
+                                                                                                                                                                                                                                      0.2
+                                                                                                                                                                    90
+
+
+
+
+                                                                                                                                                                                                                                      0.0
+                                                                       0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0                                                                            0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+                                                                                   Percentage                                                                                                       Percentage
+
+                                                                              (c) GPT2                                                                                                            (d) Llama
+
+Figure 9: Scaling laws under a Huber loss. The line represents most efficient setting to recieve <0.05. Comparison of several
+models given different amount of models and percentages of training.
+
+
+
+
+                                                                                                                 17
+

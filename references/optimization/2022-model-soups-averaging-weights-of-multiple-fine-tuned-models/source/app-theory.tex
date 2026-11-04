@@ -1,0 +1,164 @@
+\newcommand{\ones}{\mathbf{1}}
+\newcommand{\sbv}[1]{e^{(#1)}}
+
+\subsection{Notation and preliminaries}
+We begin by restating and adding to the notation used in Section~\ref{sec:theory}.
+For a model with parameter vector $\theta\in\R^d$ and input vector $x$, we let $f(x;\theta)\in\R^C$ denote the model's logit output for $C$-way classification. Throughout, we fix two endpoint models $\theta_0$ and $\theta_1$, and for an interpolation parameter $\alpha\in[0,1]$ define
+\begin{equation*}
+	\theta_\alpha \defeq (1-\alpha) \theta_0 + \alpha \theta_1,
+	~~\mbox{and}~~
+	\fwse(x) \defeq f(x; \theta_\alpha)
+\end{equation*}
+to be the ``soup'' weight averaged model and its corresponding logits. We also write
+\begin{equation*}
+	\fose(x) \defeq (1-\alpha)f(x;\theta_0) + \alpha f(x;\theta_1)
+\end{equation*}
+for the logits of the ensemble model. We write
+\begin{equation*}
+	\delta = \theta_1 - \theta_0
+\end{equation*}
+for the difference of the two endpoints.
+
+For a logit vector $f\in\R^C$ and a ground-truth label $y$, denote the cross-entropy loss by
+\begin{equation*}
+	\ell(f;y) = \log\left(\sum_{y'}\exp\{f_{y'}-f_{y}\}\right).
+\end{equation*}
+For some distribution over $x,y$ we write the expected $\beta$-calibrated log losses of the soup and ensemble as
+\begin{equation*}
+	\exloss_\alpha = \E_{x,y} \ell(\beta f(x;\theta_\alpha),y)
+	~~\mbox{and}~~
+	\exlossens_\alpha = \E_{x,y} \ell(\beta \fose(x),y),
+\end{equation*}
+respectively.
+
+We have the following expression for the derivatives of cross entropy w.r.t.\ logits. The gradient is
+\[
+\grad_{f}\ell\left(f,y\right)=\softmax(f) - \sbv{y},
+\]
+where $\sbv{i}$ is the $i$th standard basis vector and $\softmax(f)\in\R^C$ has $e^{f_i}/\sum_j e^{f_j}$ in its $i$th entry. The Hessian is
+\[
+\hess_{f}\ell\left(f,y\right)=\mathrm{diag}\left(\softmax\left(f\right)\right)
+-
+[\softmax(f)] [\softmax(f)]^T,
+\]
+so that for any $v\in \R^C$, we have
+\begin{equation*}
+	v^T \hess_{f}\ell\left(f,y\right) v = \mathrm{Var}_{Y\sim \softmax(f)} [v_Y].
+\end{equation*}
+
+Finally, we use $\delta^T \grad f(x;\theta)$ to denote a vector in $\R^C$ whose $i$th entry is $\delta^T \grad [f(x;\theta)]_i$. Similarly, 
+ $\delta^T \hess f(x;\theta) \delta$  denotes a vector in $\R^C$ whose $i$th entry is $\delta^T [\hess f(x;\theta)]_i \delta$, where gradients and Hessian are with respect to $\theta$. 
+
+
+
+
+\subsection{An exact expression for logit difference}
+We use the fundamental theorem of calculus and elemntary algebraic manipulation to obtain an exact integral form for the difference between the soup and ensemble logits. To streamline notation we drop the dependence of the logits on the input $x$.
+
+\begin{align}
+	\fose-\fwse & =\left(1-\alpha\right)\left[f\left(\theta_{0}\right)-f\left(\theta_{\alpha}\right)\right]+\alpha\left[f\left(\theta_{1}\right)-f\left(\theta_{\alpha}\right)\right]\nonumber \\
+	& =-\left(1-\alpha\right)\int_{0}^{\alpha}\delta^{T}\grad f\left(\theta_{t}\right)\d t+\alpha\int_{\alpha}^{1}\delta^{T}\grad f\left(\theta_{t}\right)\d t\nonumber \\
+	& =-\left(1-\alpha\right)\int_{0}^{\alpha}\left[\delta^{T}\grad f\left(\theta_{\alpha}\right)+\int_{\alpha}^{t}\delta^{T}\grad f\left(\theta_{\tau}\right)\delta \d\tau\right]\d t+\alpha\int_{\alpha}^{1}\left[\delta^{T}\grad f\left(\theta_{\alpha}\right)+\int_{\alpha}^{t}\delta^{T}\grad f\left(\theta_{\tau}\right)\delta \d\tau\right]\d t\nonumber \\
+	& =-\left(1-\alpha\right)\int_{0}^{\alpha}\int_{\alpha}^{t}\left(\delta^{T}\hess f\left(\theta_{\tau}\right)\delta\right)\d\tau \d t+\alpha\int_{\alpha}^{1}\int_{\alpha}^{t}\left(\delta^{T}\hess f\left(\theta_{\tau}\right)\delta\right)\d\tau \d t\nonumber \\
+	& =\left(1-\alpha\right)\int_{0}^{\alpha}\int_{t}^{\alpha}\left(\delta^{T}\hess f\left(\theta_{\tau}\right)\delta\right)\d\tau \d t+\alpha\int_{\alpha}^{1}\int_{\alpha}^{t}\left(\delta^{T}\hess f\left(\theta_{\tau}\right)\delta\right)\d\tau \d t\nonumber \\
+	& =\left(1-\alpha\right)\int_{0}^{\alpha}\left(\delta^{T}\hess f\left(\theta_{\tau}\right)\delta\right)\d\tau\int_{0}^{\tau}\d t+\alpha\int_{\alpha}^{1}\left(\delta^{T}\hess f\left(\theta_{\tau}\right)\delta\right)\d\tau\int_{\tau}^{1}\d t\nonumber \\
+	& =\int_{0}^{1}\left(\delta^{T}\hess f\left(\theta_{\tau}\right)\delta\right)w_{\alpha}\left(\tau\right)\d\tau,
+	\label{eq:fose-fwse}
+\end{align}
+where
+\[
+w_{\alpha}\left(\tau\right)=\begin{cases}
+	\left(1-\alpha\right)\tau & \tau\le\alpha\\
+	\alpha\left(1-\tau\right) & \text{otherwise}
+\end{cases}=\min\left\{ \left(1-\alpha\right)\tau,\alpha\left(1-\tau\right)\right\}.
+\]
+Note that
+\begin{equation*}
+	\int_0^1 w_\alpha(\tau)\d \tau = \frac{\alpha (1-\alpha)}{2}.
+\end{equation*}
+
+\subsection{Derivation of approximation}\label{app:theory-deriv}
+
+We continue to suppress the dependence on $x$ in order to simplify notation.
+We begin with the following first order approximation of the pointwise log-loss difference between the ensemble and soup, which is also a lower bound due to convexity. 
+\begin{equation*}
+	\ell(\fose;y) - \ell(\fwse;y)
+	\approx
+	[\grad_f \ell (\fose; y)]^T (\fose - \fwse) + O\left( ( (\fose - \fwse)^2 ) \right).
+\end{equation*}
+
+Now, we approximate the ensemble and soup logit difference using eq.~\ref{eq:fose-fwse} by assuming that $\delta^{T}\hess f\left(\theta_{\tau}\right)\delta \approx \delta^{T}\hess f\left(\theta_{\alpha}\right)\delta$ for all $\tau\in[0,1]$; this holds when the logits are approximately quadratic along the line between the checkpoints. The resulting approximation is
+\begin{equation*}
+	\fose - \fwse \approx c_\alpha\, \delta^{T}\hess f\left(\theta_{\alpha}\right)\delta
+	+
+	O\left( \max_{\tau\in[0,1]} | \grad^3 f(\theta_\tau)[\delta^{\otimes 3}] | \right)
+	,~~\mbox{where}~c_\alpha \defeq \frac{(1-\alpha)\alpha}{2}.
+\end{equation*}
+
+Combining the two approximation above, we obtain
+\begin{equation*}
+	\ell(\fose;y) - \ell(\fwse;y) \approx c_\alpha\, [\grad_f \ell (\fose; y)]^T \delta^{T}\hess f\left(\theta_{\alpha}\right)\delta.
+\end{equation*}
+
+To relate this expression to the Hessian of the loss with respect to the parameters, we note that for any $\theta$ (by the chain rule)
+\begin{equation*}
+	\delta^T  \hess_\theta \ell( f(\theta); y) \delta 
+	=
+	[\delta^T \grad f(\theta)]^T \hess_f \ell(f(\theta);y) [\delta^T \grad f(\theta)]
+	+
+	\grad_f \ell (f(\theta); y)]^T \delta^{T}\hess f(\theta)\delta.
+\end{equation*} 
+When setting $\theta=\theta_\alpha$, we note that the second term on the RHS is (up to a constant) our approximation for the loss difference). Recalling the expression for the cross-entropy Hessian, the first term is
+\begin{equation*}
+	[\delta^T \grad f(\theta)]^T \hess_f \ell(f(\theta);y) [\delta^T \grad f(\theta)]
+	=
+	\mathrm{Var}_{Y\sim \softmax(f(\theta))} \left[ \delta^T \grad f(\theta) \right].
+\end{equation*}
+
+As a final approximation, we let
+\begin{equation*}
+	\delta^T \grad f(\theta_\alpha) \approx f(\theta_1) - f(\theta_0) 
+	+
+	O\left( \delta^{T}\hess f(\theta)\delta \right);
+\end{equation*}
+this holds when logits are too far from linear in $\theta$. 
+
+Substituting back and making $x$ explicit, we obtain
+\begin{equation*}
+	\ell(\fwse(x);y) - \ell(\fose(x);y) \approx
+	 -c_\alpha\, \frac{\d^2}{\d\alpha^2} \ell( \fwse(x); y)
+	 +c_\alpha\, \mathrm{Var}_{Y\sim \softmax(\fwse(x))} \left[ f(x;\theta_1) - f(x;\theta_0) \right],
+\end{equation*}
+where we have used
+\begin{equation*}
+	\delta^T  \hess_\theta \ell( \fwse(x); y) \delta = \frac{\d^2}{\d\alpha^2} \ell( \fwse(x); y). 
+\end{equation*}
+
+Scaling all logits by $\beta$, the approximation becomes
+\begin{equation*}
+	\ell(\beta\fwse(x);y) - \ell(\beta\fose(x);y) \approx
+	-c_\alpha\, \frac{\d^2}{\d\alpha^2} \ell( \beta \fwse(x); y)
+	+c_\alpha\, \beta^2\mathrm{Var}_{Y\sim \softmax(\beta\fwse(x))} \left[ f(x;\theta_1) - f(x;\theta_0) \right].
+\end{equation*}
+Averaging the result over $x$, we arrive at the approximation~\eqref{eq:approx}, which we repeat here for ease of reference:
+\begin{equation*}
+	\exloss_\alpha - \exlossens_\alpha \approx
+	-c_\alpha\, \frac{\d^2}{\d\alpha^2} \exloss_\alpha
+	+c_\alpha\, \beta^2 \E_x \mathrm{Var}_{Y\sim \softmax(\beta\fwse(x))} \left[ f(x;\theta_1) - f(x;\theta_0) \right].
+\end{equation*}
+
+\subsection{Detailed empirical evaluations}\label{app:theory-eval}
+
+\paragraph{Evaluation setup.} We evaluated our bounds on checkpoints from the ViT-B/32 fine-tuning experiments from the \emph{extreme grid} search described in Section~\ref{app:clipdetails}. We selected three learning rate values ($10^{-6}$, $10^{-5}$ and $10^{-4}$), two levels augmentation (none and RandAugment+MixUp), and considered two different random seeds ($0$ and $1$). From these checkpoints (as well as the initialization) we constructed the following $(\theta_0, \theta_1)$ pairs:
+\begin{itemize}
+	\item All pairs with different learning rate, the same augmentation level and seed 0,
+	\item All pairs with the same learning rate, different augmentation level and seed 0,
+	\item All pairs with the same learning rate and augmentation level, but different seeds,
+	\item All checkpoints with seed 0 coupled with the initialization.
+\end{itemize}  
+This results in 21 pairs overall. For each pair and each $\alpha\in\{0,0.1,\ldots,0.9,1.0\}$ we evaluated $\err_\alpha, \errens_\alpha, \exloss_\alpha, \exlossens_\alpha$, as well as the approximation~\eqref{eq:approx}. We performed this evaluation on the ImageNet validation set as well as on the 5 OOD test sets considered throughout this paper.  
+
+\paragraph{The effect of temperature calibration.}
+Since our ultimate goal is to accurately predict the difference in error rather than the difference in loss, we introduce the inverse-temperature parameter $\beta$ to the loss, and tune it to calibrate the soup model. Specifically, for every model pair, value of $\alpha$ and test set, we take $\beta = \argmin_\beta \E_{x,y} \ell(\beta \fwse(x); y)$. 
+
+While choosing $\beta$ based on the soup rather the ensemble might skew the loss in favor of the soup, it has no effect on the difference in prediction error. Moreover, in preliminary experiments calibrating the ensemble produced very similar results. In contrast, as shown in Figure~\ref{fig:theory-eval}, fixing $\beta=1$ throughout results in far poorer prediction of the difference in error.  

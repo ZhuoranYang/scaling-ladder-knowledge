@@ -1,0 +1,60 @@
+\section{Results}
+\label{sec:results}
+
+% \akshita{following rewrites in Method section, we can now simply move up the ablations table here and report all results. we can also move up some of the discussion from Ablating section here combining it with the results discussed here -- it can be more a comparison of choices for each task, rather than talking in terms of average error for each feature}. 
+
+%\input{floats/stacked_pred_new}
+
+\input{floats/table_design_choices_new}
+
+\autoref{tab:design_choices} compares prediction errors for all design choices. 
+
+\tightparagraph{Task loss.}
+\autoref{tab:stacked_pred} shows the chained prediction results on the target models using task loss as the intermediate feature.
+On four tasks -- MMLU, HellaSwag, PIQA, and Social IQa -- we predict the accuracy within an absolute error of 2 points.
+For ARC-C and ARC-E, we overestimate the task loss in step 1, and underestimate the task accuracy in step 2. In \S\ref{sec_variance_analysis}, we analyze the ability of the ladder to predict task performance by considering variation between checkpoints. We find that our results here track with the variation analysis (ARC-E and ARC-C display higher variance).
+
+%For task loss, we also report predictions for the 32B model size in \autoref{tab:stacked_preds_32b}. The predictions are within an absolute error of 3 points on tasks like HellaSwag, PIQA, and Social IQA (similar to the predictions for 7B and 13B models). 
+
+\tightparagraph{TaskCE.}
+Using TaskCE as the intermediate feature results in overall higher prediction errors for several tasks (including MMLU and HellaSwag; see \S\ref{sec:ablations} on why these tasks are especially important). Full results using TaskCE are shown in \S\ref{app:task_ce}.
+
+\tightparagraph{LM loss.}
+Interestingly, the loss on C4-en validation set is a good predictor of task accuracy for several tasks. One possible explanation for this is potential domain overlap between the task and the validation set. We discuss pros and cons of using LM loss in \S\ref{sec:ablations}. Full results using LM Loss are show in \S\ref{app:c4}.
+
+Figure \ref{fig:intermediate_feature_comparison} compares absolute and relative errors for all three intermediate features.
+
+%\input{floats/stacked_preds_32b}
+
+% There are several factors to explain this:
+
+% \tightparagraph{Predictive power of the intermediate feature}.
+% Tasks with noisy mapping between their inter
+
+
+% Using task loss to predict accuracy has low error for MMLU, PIQA, HellaSwag, and Social IQa, corresponding to the tasks with the lowest variance around task loss and accuracy, as observed in \autoref{tab:variance_analysis}.
+
+% Tasks with a noisy mapping between their intermediate feature and accuracy (e.g., ARC-Challenge, ARC-Easy and OpenBookQA) may have compounded errors in the two-step prediction. 
+% This may explain the higher prediction errors for the design choices which directly or indirectly rely on an intermediate representation of the task loss. For ARC-Challenge and OpenBookQA in particular, their high variance for both the intermediate task loss and accuracy make them challenging to predict with the ladder. 
+% HellaSwag and PIQA, the tasks where we observe the least variance, are the easiest to predict across all design choices, including the combined single step approach. 
+
+% Finally, MMLU and HellaSwag have large sample sizes -- 5x larger than the other tasks in this work. Given their low sample variance and noise around the prediction target, we expect their errors are most representative of the true difficulty of predicting downstream performance. Thus, we present the two-step prediction as our main approach.
+
+% \tightparagraph{Step 1 results.}
+% \autoref{fig:step1} shows the function fitting of step 1 on the ladder models, and the prediction of task loss for the target models.
+% The function gives an average relative \textit{fitting error} ranging from 0.2\% to 1.2\%, which suggests that \autoref{eqn:power} is a good functional form to describe task losses.
+% We have a relative \textit{prediction error} within 3\% on MMLU, HellaSwag, PIQA, and OpenBookQA.
+% Our method underestimates the loss for CSQA, and overestimates on ARC-Challenge, ARC-Easy, and Social IQa.
+
+%Overestimating the task loss can lead us to eventually underestimate the task accuracy. 
+
+%\input{floats/step1}
+
+% \tightparagraph{Step 2 results.}
+% \autoref{fig:step2} shows the function fitting of step 2 on the ladder models, and the prediction of task accuracy for the target models with their \textit{actual} task loss.
+% For all tasks, all data points fit well with a shared sigmoidal function, with the average relative \textit{fitting error} ranging from 0.4\% to 2.6\%.
+% We get within 3\% relative \textit{prediction error} on MMLU, HellaSwag, PIQA, and CommonsenseQA.
+% We overestimate Social IQa (+4.7\%, +2.9\%), and underestimate ARC-Challenge (-7.6\%, -5.5\%), ARC-Easy (-4.5\%, -6.0\%), and OpenBookQA (-8.2\%, -6.0\%).
+% The underestimations happen when we cannot accurately extrapolate the slope of the sigmoidal function from data points collected from the small ladder models.
+
+

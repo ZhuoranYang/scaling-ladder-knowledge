@@ -1,0 +1,271 @@
+{
+  "status": "Planning examples only; no empirically chosen architecture or HPs. Latest scope: 96 GPUs for 30 days.",
+  "assumptions": {
+    "productive_wall_fraction": 0.9,
+    "nominal_model_tflops_per_gpu": 250,
+    "context": 4096,
+    "rd_gpu_days_all_in_cap": 576,
+    "notes": "All-in variant allocates 6 days preparation and 24 hero days. Extra data CPU/storage/embedding effort must be costed independently; GPU use counts against the cap. Rate is useful model FLOPs divided by training wall time; recomputation overhead is absorbed in measured rate."
+  },
+  "common": {
+    "vocab_size": 50304,
+    "tokenizer": "allenai/OLMoE-1B-7B-0924; pin revision before ingestion",
+    "sequence_length": 4096,
+    "activation": "SwiGLU",
+    "normalization": "pre-RMSNorm and QK-Norm",
+    "norm_epsilon": 1e-05,
+    "rope_theta": 10000,
+    "tie_embeddings": false,
+    "bias": false,
+    "shared_experts": 0,
+    "experts_per_token": 8,
+    "router": "dropless token choice; aux load balance and router z-loss",
+    "load_balance_coefficient": 0.01,
+    "router_z_loss_coefficient": 0.001,
+    "precision": "BF16 compute; FP32 optimizer/master/gradient accumulation",
+    "gradient_clip": 1.0,
+    "init_std": 0.02,
+    "init_truncation_std": 3,
+    "tokenizer_revision": "6d84c48581ece794365f2b8e9cfb043c68ade9c5",
+    "auxiliary_loss_reduction": "must be explicitly matched and logged over executed visits; coefficients tentative until qualified OLMoE-style baseline"
+  },
+  "examples": [
+    {
+      "name": "30-hero-days",
+      "gpus": 96,
+      "assumed_gpu": "H100 SXM 80GB; not reconfirmed",
+      "hero_days": 30,
+      "preparation_days_inside_30": 0,
+      "proposed_token_horizon": 3300000000000,
+      "model": {
+        "width": 1536,
+        "physical_layers": 32,
+        "expert_hidden": 1024,
+        "experts": 96,
+        "query_heads": 24,
+        "kv_heads": 6,
+        "head_dim": 64,
+        "loop_middle_fraction": 0.5,
+        "middle_visits": 2,
+        "loop_residual_multiplier": 0.5
+      },
+      "accounting": {
+        "physical_layers": 32,
+        "executed_layers": 48,
+        "width": 1536,
+        "experts": 96,
+        "top_k": 8,
+        "total_parameters": 14843672064,
+        "body_parameters": 14689138176,
+        "physical_active_body": 1401583104,
+        "executed_active_matrix_equivalent": 2102132736,
+        "training_flops_per_token": 14888337408,
+        "linear_flops_per_token": 12612796416,
+        "head_flops_per_token": 463601664,
+        "attention_flops_per_token": 1811939328,
+        "bf16_kv_bytes_per_token": 73728,
+        "attention_length_assumption": 4096
+      },
+      "tpp": 222.31695673225028,
+      "scenarios": [
+        {
+          "model_tflops_per_gpu": 150,
+          "available_compute": 3.359232e+22,
+          "supported_tokens": 2256284169241.7397
+        },
+        {
+          "model_tflops_per_gpu": 200,
+          "available_compute": 4.478976e+22,
+          "supported_tokens": 3008378892322.32
+        },
+        {
+          "model_tflops_per_gpu": 250,
+          "available_compute": 5.59872e+22,
+          "supported_tokens": 3760473615402.9
+        },
+        {
+          "model_tflops_per_gpu": 300,
+          "available_compute": 6.718464e+22,
+          "supported_tokens": 4512568338483.4795
+        }
+      ],
+      "proposed_mixture_exposures": [
+        {
+          "bucket": "cc_medium_actual",
+          "fraction": 0.23,
+          "exposure_tokens": 759000000000.0,
+          "epoch_cap": 1,
+          "minimum_unique_tokens": 759000000000.0
+        },
+        {
+          "bucket": "cc_medium_low_actual",
+          "fraction": 0.08000000000000002,
+          "exposure_tokens": 264000000000.00006,
+          "epoch_cap": 1,
+          "minimum_unique_tokens": 264000000000.00006
+        },
+        {
+          "bucket": "cc_low_actual_ablation_only",
+          "fraction": 0.0,
+          "exposure_tokens": 0.0,
+          "epoch_cap": 1,
+          "minimum_unique_tokens": 0.0
+        },
+        {
+          "bucket": "cc_medium_high_actual",
+          "fraction": 0.14,
+          "exposure_tokens": 462000000000.00006,
+          "epoch_cap": 2,
+          "minimum_unique_tokens": 231000000000.00003
+        },
+        {
+          "bucket": "cc_high_actual",
+          "fraction": 0.22000000000000003,
+          "exposure_tokens": 726000000000.0001,
+          "epoch_cap": 3,
+          "minimum_unique_tokens": 242000000000.00003
+        },
+        {
+          "bucket": "cc_high_synthetic",
+          "fraction": 0.11000000000000001,
+          "exposure_tokens": 363000000000.00006,
+          "epoch_cap": 2,
+          "minimum_unique_tokens": 181500000000.00003
+        },
+        {
+          "bucket": "code_starcoderdata",
+          "fraction": 0.16,
+          "exposure_tokens": 528000000000.0,
+          "epoch_cap": 4,
+          "minimum_unique_tokens": 132000000000.0
+        },
+        {
+          "bucket": "math_proof_pile_2",
+          "fraction": 0.06000000000000001,
+          "exposure_tokens": 198000000000.00003,
+          "epoch_cap": 6,
+          "minimum_unique_tokens": 33000000000.000004
+        }
+      ]
+    },
+    {
+      "name": "30-total-days",
+      "gpus": 96,
+      "assumed_gpu": "H100 SXM 80GB; not reconfirmed",
+      "hero_days": 24,
+      "preparation_days_inside_30": 6,
+      "proposed_token_horizon": 2800000000000,
+      "model": {
+        "width": 1536,
+        "physical_layers": 32,
+        "expert_hidden": 1024,
+        "experts": 88,
+        "query_heads": 24,
+        "kv_heads": 6,
+        "head_dim": 64,
+        "loop_middle_fraction": 0.5,
+        "middle_visits": 2,
+        "loop_residual_multiplier": 0.5
+      },
+      "accounting": {
+        "physical_layers": 32,
+        "executed_layers": 48,
+        "width": 1536,
+        "experts": 88,
+        "top_k": 8,
+        "total_parameters": 13635319296,
+        "body_parameters": 13480785408,
+        "physical_active_body": 1401189888,
+        "executed_active_matrix_equivalent": 2101542912,
+        "training_flops_per_token": 14884798464,
+        "linear_flops_per_token": 12609257472,
+        "head_flops_per_token": 463601664,
+        "attention_flops_per_token": 1811939328,
+        "bf16_kv_bytes_per_token": 73728,
+        "attention_length_assumption": 4096
+      },
+      "tpp": 205.34905998287815,
+      "scenarios": [
+        {
+          "model_tflops_per_gpu": 150,
+          "available_compute": 2.6873856e+22,
+          "supported_tokens": 1805456490727.532
+        },
+        {
+          "model_tflops_per_gpu": 200,
+          "available_compute": 3.5831808e+22,
+          "supported_tokens": 2407275320970.043
+        },
+        {
+          "model_tflops_per_gpu": 250,
+          "available_compute": 4.478976e+22,
+          "supported_tokens": 3009094151212.5537
+        },
+        {
+          "model_tflops_per_gpu": 300,
+          "available_compute": 5.3747712e+22,
+          "supported_tokens": 3610912981455.064
+        }
+      ],
+      "proposed_mixture_exposures": [
+        {
+          "bucket": "cc_medium_actual",
+          "fraction": 0.23,
+          "exposure_tokens": 644000000000.0,
+          "epoch_cap": 1,
+          "minimum_unique_tokens": 644000000000.0
+        },
+        {
+          "bucket": "cc_medium_low_actual",
+          "fraction": 0.08000000000000002,
+          "exposure_tokens": 224000000000.00003,
+          "epoch_cap": 1,
+          "minimum_unique_tokens": 224000000000.00003
+        },
+        {
+          "bucket": "cc_low_actual_ablation_only",
+          "fraction": 0.0,
+          "exposure_tokens": 0.0,
+          "epoch_cap": 1,
+          "minimum_unique_tokens": 0.0
+        },
+        {
+          "bucket": "cc_medium_high_actual",
+          "fraction": 0.14,
+          "exposure_tokens": 392000000000.00006,
+          "epoch_cap": 2,
+          "minimum_unique_tokens": 196000000000.00003
+        },
+        {
+          "bucket": "cc_high_actual",
+          "fraction": 0.22000000000000003,
+          "exposure_tokens": 616000000000.0001,
+          "epoch_cap": 3,
+          "minimum_unique_tokens": 205333333333.33337
+        },
+        {
+          "bucket": "cc_high_synthetic",
+          "fraction": 0.11000000000000001,
+          "exposure_tokens": 308000000000.00006,
+          "epoch_cap": 2,
+          "minimum_unique_tokens": 154000000000.00003
+        },
+        {
+          "bucket": "code_starcoderdata",
+          "fraction": 0.16,
+          "exposure_tokens": 448000000000.0,
+          "epoch_cap": 4,
+          "minimum_unique_tokens": 112000000000.0
+        },
+        {
+          "bucket": "math_proof_pile_2",
+          "fraction": 0.06000000000000001,
+          "exposure_tokens": 168000000000.00003,
+          "epoch_cap": 6,
+          "minimum_unique_tokens": 28000000000.000004
+        }
+      ]
+    }
+  ],
+  "previous_20b_tokens_at_250tflops_30days": 2717021839935.883
+}

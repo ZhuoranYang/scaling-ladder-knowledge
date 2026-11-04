@@ -1,0 +1,338 @@
+\section{Quantization For Inference}
+\label{sec:quantization}
+
+We apply post-training quantization (PTQ) using Model-Optimizer\footnote{\url{https://github.com/NVIDIA/Model-Optimizer/}} to quantize weights and activations to generate two efficient deployment checkpoints: FP8 (W8A8) for Hopper and NVFP4 (W4A4) for Blackwell. 
+
+\begin{comment}
+We apply post-training quantization (PTQ) using Model Optimizer \footnote{\url{https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/llm_ptq}} quantize weights and activations to generate two checkpoints: FP8 (W8A8) for Hopper and NVFP4 (W4A4) for Blackwell.
+
+The FP8 and Mixed-Precision PTQ checkpoints were produced by Model-Optimizer’s PTQ and AutoQuantize examples using the `transformers` backend.
+The QAD checkpoint was produced in two steps: first, quantizing the model with Model-Optimizer using the Megatron-LM PTQ script to create a PTQ Megatron-LM checkpoint, then training the PTQ checkpoint with QAD in Megatron-LM.
+\end{comment}
+
+\subsection{Nemotron 3 Super FP8 Checkpoint}
+For FP8 PTQ calibration, we used a small subset containing 256 samples with 65536 context length from the post-training SFT dataset. For FP8 quantization, we quantized MoE GEMMs, both routed and shared, and Mamba Linear layers. We also kept the KV Cache in FP8, whereas Mamba state cache has been quantized to FP16 for speedup. The precision assignments for the different operators in this checkpoint are summarized in Table~\ref{tab:precision}.
+
+\begin{table}[h]
+\centering
+\caption{Precision settings for the FP8 checkpoint compared with the BF16 baseline.}
+\label{tab:precision}
+\begin{tabular}{l c c}
+\toprule
+\textbf{Configuration} & \textbf{FP8 Checkpoint} & \textbf{BF16 Baseline} \\
+\midrule
+Embedding & BF16 & BF16 \\
+\midrule
+Attention GEMM (QKV and Out Projection) & BF16 & BF16 \\
+KV Cache + Attention BMM1 & FP8 & FP8 \\
+Attention BMM2 & BF16 & BF16 \\
+\midrule
+MoE GEMM (Sparse Experts and Shared Experts) & FP8 & BF16 \\
+MoE Latent Projection GEMM & BF16 & BF16 \\
+Router & FP32 & FP32 \\
+\midrule
+Mamba GEMM & FP8 & BF16 \\
+Mamba SSM Cache & FP16 & FP32 \\
+Mamba 1D Conv & BF16 & BF16 \\
+\midrule
+Output Layers & BF16 & BF16 \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+\begin{minipage}{\linewidth}
+\footnotesize
+\end{minipage}
+\end{table}
+
+% \begin{table}[h]
+% \centering
+% \caption{Precision settings for Aggressive vs BF16 configurations.}
+% \label{tab:precision}
+% \begin{tabular}{l c c}
+% \toprule
+% \textbf{Layers} & \textbf{Aggressive} & \textbf{BF16} \\
+% \midrule
+% Embedding & BF16 & BF16 \\
+% Attention & BF16 & BF16 \\
+% KV Cache + BMM1 & FP8 & FP8 \\
+% BMM2 & BF16 & BF16 \\
+% Latent MOE Projections & BF16 & BF16 \\
+% MoE GEMM (Routed and shared) & \textcolor{red}{Quantized} & BF16 \\
+% Router & FP32 & FP32 \\
+% Mamba Linear & \textcolor{red}{Quantized} & BF16 \\
+% Mamba SSM & \textcolor{red}{FP16} & FP32 \\
+% Mamba conv & BF16 & BF16 \\
+% Output Layers & BF16 & BF16 \\
+% \bottomrule
+% \end{tabular}
+% \end{table}
+
+\subsection{Nemotron 3 Super FP4 Checkpoint}
+
+FP4 is a more aggressive quantization format than FP8 and is particularly attractive for prefill-heavy inference workloads, such as coding-agent deployments, where linear and MoE GEMMs are major performance bottlenecks. NVFP4 is natively accelerated on Blackwell GPUs and delivers better accuracy than alternative FP4 formats such as MXFP4~\citep{nvfp4_mxfp4}. NVFP4 for inference~\citep{nvpfp4_ptq_default} uses signed E2M1 values with per-block scaling over 1D blocks of size 16 along the last dimension. These per-block scales are further quantized into FP8 E4M3 using a per-tensor statically calibrated FP32 scaling factor. %The precision assignments for the different operators in this checkpoint are summarized in Table~\ref{tab:precision_nvfp4}.
+% \begin{table}[h]
+% \centering
+% \caption{Precision settings for the NVFP4 checkpoint compared with the BF16 baseline.}
+% \label{tab:precision_nvfp4}
+% \begin{tabular}{l c c}
+% \toprule
+% \textbf{Configuration} & \textbf{NVFP4 Checkpoint} & \textbf{BF16 Baseline} \\
+% \midrule
+% Embedding & BF16 & BF16 \\
+% \midrule
+% Attention GEMM (QKV and Out Projection) & AutoQuantize (NVFP4/ FP8 / BF16) & BF16 \\
+% KV Cache + Attention BMM1 & FP8 & FP8 \\
+% Attention BMM2 & BF16 & BF16 \\
+% \midrule
+% MoE GEMM (Sparse Experts and Shared Experts) & NVFP4 & BF16 \\
+% MoE Latent Projection GEMM & BF16 & BF16 \\
+% Router & FP32 & FP32 \\
+% \midrule
+% Mamba GEMM & NVFP4 & BF16 \\
+% Mamba SSM Cache & FP16 & FP32 \\
+% Mamba 1D Conv & BF16 & BF16 \\
+% \midrule
+% Output Layers & BF16 & BF16 \\
+% \bottomrule
+% \end{tabular}
+
+% \vspace{2pt}
+% \begin{minipage}{\linewidth}
+% \footnotesize
+% \end{minipage}
+% \end{table}
+
+In the baseline NVFP4 PTQ recipe~\citep{nvpfp4_ptq_default}, each per-block scale is determined by the maximum absolute value in the block. 
+% This PTQ recipe however resulted in more than 1\% accuracy degradation on several benchmarks. 
+We evaluated a range of alternative PTQ methods. The results of these experiments can be found in Appendix~\ref{sec:ptq-algorithm-ablation}.
+% , including activation-dependent approaches, such as GPTQ~\citep{gptq}, and per-block weight scale selection based on output activation MSE. While these methods have been successful for smaller models, they were not effective in this large-model setting. Results from these PTQ experiments on an intermediate RL checkpoint are provided in Table \ref{tab:ptq-algorithm-ablation} in the Appendix.
+The best overall results were obtained with a hybrid FP4 recipe: weight per-block scales were selected by minimizing weight MSE, while activation per-block scales continued to use max-based scaling. This choice is both effective and practical. Weight quantization is calibrated offline so an expensive scale search can be performed without impacting runtime performance. Activation quantization must be computed efficiently at runtime, making scale search algorithms impractical. Max-based scaling of activations provides a good trade-off between runtime performance and quantization accuracy.
+
+% Despite these improvements, the PTQ recipe still left a median accuracy gap of more than 1\% relative to the BF16 baseline across the evaluated benchmarks. To recover this loss, we applied layerwise mixed-precision quantization, using both sensitivity and performance cost to decide which layers could remain in FP4 and which should be promoted to FP8 or BF16.
+
+In addition, we selectively promoted some layers from FP4 (W4A4) to FP8 (W8A8) or BF16 (W16A16) to further improve accuracy.
+We used Model-Optimizer AutoQuantize \footnote{\url{https://github.com/NVIDIA/Model-Optimizer/tree/main/examples/llm_ptq}}, a neural architecture search (NAS) inspired method for deriving optimal mixed-precision assignments. AutoQuantize estimates per-operation sensitivity, models the performance cost of available quantization choices, and solves for the optimal layer-wise allocation using a knapsack-style optimization procedure. Its sensitivity metric follows a second-order Taylor approximation inspired by Optimal Brain Surgeon~\citep{obs}, as introduced in LLM-MQ~\citep{llmmq}.
+AutoQuantize generalizes LLM-MQ beyond weight-only quantization. It supports operator-level quantization, including joint weight-and-activation quantization for GEMMs, and accounts for inference deployment constraints such as operator fusion. The detailed AutoQuantize algorithm is given in \ref{sec:autoquantize-details}.
+
+Overall, our final NVFP4 PTQ recipe combines:
+\begin{itemize}
+    \item calibrated per-block weight scaling that minimizes MSE,
+    \item dynamic per-block max-based activation scaling, and
+    \item selective promotion of sensitive layers through Model-Optimizer AutoQuantize.
+\end{itemize}
+This combination addresses the accuracy loss of naive NVFP4 PTQ while preserving the runtime efficiency needed for deployment. The resulting per-operator precision assignments in the final NVFP4 checkpoint are summarized in Table~\ref{tab:precision_nvfp4}.
+
+\begin{table}[h]
+\centering
+\caption{Precision settings for the backbone NVFP4 checkpoint compared with the BF16 baseline.}
+\label{tab:precision_nvfp4}
+\begin{tabular}{l c c c}
+\toprule
+\textbf{Configuration} &
+\makecell{\textbf{AutoQuantize}\\\textbf{Searched?}} &
+\makecell{\textbf{NVFP4}\\\textbf{Checkpoint}} &
+\makecell{\textbf{BF16}\\\textbf{Baseline}} \\
+\midrule
+Embedding & No & BF16 & BF16 \\
+\midrule
+Attention QKV Projection GEMM & Yes & BF16 & BF16 \\
+Attention Output Projection GEMM & Yes & FP8 / BF16 & BF16 \\
+KV Cache + Attention BMM1 & No & FP8 & FP8 \\
+Attention BMM2 & No & BF16 & BF16 \\
+\midrule
+Sparse Expert (Routed) GEMM & Yes & NVFP4 & BF16 \\
+Shared Expert GEMM & Yes & NVFP4 / FP8 / BF16 & BF16 \\
+MoE Latent Projection GEMM & Yes & FP8 / BF16 & BF16 \\
+Router & No & FP32 & FP32 \\
+\midrule
+Mamba Projection GEMM & Yes & FP8 / BF16 & BF16 \\
+Mamba 1D Conv & No & BF16 & BF16 \\
+Mamba SSM Cache & No & FP16 & FP32 \\
+\midrule
+Output Layers & No & BF16 & BF16 \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+\begin{minipage}{\linewidth}
+\footnotesize
+\footnotesize
+For all searched backbone GEMMs, AutoQuantize considered candidate precisions from \{ \text{NVFP4}, \text{FP8}, \text{BF16} \} and selected the per-operator assignment under a quantization-sensitivity objective with an effective-precision budget of 4.75 bits. In the searched model, sparse-expert GEMMs are assigned NVFP4 throughout, attention and Mamba projection GEMMs are assigned FP8 or BF16, and shared-expert GEMMs use a mix of NVFP4, FP8, and BF16.
+\end{minipage}
+\end{table}
+
+Combining AutoQuantize with the improved NVFP4 PTQ recipe produced a mostly-FP4 model, with only a small subset of layers retained in FP8 or BF16 for accuracy preservation. The full mixed-precision PTQ process completed in less than 2 hours on a single B200 node with 8 GPUs, using 512 samples from the Nemotron 3 Super SFT dataset at sequence length 4096. The resulting model achieved 99.8\% median accuracy relative to the BF16 baseline while retaining near-FP4 performance. Final evaluation results are reported in Table~\ref{tab:quant_comparison}.
+
+
+\begin{table*}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{7pt}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{l|c c c}
+\toprule
+\textbf{Benchmark} & \textbf{N-3-Super} & \textbf{N-3-Super FP8} & \textbf{N-3-Super NVFP4} \\
+\midrule
+
+\rowcolor{black!5}
+\multicolumn{4}{l}{\textbf{General Knowledge}} \\
+MMLU-Pro & 83.73 & 83.63 & 83.33 \\
+
+\midrule
+\rowcolor{black!5}
+\multicolumn{4}{l}{\textbf{Reasoning}} \\
+HMMT Feb25 (with tools) & 94.73 & 94.38 & 95.36  \\
+GPQA (no tools) & 79.23 & 79.36 & 79.42 \\
+LiveCodeBench (v6 2024-08$\leftrightarrow$2025-05) & 78.69 & 78.44 & 78.44 \\
+LiveCodeBench (v5 2024-07$\leftrightarrow$2024-12) & 81.19 & 80.99 & 80.56 \\
+SciCode (subtask) & 42.05 & 41.38 & 40.83  \\
+HLE (no tools) & 18.26 & 17.42 & 17.42  \\
+
+
+\midrule
+\rowcolor{black!5}
+\multicolumn{4}{l}{\textbf{Agentic}} \\
+Terminal Bench (hard subset) & 25.78 & 26.04 & 24.48 \\
+SWE-Bench (OpenCode) & 60.47 & - & 59.90 \\
+\textbf{TauBench V2} &  &  &  \\
+\quad Airline & 56.25 & 56.25 & 54.75 \\
+\quad Retail & 62.83 & 63.05 & 63.38 \\
+\quad Telecom &64.36 & 63.93 & 63.27 \\
+\quad Average & 61.15 & 61.07 & 60.46 \\
+
+\midrule
+\rowcolor{black!5}
+\multicolumn{4}{l}{\textbf{Chat \& Instruction Following}} \\
+IFBench (prompt) & 72.58 & 72.32 & 73.30 \\
+Scale AI Multi-Challenge & 55.23 & 54.35 & 52.8 \\
+Arena-Hard-V2 (Hard Prompt) & 73.88 & 76.06 & 76.00 \\
+
+\midrule
+\rowcolor{black!5}
+\multicolumn{4}{l}{\textbf{Long Context}} \\
+AA-LCR & 58.31 & 57.69 & 58.06 \\
+RULER  128k & 97.04 & 97.17 & 96.89 \\
+RULER  256k & 96.83 & 96.84 & 96.81 \\
+RULER  512k & 95.22 & 95.15 & 95.21 \\
+RULER  1M & 91.64 & 91.43 & 91.60 \\
+\midrule
+\rowcolor{black!5}
+\multicolumn{4}{l}{\textbf{Multilingual}} \\
+MMLU-ProX (avg over languages) & 79.35 & 79.21 & 79.37 \\
+
+\bottomrule
+\end{tabular}
+
+\caption{
+Evaluation suite for \ourmodel. We compare our \textsc{FP8} and \textsc{NVFP4} optimized models with BF16 model.
+}
+\label{tab:quant_comparison}
+\end{table*} 
+
+
+\subsection{Mamba State Quantization}
+
+In memory-bound settings, DRAM reads of the Mamba state cache (SSM cache) become a major bottleneck to decoding speed. The SSM cache is stored in FP32 by default. One option is to store the SSM cache in FP16 while arithmetic executes in FP32. In this case, the cache is fetched from memory in FP16, upcast to FP32 for the recurrent update, and then cast back to FP16 for storage. Table~\ref{tab:ssm-cache} shows experiments on an early checkpoint of Nemotron 3 Super. These results show that directly casting the SSM cache to FP16 can result in up to 40\% increase in verbosity when combined with W8A8 quantization. Even with maintaining weights and activations in BF16, casting the SSM cache to FP16 leads to up to 37\% increase in verbosity.
+
+\begin{table}[h!]
+\centering
+\caption{Impact of SSM cache recipe on code benchmarks and verbosity.}
+\label{tab:ssm-cache}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l l c c c c c c}
+\toprule
+& & \multicolumn{2}{c}{\textbf{Accuracy}} & \multicolumn{2}{c}{\textbf{Completion Tokens}} & \multicolumn{2}{c}{\textbf{Verbosity Increase}} \\
+\cmidrule(lr){3-4} \cmidrule(lr){5-6} \cmidrule(lr){7-8}
+\textbf{Weight and} & & \textbf{livecodebench} & \textbf{scicode} & \textbf{livecodebench} & \textbf{scicode} & \textbf{livecodebench} & \textbf{scicode} \\
+\textbf{Activation} & \textbf{SSM cache} & \textbf{(pass@1} & \textbf{(pass@1} & \textbf{(pass@1} & \textbf{(pass@1} & \textbf{(pass@1} & \textbf{(pass@1} \\
+\textbf{Precision} & \textbf{recipe} & \textbf{avg-of-8)} & \textbf{avg-of-8)} & \textbf{avg-of-8)} & \textbf{avg-of-8)} & \textbf{avg-of-8)} & \textbf{avg-of-8)} \\
+\midrule
+W16A16 & FP32 & 72.91 & 40.90 & 21769 & 3680 & 0.00\% & 0.00\% \\
+W16A16 & FP16 & 73.24 & 42.01 & 29812 & 3760 & 36.95\% & 2.19\% \\
+W16A16 & FP16+SR (Philox 5) & 72.00 & 41.94 & 21392 & 3580 & $-$1.73\% & $-$2.72\% \\
+\midrule
+W8A8 & FP16 & 73.13 & 40.98 & 30536 & 3780 & 40.27\% & 2.70\% \\
+W8A8 & INT16+block128 & 72.22 & 41.46 & 22406 & 3521 & 2.90\% & $-$4.30\% \\
+W8A8 & FP16+SR (Philox 10) & 72.22 & 40.38 & 22120 & 3672 & 1.71\% & $-$0.74\% \\
+W8A8 & FP16+SR (Philox 5) & 72.63 & 41.86 & 22159 & 3720 & 1.79\% & 1.08\% \\
+W8A8 & FP16+SR (Philox 4) & 72.85 & 40.46 & 21631 & 3785 & $-$0.63\% & 2.84\% \\
+W8A8 & FP16+SR (Philox 3) & 70.07 & 39.94 & 24098 & 3827 & 10.70\% & 3.98\% \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+A key challenge in quantizing the Mamba cache is that quantization error does not remain local to a single step. Because Mamba decoding is recurrent, quantization error from previous steps propagates into future steps and accumulates over time. 
+This accumulation of quantization error can be seen by unrolling the recurrent update. Let the recurrent state update be \(h_t = A_t h_{t-1} + B_t x_t\), and let cache quantization at step \(t\) introduce an additive error \(e_t\), so that \(h_{q,t} = A_t h_{q,t-1} + B_t x_t + e_t\). Unrolling this recursion gives
+\begin{align}
+h_{q,t} &= h_t + e_t + A_t e_{t-1} + A_tA_{t-1}e_{t-2} + \cdots \nonumber\\
+&\quad + A_tA_{t-1}\cdots A_2 e_1 + A_tA_{t-1}\cdots A_1 e_0 \nonumber\\
+&= h_t + \sum_{i=0}^{t} \left( \prod_{j=i+1}^{t} A_j \right) e_i,
+\end{align}
+showing that quantization error from earlier steps is propagated through subsequent recurrent transitions and can accumulate over decoding time.
+
+Addressing these quantization errors through changes in training (e.g., QAT or QAD) is non-trivial. Mamba training uses the chunked State Space Duality algorithm which does not explicitly materialize the recurrence relationship and the inference-time cache. Accurately modeling the recurrent decode-time cache behavior during training introduces substantial overhead. We therefore focused on training-free methods to recover the accuracy lost from cache quantization.
+
+One way to decrease the accumulation of quantization error during PTQ is to increase the mantissa precision.
+% Our initial hypothesis was that FP16 degradation was mainly due to limited mantissa precision. To test this, we explored INT16 quantization for the SSM cache. 
+We explored this by using INT16 instead of FP16 for the SSM cache.
+Naive INT16 quantization did not improve verbosity as tensor-level analysis showed that the SSM cache has a wide dynamic range. We then introduced FP32 per-block scaling over blocks of size 128 along the state dimension to increase effective dynamic range. This eliminated the verbosity issue (Table~\ref{tab:ssm-cache}).
+% while still using 16-bit cache storage.
+
+% This led to a more important insight: the dominant source of degradation was not FP16 mantissa precision alone, but the repeated accumulation of quantization error in the recurrent state update. 
+We also explored a hypothesis that the error accumulation was tied to rounding during the cast from FP32 to FP16.
+The key issue is that round to nearest, ties on even (RTNE) introduces bias in the quantization process. Because RTNE maps a given input to the same rounded value, its quantization error has zero variance but non-zero bias relative to the original value. In contrast, stochastic rounding (SR) is unbiased in expectation. In a recurrent setting, the bias from RTNE accumulates coherently over time, whereas stochastic rounding replaces this systematic drift with zero-mean noise. Based on this observation, we applied stochastic rounding before casting the cache to FP16 which fixed the verbosity issue for both the BF16 baseline and the FP8 checkpoint (Table \ref{tab:ssm-cache}).
+
+Table \ref{tab:ssm-cache} shows accuracy and verbosity of the different SSM cache recipes for livecodebench and scicode. Both INT16 with per-block scales and FP16 with stochastic rounding were able to maintain accuracy and verbosity similar to the FP32 baseline.
+We selected FP16 with stochastic rounding (SR) using Philox<5> pseudorandom number generation as the SSM cache recipe for Nemotron 3 Super for three reasons:
+\begin{itemize}
+    \item It does not require calculating, storing, and loading block scale factors.
+    \item Blackwell provides a dedicated PTX instruction for stochastic rounding during type conversion.
+    \item Blackwell supports Philox-based pseudorandom number generation through cuRAND. 
+\end{itemize}
+To further improve efficiency, Table \ref{tab:ssm-cache} also varies the number of Philox rounds. Increasing the number of rounds improves the statistical quality of the generated values, while reducing the number of rounds lowers pseudorandom number generation overhead. Philox<5> was chosen to maintain accuracy and verbosity while minimizing pseudorandom number generation overhead.
+
+% \begin{table}[h]
+% \centering
+% \caption{Impact of SSM cache recipe on code benchmarks and verbosity.}
+% \label{tab:ssm-cache}
+% \resizebox{\textwidth}{!}{%
+% \begin{tabular}{l l c c c c c}
+% \toprule
+% & & \multicolumn{2}{c}{\textbf{Accuracy}} & \multicolumn{2}{c}{\textbf{Completion Tokens}} & \\
+% \cmidrule(lr){3-4} \cmidrule(lr){5-6}
+% \textbf{Weight and} & & \textbf{livecodebench} & \textbf{scicode} & \textbf{livecodebench} & \textbf{scicode} & \textbf{Avg Verbosity} \\
+% \textbf{Activation} & \textbf{SSM cache} & \textbf{(pass@1} & \textbf{(pass@1} & \textbf{(pass@1} & \textbf{(pass@1} & \textbf{Increase (relative} \\
+% \textbf{Precision} & \textbf{recipe} & \textbf{avg-of-8)} & \textbf{avg-of-8)} & \textbf{avg-of-8)} & \textbf{avg-of-8)} & \textbf{to baseline)} \\
+% \midrule
+% W16A16 & FP32 & 72.91 & 40.90 & 21769 & 3680 & 0.00\% \\
+% W16A16 & FP16 & & 42.01 & & 3760 & \\
+% \midrule
+% W8A8 & FP16 & 73.13 & 40.98 & 30536 & 3780 & 21.50\% \\
+% W8A8 & INT16+block128 & 72.22 & 41.46 & 22406 & 3521 & $-$0.70\% \\
+% W8A8 & FP16+SR (Philox 10) & 72.22 & 40.38 & 22120 & 3672 & 0.70\% \\
+% W8A8 & FP16+SR (Philox 5) & 72.63 & 41.86 & 22159 & 3720 & 1.44\% \\
+% W8A8 & FP16+SR (Philox 4) & 72.85 & 40.46 & 21631 & 3785 & 1.11\% \\
+% W8A8 & FP16+SR (Philox 3) & 70.07 & 39.94 & 24098 & 3827 & 7.34\% \\
+% \bottomrule
+% \end{tabular}%
+% }
+% \end{table}
+% \subsection{FP4 QAD}
+% Quantization-Aware Distillation(QAD) \citep{qadnvfp4inference} is an effective way to recovery accuracy for multi-stage trained model. For Nemotron Super, we utilize the BF16 checkpoint as the teacher and the NVFP4 checkpoint as the student. For NVFP4 PTQ student calibration, we used a small subset containing 2K samples with 131K context length from the post-training reasoning SFT dataset.\\
+% To obtain the best QAD recipe we performed ablations over 
+% \begin{itemize}
+%     \item Loss Function,
+%     \item Learning Rate,
+%     \item Data Blend
+% \end{itemize}
+% The loss function ablations were performed over logit-based loss, logit-based loss combined with LM-task loss and hidden-cosine loss over intermediate layers. We also performed ablation over learning rate, and found that lr 1e-5 worked best, consistent with observations from \citep{qadnvfp4inference} that higher learning rates are better. For data blend, we utilized SFT stage dataset in combination with RL stage on-policy rollouts in ratio of 60:40 and 50:50. The best recipe was obtained with logit only loss, with learning rate of 1e-5 and data blend of SFT with RL rollouts in ratio of 60:40. 
+
+% QAD training was performed over ~5B Tokens, using 512 GB200 GPUs for 10 hrs. NVFP4 QAD provide iso-accuracy with the BF16 checkpoint. 
+
+% Accuracy data is presented in Table \ref{tab:quant_comparison}
+
+% \subsection{Accuracy and Throughput}
+
+

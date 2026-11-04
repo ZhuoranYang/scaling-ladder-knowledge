@@ -1,0 +1,71 @@
+        %auto-ignore
+
+\section{Nonlinear Depth-$\mu$P Limit}
+
+When the nonlinearity $\phi$ is nontrivial, the distribution of the final representations $x^L_s$ may be highly non-Gaussian because of complex compositions of $\phi$ and $\phi'$, as one would suspect from known examples of large width limits.
+This is indeed the case for finite depth $L$. But in fact, when $L \to \infty$, $\{x^L_s\}_{s\ge 0}$ becomes a Gaussian process again!
+
+The kernel of the limiting GP can be computed in a similar way as in the linear case:
+\begin{definition}\label{defn:nonlinearGammaC}
+    Define $\Gamma$ and $C$ recursively by
+    \begin{align*}
+        \Gamma_{t,r,0,b}(p, q)&=\ind_{[(t=r) \wedge (b=0) \wedge (p\geq q)]} \\ 
+        &+ \int_0^p \sum_{s=0}^{t-1} V_{\phi'}[C]_{t,s,0}(p')\Gamma_{s,r,1,b}(p',q)\cdot (\Gamma_{t,s,0,1}(p', p') - C_{t,s,0}(p'))\dd p'; \\
+           \Gamma_{t,r,1,b}(p, q) &= \ind_{[(t=r) \wedge (b=1) \wedge (p\leq q)]} \\
+           &+ \int_p^1 \sum_{s=0}^{t-1} \Gamma_{s,r,0,b}(p',q) \cdot (V_{\phi_c|\phi'}[C]_{t,s,0}\Gamma_{t,s,1,0}(p',p') - V_{\phi'}[C]_{t,s,0}(p') C_{t,s,1}(p'))\dd p';\\
+           C_{t,s,a}(p)&=
+        %
+           \sum_{b\in\{0,1\}}\int_0^1 \Gamma_{t,t',a,b}(p,q) V_{\phi_c} [C]_{t',s',b}(q)\Gamma_{s,s',a,b}(p,q) \dd q.
+    \end{align*}
+\end{definition}
+
+Here
+\begin{align*}
+    V_{\phi_c}[C]_{t,s,b}(p) &\defeq \EV \MS(\phi(z)) \MS(\phi(y)) \\ 
+    V_{\phi'}[C]_{t,s,b}(p) &\defeq \EV \phi'(z) \phi'(y) \\
+    V_{\phi_c | \phi'}[C]_{t,s,b}(p) &\defeq \EV \MS(\phi'(z)) \phi'(y) \\
+\end{align*}
+where $(z, y) \sim \Gaus(0, C^b(p)|_{\{t,s\}})$.
+
+Then 
+\begin{claim}\label{claim:nonlineardepthmuplimit}
+    For sufficiently smooth nonlinearity $\phi$, in the $L \to \infty$ limit, the kets $\ket{x^L_s}, s = 0, 1, \ldots,$ converge in distribution as a zero-mean Gaussian process with kernel
+    \[\braket{x^L_s}{x^L_t} = C_{t,s,1}(1).\]
+    as defined in \Cref{defn:nonlinearGammaC}.
+    Thus, for each fixed neuron index $\alpha$, the collection $\{x^L_{\alpha s}\}_{s\ge 0}$ converges in distribution to a zero-mean Gaussian process with kernel $C_{t,s,1}(1)$ in the $n\to\infty$ then $L\to\infty$ limit.
+\end{claim}
+We frame this as a claim because we do not want to get into the details of what ``sufficiently smooth nonlinearity'' means here, nor do we give a proof. Instead, we give an intuitive justification.
+
+\begin{proof}[Heuristic justification of \Cref{claim:nonlineardepthmuplimit}]
+First, in Depth-$\mu$P, we can Taylor expand each block
+$$\ket{\phi(W^l_t x^{l-1}_t)} = \phi(\hatket{W^l_0 x^{l-1}_t}) + \phi'(\hatket{W^l_0 x^{l-1}_t}) [\ket{\bar\Delta W^l_t x^{l-1}_t} + \dotket{W^l_0 x^{l-1}_t}] + \cO(L^{-1}).$$
+The remainder term thus contributes $\cO(L^{-3/2})$ after accounting for the $L^{-1/2}$ block multiplier. Summing over depth $l \in [0, L]$, by Gronwall's lemma, the remainders of all layers sum up to $\cO(L^{-1/2})$, so we can ignore them.
+From here on, we study the linearized blocks $x \mapsto \MS(\phi(W^l_0 x) + \phi'(W^l_0 x) \odot \bar\Delta W^l_t x)$.
+
+Now the key observation is that each of $\ket{x^l_t}$ or $\ket{\delta x^l_t}$ is always equal, up to $\cO(L^{-1/2})$ factor, to a linear combination of $\{\MS \phi(\hatket{W^l_0 x^{l-1}_s}), \hatket{W^{l \trsp}_0 \delta h^l_s}\}_{l, s}$, where each coefficient in this linear combination is $\cO(L^{-1/2})$ and deterministic.
+We call such a linear combination a \emph{good linear combination}.
+One can see this by an induction argument on $t$.
+Indeed, at initialization $t=0$, this claim is trivially true.
+Supposing this claim is true for $t$, then it is trivial to see that it remains true at $t+1$ for the backward pass kets $\ket{\delta x^l_t}$.
+The only nontrivial part is to show the forward pass for $t+1$.
+By the Taylor expansion above, we just need to show that $\phi'(\hatket{W^l_0 x^{l-1}_t}) [\ket{\bar\Delta W^l_t x^{l-1}_t} + \dotket{W^l_0 x^{l-1}_t}]$ is ``well-approximated'' by a good linear combination.
+By induction, both $\ket{\bar\Delta W^l_t x^{l-1}_t}$ and $\dotket{W^l_0 x^{l-1}_t}$ are of products between a good linear combination and a term of form $ \phi'(\hatket{W^m_0 x^{m-1}_s})$ for some $s \le t$. Thus $\phi'(\hatket{W^l_0 x^{l-1}_t}) [\ket{\bar\Delta W^l_t x^{l-1}_t} + \dotket{W^l_0 x^{l-1}_t}]$ is of the form $\phi'(\hatket{W^l_0 x^{l-1}_t})\phi'(\hatket{W^m_0 x^{m-1}_s})$ times a good linear combination.
+But $\phi'(\hatket{W^l_0 x^{l-1}_t})\phi'(\hatket{W^m_0 x^{m-1}_s})$ only correlates with a single component in this linear combination and is independent with all other components.
+Therefore, when summing over depth, the noncorrelated components will experience law of large numbers and one can replace $\phi'(\hatket{W^l_0 x^{l-1}_t})\phi'(\hatket{W^m_0 x^{m-1}_s})$ with its expectation; the correlated components is only a sum of $\cO(L)$ elements each of size $\cO(L^{-3/2})$, so in total they are $o(1)$.
+This completes the induction.
+
+In this reasoning, the coefficients of a good linear combination correspond to $\Gamma$ in \Cref{defn:nonlinearGammaC}, and filling in the details of the induction yields the recursive formula in \Cref{defn:nonlinearGammaC}.
+
+Finally, because a good linear combination is a large sum of independent terms, the central limit theorem tells us that $\{\ket{x^l_t}, \ket{\delta x^l_t}\}_{l, t}$ converge in distribution to a Gaussian process.
+\end{proof}
+
+\Cref{claim:nonlineardepthmuplimit} is good news for theorists, that we have such a simple form for a fundamental architecture.
+At the same time, one may worry that this Gaussian form lacks expressivity.
+But in fact, some common architecture or algorithm choices would make the limit non-Gaussian.
+For example, the use of adaptive optimizers like Adam or SignSGD.
+Or the addition of a nonlinearity before the matrix multiply, i.e., ``prenonlin'', (in addition to the one afterward, ``postnonlin'').
+
+In general, one obtains a stochastic differential equation with McKean-Vlasov elements describing the evolution of $x^l_t$ over depth and time. However, the stochastic integral involved is \emph{not} the usual Ito or Stratonovich integral because the depthwise evolution requires integrating non-adapted process against Brownian motion. Instead, we need to use \emph{Skorohod} integral and the SDE is only defined in the sense of Malliavin calculus.
+This is not just a mathematical nitpick; rather, assuming Ito calculus (which amounts to assuming incorrect independence between certain quantities) will lead to the wrong predictions and calculations.
+Malliavin calculus is intimately connected to Tensor Programs and we shall develop their relationship as well as the theory of the general infinite-depth limit in a future work.
+

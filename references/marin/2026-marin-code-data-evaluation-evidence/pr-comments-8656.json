@@ -1,0 +1,206 @@
+{
+  "comments": [
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#discussion_r3849601575",
+      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Preserve small components in the effective mixture**\n\nAt runtime this replacement inherits the base config's `mixture_block_size=49_152`, while `MixtureDataset._compute_expected_counts_per_block` truncates every `weight * block_size` and assigns the entire remainder to the largest component. For this new 391-component split, 79 positive-weight components therefore receive zero samples, the requested 22.5856% long-document share becomes 22.4365%, and the 159-sample remainder inflates the largest short component. Thus the launched treatment neither samples every populated cell nor preserves the advertised per-bucket mass; use a block size or mixture representation that retains these small cells.\n\nUseful? React with 👍 / 👎.",
+      "user": {
+        "login": "chatgpt-codex-connector[bot]",
+        "name": "chatgpt-codex-connector[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1144995?v=4",
+        "id": 199175422
+      },
+      "id": 3849601575,
+      "pull_request_review_id": 5014987851,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-25T04:36:59Z",
+      "updated_at": "2026-08-25T04:36:59Z",
+      "review": null,
+      "side": "RIGHT",
+      "line": null,
+      "start_line": null,
+      "path": "experiments/grug/moe/moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk157_long_context_skew.py",
+      "body_html": "<p dir=\"auto\"><strong><sub><sub><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/c595229c0ecb6ee85b9c7804144d495f131a495ec87091fea2b262d954c9a92d/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50312d6f72616e67653f7374796c653d666c6174\"><img src=\"https://camo.githubusercontent.com/c595229c0ecb6ee85b9c7804144d495f131a495ec87091fea2b262d954c9a92d/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50312d6f72616e67653f7374796c653d666c6174\" alt=\"P1 Badge\" data-canonical-src=\"https://img.shields.io/badge/P1-orange?style=flat\" style=\"max-width: 100%;\"></a></sub></sub>  Preserve small components in the effective mixture</strong></p>\n<p dir=\"auto\">At runtime this replacement inherits the base config's <code class=\"notranslate\">mixture_block_size=49_152</code>, while <code class=\"notranslate\">MixtureDataset._compute_expected_counts_per_block</code> truncates every <code class=\"notranslate\">weight * block_size</code> and assigns the entire remainder to the largest component. For this new 391-component split, 79 positive-weight components therefore receive zero samples, the requested 22.5856% long-document share becomes 22.4365%, and the 159-sample remainder inflates the largest short component. Thus the launched treatment neither samples every populated cell nor preserves the advertised per-bucket mass; use a block size or mixture representation that retains these small cells.</p>\n<p dir=\"auto\">Useful? React with 👍 / 👎.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#discussion_r3849601579",
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Make the skew parameter explicit**\n\nThe long-context multiplier defines the experiment's treatment, but this signature silently defaults it and the treatment config consequently calls `long_context_phase_weights()` without specifying the intended `2x` value. Make `skew` required and pass `LONG_CONTEXT_SKEW` at the experiment boundary so this critical parameter cannot be inherited implicitly.\n\nAGENTS.md reference: [AGENTS.md:L90-L93](https://github.com/marin-community/marin/blob/54d3106d44432a725673f5682d14858d4574ec98/AGENTS.md#L90-L93)\n\nUseful? React with 👍 / 👎.",
+      "user": {
+        "login": "chatgpt-codex-connector[bot]",
+        "name": "chatgpt-codex-connector[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1144995?v=4",
+        "id": 199175422
+      },
+      "id": 3849601579,
+      "pull_request_review_id": 5014987851,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-25T04:36:59Z",
+      "updated_at": "2026-08-25T04:36:59Z",
+      "review": null,
+      "side": "RIGHT",
+      "line": null,
+      "start_line": null,
+      "path": "experiments/grug/moe/long_context_datakit_moe_mix.py",
+      "body_html": "<p dir=\"auto\"><strong><sub><sub><a target=\"_blank\" rel=\"noopener noreferrer nofollow\" href=\"https://camo.githubusercontent.com/f2c1aacb361ddd3a0e9f9cacdb84fab050de434017f6747bb916e31e29bdf03d/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50322d79656c6c6f773f7374796c653d666c6174\"><img src=\"https://camo.githubusercontent.com/f2c1aacb361ddd3a0e9f9cacdb84fab050de434017f6747bb916e31e29bdf03d/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f50322d79656c6c6f773f7374796c653d666c6174\" alt=\"P2 Badge\" data-canonical-src=\"https://img.shields.io/badge/P2-yellow?style=flat\" style=\"max-width: 100%;\"></a></sub></sub>  Make the skew parameter explicit</strong></p>\n<p dir=\"auto\">The long-context multiplier defines the experiment's treatment, but this signature silently defaults it and the treatment config consequently calls <code class=\"notranslate\">long_context_phase_weights()</code> without specifying the intended <code class=\"notranslate\">2x</code> value. Make <code class=\"notranslate\">skew</code> required and pass <code class=\"notranslate\">LONG_CONTEXT_SKEW</code> at the experiment boundary so this critical parameter cannot be inherited implicitly.</p>\n<p dir=\"auto\">AGENTS.md reference: <a href=\"https://github.com/marin-community/marin/blob/54d3106d44432a725673f5682d14858d4574ec98/AGENTS.md#L90-L93\">AGENTS.md:L90-L93</a></p>\n<p dir=\"auto\">Useful? React with 👍 / 👎.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#pullrequestreview-5014987851",
+      "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `54d3106d44`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\nCodex has been enabled to automatically review pull requests in this repo. Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nWhen you [sign up for Codex through ChatGPT](https://openai.com/codex), Codex can also answer questions or update the PR, like \"@codex address that feedback\".\n            \n</details>",
+      "user": {
+        "login": "chatgpt-codex-connector[bot]",
+        "name": "chatgpt-codex-connector[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/1144995?v=4",
+        "id": 199175422
+      },
+      "id": 5014987851,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-25T04:36:59Z",
+      "updated_at": null,
+      "review": "COMMENTED",
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<h3 dir=\"auto\">💡 Codex Review</h3>\n<p dir=\"auto\">Here are some automated review suggestions for this pull request.</p>\n<p dir=\"auto\"><strong>Reviewed commit:</strong> <code class=\"notranslate\">54d3106d44</code></p>\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br>\n<p dir=\"auto\">Codex has been enabled to automatically review pull requests in this repo. Reviews are triggered when you</p>\n<ul dir=\"auto\">\n<li>Open a pull request for review</li>\n<li>Mark a draft as ready</li>\n<li>Comment \"<a class=\"user-mention notranslate\" data-hovercard-type=\"user\" data-hovercard-url=\"/users/codex/hovercard\" data-octo-click=\"hovercard-link-click\" data-octo-dimensions=\"link_type:self\" href=\"https://github.com/codex\">@codex</a> review\".</li>\n</ul>\n<p dir=\"auto\">If Codex has suggestions, it will comment; otherwise it will react with 👍.</p>\n<p dir=\"auto\">When you <a href=\"https://openai.com/codex\" rel=\"nofollow\">sign up for Codex through ChatGPT</a>, Codex can also answer questions or update the PR, like \"<a class=\"user-mention notranslate\" data-hovercard-type=\"user\" data-hovercard-url=\"/users/codex/hovercard\" data-octo-click=\"hovercard-link-click\" data-octo-dimensions=\"link_type:self\" href=\"https://github.com/codex\">@codex</a> address that feedback\".</p>\n</details>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#discussion_r3849650891",
+      "body": "🤖 Fixed in 7ac0ef3a9d. The treatment now keeps the baseline's 168 top-level component names and phase-1 weights, so its 49,152-sample block allocation is identical to the control. Each top-level component is a concatenation of one short-store child and two long-store children; the 2× skew is applied inside the component without introducing separately rounded mixture weights.",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 3849650891,
+      "pull_request_review_id": 5015040693,
+      "in_reply_to_id": 3849601575,
+      "created_at": "2026-08-25T04:49:29Z",
+      "updated_at": "2026-08-25T04:49:29Z",
+      "review": null,
+      "side": "RIGHT",
+      "line": null,
+      "start_line": null,
+      "path": "experiments/grug/moe/moe_67b_a2b_d2560_ctxext_step156k_seq262k_bs256_ctx4_muon_qk157_long_context_skew.py",
+      "body_html": "<p dir=\"auto\">🤖 Fixed in <a class=\"commit-link\" data-hovercard-type=\"commit\" data-hovercard-url=\"https://github.com/marin-community/marin/commit/7ac0ef3a9ded34403c987c2815ed4987df21b1ca/hovercard\" href=\"https://github.com/marin-community/marin/commit/7ac0ef3a9ded34403c987c2815ed4987df21b1ca\"><tt>7ac0ef3</tt></a>. The treatment now keeps the baseline's 168 top-level component names and phase-1 weights, so its 49,152-sample block allocation is identical to the control. Each top-level component is a concatenation of one short-store child and two long-store children; the 2× skew is applied inside the component without introducing separately rounded mixture weights.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#discussion_r3849650892",
+      "body": "🤖 Fixed in 7ac0ef3a9d. The long-context component builder now requires an integer skew, and the experiment passes LONG_CONTEXT_SKEW explicitly at the configuration boundary.",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?v=4",
+        "id": 9847335
+      },
+      "id": 3849650892,
+      "pull_request_review_id": 5015040692,
+      "in_reply_to_id": 3849601579,
+      "created_at": "2026-08-25T04:49:29Z",
+      "updated_at": "2026-08-25T04:49:42Z",
+      "review": null,
+      "side": "RIGHT",
+      "line": null,
+      "start_line": null,
+      "path": "experiments/grug/moe/long_context_datakit_moe_mix.py",
+      "body_html": "<p dir=\"auto\">🤖 Fixed in <a class=\"commit-link\" data-hovercard-type=\"commit\" data-hovercard-url=\"https://github.com/marin-community/marin/commit/7ac0ef3a9ded34403c987c2815ed4987df21b1ca/hovercard\" href=\"https://github.com/marin-community/marin/commit/7ac0ef3a9ded34403c987c2815ed4987df21b1ca\"><tt>7ac0ef3</tt></a>. The long-context component builder now requires an integer skew, and the experiment passes LONG_CONTEXT_SKEW explicitly at the configuration boundary.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#pullrequestreview-5015040692",
+      "body": "",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?u=d46273cc42c8f9fc63992b6223cc63f074200faa&v=4",
+        "id": 9847335
+      },
+      "id": 5015040692,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-25T04:49:29Z",
+      "updated_at": null,
+      "review": "COMMENTED",
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": ""
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#pullrequestreview-5015040693",
+      "body": "",
+      "user": {
+        "login": "Helw150",
+        "name": "Helw150",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/u/9847335?u=d46273cc42c8f9fc63992b6223cc63f074200faa&v=4",
+        "id": 9847335
+      },
+      "id": 5015040693,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-08-25T04:49:29Z",
+      "updated_at": null,
+      "review": "COMMENTED",
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": ""
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#issuecomment-5746936482",
+      "body": "This pull request has been inactive for 23 days and is marked as stale.\nIf there is no further activity within 7 days, it will be automatically closed.\nIf you believe this PR should remain open, please add a comment or update the PR.",
+      "user": {
+        "login": "github-actions[bot]",
+        "name": "github-actions[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+        "id": 41898282
+      },
+      "id": 5746936482,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-09-20T02:08:34Z",
+      "updated_at": "2026-09-20T02:08:34Z",
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">This pull request has been inactive for 23 days and is marked as stale.<br>\nIf there is no further activity within 7 days, it will be automatically closed.<br>\nIf you believe this PR should remain open, please add a comment or update the PR.</p>"
+    },
+    {
+      "url": "https://github.com/marin-community/marin/pull/8656#issuecomment-5851914227",
+      "body": "This pull request has been automatically closed due to inactivity.\nIf you would like to continue working on this, please reopen it or create a new PR.",
+      "user": {
+        "login": "github-actions[bot]",
+        "name": "github-actions[bot]",
+        "email": null,
+        "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+        "id": 41898282
+      },
+      "id": 5851914227,
+      "pull_request_review_id": null,
+      "in_reply_to_id": null,
+      "created_at": "2026-09-27T02:18:51Z",
+      "updated_at": "2026-09-27T02:18:51Z",
+      "review": null,
+      "side": null,
+      "line": null,
+      "start_line": null,
+      "path": null,
+      "body_html": "<p dir=\"auto\">This pull request has been automatically closed due to inactivity.<br>\nIf you would like to continue working on this, please reopen it or create a new PR.</p>"
+    }
+  ],
+  "url": "https://github.com/marin-community/marin/pull/8656",
+  "title": "marin-community/marin PR #8656 comments",
+  "display_url": "https://github.com/marin-community/marin/pull/8656",
+  "display_title": "marin-community/marin PR #8656 comments"
+}

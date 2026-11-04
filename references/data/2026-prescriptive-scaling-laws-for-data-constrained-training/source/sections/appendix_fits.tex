@@ -1,0 +1,147 @@
+\section{Scaling law fit details}
+\label{app:fit_details}
+
+This appendix reports the full numerical results for all scaling law fits discussed in the main text, including Phase~1 (Chinchilla baseline) and Phase~2 (repetition penalty) parameter estimates, goodness-of-fit metrics, and external validation on the \citet{muennighoff2023scaling} C4 dataset.
+
+\subsection{Fitting methodology}
+
+All scaling laws are fit by minimizing Huber loss in log-space with $\delta_{\text{Huber}} = 10^{-3}$, using L-BFGS with strong Wolfe line search conditions.
+To mitigate sensitivity to initialization, we employ grid search: 324 initializations for the Chinchilla base law (a $4 \times 3 \times 3 \times 3 \times 3$ grid over $E, A, \alpha, B, \beta$) and 7--160 initializations for the repetition penalty forms depending on the number of free parameters.
+
+We report three variants of the coefficient of determination:
+\begin{itemize}
+    \item $R^2$: standard $1 - \text{SS}_{\text{res}} / \text{SS}_{\text{tot}}$, computed over all data points.
+    \item $R^2_{\text{multi}}$: $R^2$ restricted to multi-epoch runs only (epochs $> 1$), isolating the model's ability to capture repetition effects.
+    \item $R^2_{\text{single}}$: $R^2$ restricted to single-epoch runs ($R_D = 0$). 
+\end{itemize}
+
+Repetition is parameterized as $R_D = \text{epochs} - 1$ with $U_D$ denoting the unique token budget.
+Phase~1 parameters ($E, A, \alpha, B, \beta$) are locked during Phase~2 fitting; only the repetition penalty parameters are optimized.
+All fits use total parameter counts (embedding + non-embedding).
+Uncertainties are reported as median absolute deviation (MAD) across bootstrap resamples. 
+
+\subsection{Phase 1: Chinchilla parameters}
+
+Table~\ref{tab:chinchilla_params} reports the Chinchilla baseline parameters for both weight decay conditions.
+The base law takes the form $L(N, D) = E + A / N^\alpha + B / D^\beta$, fit to single-epoch runs only.
+Strong weight decay ($\lambda = 1.0$) raises the entropy floor $E$ by ${\sim}0.2$~nats and increases $B$ by $6\times$ with a steeper data exponent $\beta$, consistent with stronger regularization reducing effective model capacity at fixed parameter count.
+
+\begin{table}[t]
+\centering
+\caption{Phase~1 Chinchilla parameters for the standard ($\lambda = 0.1$) and strong weight decay ($\lambda = 1.0$) studies.}
+\label{tab:chinchilla_params}
+\begin{tabular}{lcc}
+\toprule
+Parameter & Standard ($\lambda = 0.1$, $n = 60$) & Strong WD ($\lambda = 1.0$, $n = 45$) \\
+\midrule
+$E$      & 1.8383      & 2.0422 \\
+$A$      & 216.58      & 214.64 \\
+$\alpha$ & 0.2999      & 0.2922 \\
+$B$      & 4,964.42    & 29,370.43 \\
+$\beta$  & 0.4274      & 0.5333 \\
+\midrule
+$R^2$    & 0.9977      & 0.9955 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Phase 2: Repetition penalty parameters}
+
+Phase~2 fits the repetition penalty on top of the locked Phase~1 parameters.
+We compare five functional forms: two baselines from prior work and three additive penalty forms from our complexity ladder.
+
+\paragraph{Baseline forms.}
+The \emph{exponential decay} form from \citet{muennighoff2023scaling} defines effective data $\widehat{D} = U_D \cdot (1 + R^* \cdot (1 - \exp(-R_D / R^*)))$ and evaluates $L(N, \widehat{D}) = E + A/N^\alpha + B/{\widehat{D}}^\beta$.
+The \emph{effective parameter} extension adds $\widehat{N} = U_N \cdot (1 + R^*_N \cdot (1 - \exp(-R_N / R^*_N)))$ and evaluates $L(\widehat{N}, \widehat{D})$.
+
+\paragraph{Additive Penalty forms.}
+The one-parameter form (\autoref{eq:one_param}) adds a penalty $C \cdot R_D \cdot (N / U_D)$.
+The two-parameter form (\autoref{eq:two_param}) generalizes to $C \cdot R_D \cdot (N / U_D)^\kappa$.
+The four-parameter form (\autoref{eq:four_param}) further generalizes to $C \cdot R_D^\delta \cdot (N / U_D^\gamma)^\kappa$.
+
+\paragraph{Standard study ($\lambda = 0.1$).}
+Table~\ref{tab:phase2_standard} reports fits on our FineWeb data ($n = 157$ total, $n_{\text{multi}} = 81$ multi-epoch runs).
+Even the one-parameter additive penalty substantially outperforms both baselines, achieving $R^2_{\text{multi}} = 0.9503$ versus $0.5825$ for the exponential decay form.
+The four-parameter additive penalty reaches $R^2 = 0.9971$.
+
+\begin{table}[t]
+\centering
+\caption{Phase~2 repetition penalty fits for the standard study ($\lambda = 0.1$). Best values per metric in bold.}
+\label{tab:phase2_standard}
+\small
+\begin{tabular}{llccc}
+\toprule
+Form & Parameters & $R^2$ & $R^2_{\text{multi}}$ & Huber \\
+\midrule
+Exp.\ Decay ($\widehat{D}$) & $R^* = 7.756 \pm 1.384$ & 0.8866 & 0.5825 & 0.003469 \\
+Eff.\ Param.\ ($\widehat{D}, \widehat{N}$) & $R^*_D = 7.765 \pm 1.407$, $R^*_N = 9593 \pm 32.03$ & 0.8868 & 0.5832 & 0.003468 \\
+\midrule
+Add.\ Penalty (1p) & $P = 0.02305 \pm 0.00121$ & 0.9852 & 0.9503 & 0.001739 \\
+Add.\ Penalty (2p) & $P = 0.02186 \pm 0.00213$, $\kappa = 1.051 \pm 0.127$ & 0.9860 & 0.9533 & 0.001722 \\
+Add.\ Penalty (4p) & \makecell[l]{$P = 3.27 \times 10^{-7} \pm 5.27 \times 10^{-11}$, $\delta = 1.674 \pm 0.002$, \\ $\kappa = 1.345 \pm 0.004$, $\gamma = 0.635 \pm 0.005$} & \textbf{0.9971} & \textbf{0.9945} & \textbf{0.000992} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Strong weight decay study ($\lambda = 1.0$).}
+Table~\ref{tab:phase2_strongwd} reports the analogous fits ($n = 126$ total, $n_{\text{multi}} = 81$).
+Two observations stand out.
+First, the exponential decay baseline performs considerably better under strong WD ($R^2_{\text{multi}} = 0.9476$) than under standard WD ($0.5825$), reflecting the more benign repetition dynamics when regularization is strong.
+Second, the four-parameter additive penalty recovers $\gamma \approx 1.02$ for strong WD versus $0.64$ for standard, indicating that the data-scaling exponent in the penalty term is itself modulated by regularization strength.
+The exponential decay form's $R^* = 12.73$ under strong WD versus $7.76$ under standard WD confirms that repetition is approximately 60\% more tolerable with strong regularization.
+
+\begin{table}[t]
+\centering
+\caption{Phase~2 repetition penalty fits for the strong weight decay study ($\lambda = 1.0$, $n = 126$, $n_{\text{multi}} = 81$). Best values per metric in bold.}
+\label{tab:phase2_strongwd}
+\small
+\begin{tabular}{llccc}
+\toprule
+Form & Parameters (value $\pm$ MAD) & $R^2$ & $R^2_{\text{multi}}$ & Huber \\
+\midrule
+Exp.\ Decay ($\widehat{D}$) & $R^* = 12.731 \pm 1.631$ & 0.9741 & 0.9476 & 0.001463 \\
+Eff.\ Param.\ ($\widehat{D}, \widehat{N}$) & $R^*_D = 13.749 \pm 1.010$, $R^*_N = 1{,}706{,}066 \pm 871$ & 0.9737 & 0.9466 & 0.001461 \\
+\midrule
+Add.\ Penalty (1p) & $P = 0.00681 \pm 0.00069$ & 0.9921 & 0.9875 & 0.000925 \\
+Add.\ Penalty (2p) & $P = 0.00569 \pm 0.00042$, $\kappa = 1.350 \pm 0.106$ & 0.9948 & 0.9936 & 0.000860 \\
+Add.\ Penalty (4p) & \makecell[l]{$P = 0.00257 \pm 1.45 \times 10^{-8}$, $\delta = 1.563 \pm 1.4 \times 10^{-5}$, \\ $\kappa = 1.391 \pm 5.5 \times 10^{-6}$, $\gamma = 1.024 \pm 1.5 \times 10^{-4}$} & \textbf{0.9958} & \textbf{0.9958} & \textbf{0.000759} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{External validation on Muennighoff data}
+
+To verify that our penalty forms generalize beyond our experimental setup, we refit all models on the C4 deduplicated dataset from \citep{muennighoff2023scaling} ($n = 158$, up to 64 epochs).
+Phase~1 Chinchilla parameters on this data: $E = 1.9031$, $A = 432.63$, $\alpha = 0.3362$, $B = 5360.24$, $\beta = 0.3868$.
+
+Table~\ref{tab:muennighoff_refit} reports Phase~2 results.
+We additionally report $R^2_{\text{single}}$, the coefficient of determination on single-epoch runs, to confirm that the repetition penalty does not degrade the Chinchilla baseline fit.
+All forms except $\widehat{D}, \widehat{N}$ achieve identical $R^2_{\text{single}} = 0.9763$ by construction, since the additive penalty terms vanish at $R_D = 0$. The $\widehat{D}, \widehat{N}$ form attains $R^2_{\text{single}} = 0.9832$ because its $\widehat{N}$ saturation modifies predictions for over-parameterized single-epoch runs.
+On multi-epoch runs, all three additive penalty forms outperform both baselines, with the four-parameter form achieving the best overall fit ($R^2_{\text{multi}} = 0.9617$).
+
+\begin{table}[t]
+\centering
+\caption{Repetition penalty fits on the \citet{muennighoff2023scaling} C4 deduplicated data ($n = 158$, up to 64 epochs). Best values per metric in bold.}
+\label{tab:muennighoff_refit}
+\small
+\begin{tabular}{llcccc}
+\toprule
+Form & Key Params & $R^2$ & $R^2_{\text{multi}}$ & $R^2_{\text{single}}$ & Huber \\
+\midrule
+Exp.\ Decay ($\widehat{D}$) & $R^* = 23.82$ & 0.8953 & 0.8442 & 0.9763 & 0.008239 \\
+Eff.\ Param.\ ($\widehat{D}, \widehat{N}$) & $R^*_D = 38.71$, $R^*_N = 288.1$ & 0.9119 & 0.8670 & 0.9832 & 0.007987 \\
+\midrule
+Add.\ Penalty (1p) & $P = 0.002857$ & 0.9557 & 0.9426 & 0.9763 & 0.005910 \\
+Add.\ Penalty (2p) & $P = 0.006670$, $\kappa = 0.582$ & 0.9633 & 0.9549 & 0.9763 & 0.005528 \\
+Add.\ Penalty (4p) & \makecell[l]{$P = 2.48 \times 10^{-6}$, $\delta = 1.040$, \\ $\kappa = 0.803$, $\gamma = 0.526$} & {0.9675} & {0.9617} & {0.9763} & {0.004256} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{FLOPs approximation}
+
+For compute-optimal allocation analysis, we approximate training FLOPs as
+\begin{equation}
+    C_{\text{train}} \approx 6 \cdot N \cdot D_{\text{total}} = 6 \cdot N \cdot U_D \cdot (1 + R_D).
+\end{equation}
+Given a fixed compute budget $C_{\text{train}}$ and unique data budget $U_D$, we sweep over candidate epoch counts, compute the implied model size $N = C_{\text{train}} / (6 \cdot U_D \cdot \text{epochs})$, evaluate the predicted loss under each scaling law, and select the allocation that minimizes loss.

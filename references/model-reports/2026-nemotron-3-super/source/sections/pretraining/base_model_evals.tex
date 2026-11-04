@@ -1,0 +1,124 @@
+\subsection{Base Model Evaluations}
+\label{subsec:base_model_evals}
+
+\begin{table}[h!]
+\centering
+\small
+\setlength{\tabcolsep}{7pt}
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{lr|ccc}
+\toprule
+\textbf{Task} & \textbf{Metric} &
+\multicolumn{1}{c}{\textbf{N-3-Super}} &
+\multicolumn{1}{c}{\textbf{Ling-flash}} &
+\multicolumn{1}{c}{\textbf{GLM-4.5}} \\
+& &
+\multicolumn{1}{c}{\textbf{120B-A12B-Base}} &
+\multicolumn{1}{c}{\textbf{base-2.0}} &
+\multicolumn{1}{c}{\textbf{Air-Base}} \\
+\midrule
+
+\rowcolor{black!5}
+\multicolumn{5}{l}{\textbf{General Knowledge}} \\
+MMLU & \textit{5-shot, acc} & \textbf{86.01} & 81.00 & 81.00 \\
+MMLU-Pro & \textit{5-shot, CoT EM} & \textbf{75.65} & 62.10 & 58.20 \\
+AGIEval-En & \textit{3/5-shot, CoT EM} & \textbf{77.92} & 61.70 & 62.40 \\
+GPQA-Diamond & \textit{5-shot, CoT EM} & \textbf{60.00} & 36.00 & 23.20 \\
+\midrule
+
+\rowcolor{black!5}
+\multicolumn{5}{l}{\textbf{MATH}} \\
+GSM8K & \textit{8-shot, EM} & 90.67 & \textbf{90.75} & 82.60 \\
+MATH & \textit{4-shot, EM} & \textbf{84.84} & 63.80 & 50.36 \\
+MATH Level 5 & \textit{4-shot, EM} & \textbf{70.00} & 39.80 & 26.30 \\
+AIME 2024 & \textit{pass@32} & \textbf{53.33} & 30.00 & 20.00 \\
+\midrule
+
+\rowcolor{black!5}
+\multicolumn{5}{l}{\textbf{Code}} \\
+HumanEval & \textit{0-shot, pass@1 n=32} & \textbf{79.40} & 70.10 & 76.30 \\
+MBPP-Sanitized & \textit{3-shot, pass@1 n=32} & \textbf{78.38} & 77.30 & 77.50 \\
+\midrule
+
+\rowcolor{black!5}
+\multicolumn{5}{l}{\textbf{Commonsense Understanding}} \\
+ARC-Challenge & \textit{25-shot, acc\_norm} & \textbf{96.08} & 94.80 & 93.90 \\
+HellaSwag & \textit{10-shot, acc\_norm} & \textbf{88.97} & 84.69 & 87.70 \\
+OpenBookQA & \textit{0-shot, acc\_norm} & \textbf{50.20} & 47.00 & 48.60 \\
+PIQA & \textit{0-shot, acc\_norm} & \textbf{85.47} & 84.00 & 84.22 \\
+WinoGrande & \textit{5-shot, acc} & 78.93 & 78.37 & \textbf{83.82} \\
+\midrule
+
+\rowcolor{black!5}
+\multicolumn{5}{l}{\textbf{Reading Comprehension}} \\
+RACE & \textit{0-shot, acc} & \textbf{91.00} & 90.10 & 89.50 \\
+\midrule
+
+\rowcolor{black!5}
+\multicolumn{5}{l}{\textbf{Multilingual}} \\
+MMLU Global Lite & \textit{5-shot, avg} & \textbf{85.72} & 74.94 & 79.25 \\
+MGSM & \textit{8-shot, avg} & \textbf{87.47} & 82.73 & 80.33 \\
+\midrule
+
+\rowcolor{black!5}
+\multicolumn{5}{l}{\textbf{Long Context}} \\
+RULER 64K & \textit{0-shot} & \textbf{92.26} & 72.12 & 80.26 \\
+RULER 128K & \textit{0-shot} & \textbf{88.26} & 52.03 & 61.70 \\
+RULER 256K & \textit{0-shot} & \textbf{84.56} & - & - \\
+RULER 512K & \textit{0-shot} & \textbf{82.49} & - & - \\
+RULER 1M & \textit{0-shot} & \textbf{71.00} & - & - \\
+\bottomrule
+\end{tabular}
+\caption[Base model comparison]{
+    Comparison of \textbf{Ling-flash-base-2.0}, \textbf{GLM-4.5-Air-Base}, and \textbf{Nemotron Super 120B-A12B Base}. Best results are marked in bold.
+}
+\label{tab:base-model-comparison}
+\end{table}
+
+All evaluation results were collected via Nemo Evaluator SDK\footnote{\url{https://github.com/NVIDIA-NeMo/Evaluator}} and NVIDIA's open source container of LM Evaluation Harness\footnote{\url{https://github.com/EleutherAI/lm-evaluation-harness}}, unless otherwise stated. For reproducibility purposes, more details on the evaluation settings can be found in the Nemo Evaluator SDK examples folder\footnote{\url{https://github.com/NVIDIA-NeMo/Evaluator/tree/main/packages/nemo-evaluator-launcher/examples/nemotron/nemotron-3-super}}. 
+The open source container on LM Evaluation Harness packaged via NVIDIA's Nemo Evaluator SDK used for evaluations can be found here\footnote{\url{https://catalog.ngc.nvidia.com/orgs/nvidia/teams/eval-factory/containers/lm-evaluation-harness}}. This container is is built on top of LM Evaluation Harness, with the following changes applied to all models for fairness:
+\begin{enumerate}
+  \setlength{\itemsep}{0.4em}  
+    \item For mathematical reasoning, we evaluate GSM8K and MATH~\citep{cobbe2021trainingverifierssolvemath, hendrycks2021measuringmathematicalproblemsolving} benchmarks using greedy-decoding. We also highlight the competition-level slice of the MATH benchmark as ``MATH Level 5''. Additionally, we report the $\text{pass}@32$ performance on AIME-2024. We use \texttt{Math-Verify}\footnote{\url{https://github.com/huggingface/math-verify}.} to grade all generations.
+    \item For code tasks (HumanEval~\citep{chen2021evaluatinglargelanguagemodels}, MBPP~\citep{austin2021programsynthesislargelanguage}) we evaluate the EvalPlus variants along with the sanitization of generations~\citep{Liu_Is_Your_Code_2023}, in a 0-shot setup. We estimate $\text{avg}@32$,  $\text{pass}@1$ from 32 generations per prompt.
+    \item General reasoning benchmarks (OpenBookQA~\citep{mihaylov2018suitarmorconductelectricity}, PIQA~\citep{bisk2019piqareasoningphysicalcommonsense}, Hellaswag~\citep{zellers2019hellaswagmachinereallyfinish}, Winogrande~\citep{sakaguchi2019winograndeadversarialwinogradschema}) are unchanged except for ARC-Challenge~\citep{Clark2018ThinkYH}, where we present all options at the same time, similar to MMLU~\citep{hendrycks2021measuringmassivemultitasklanguage}.
+    \item For multilingual capability, we evaluate MGSM~\citep{shi2022languagemodelsmultilingualchainofthought} (8-shot, native CoT) and Global MMLU-Lite~\citep{singh2024globalmmluunderstandingaddressing}.
+    \item For long context capability, we evaluate RULER~\citep{hsieh2024ruler} using 100 samples per task.
+\end{enumerate}
+
+Accuracy results for \ourbasemodel with comparsions to Ling-flash-Base-2.0 and GLM-4.5-Air-Base are shown in Table~\ref{tab:base-model-comparison}.
+
+% and~\ref{table:base_evals_multilingual}.
+% \begin{table}[!ht] \small\centering
+% \setlength{\tabcolsep}{6pt} % adjust column padding
+% \renewcommand{\arraystretch}{1.2} % adjust row height for readability
+% \begin{tabular}{lc|ccc}
+% \toprule
+% \multirow{2}{*}{\textbf{Task}} & \textbf{N-Super-3} & \textbf{Ling-flash} & \textbf{GLM-4.5} \\
+%                               & \textbf{Base}  & \textbf{Base-2.0}   & \textbf{Air-Base}       \\
+% \toprule
+% \multicolumn{4}{l}{\textbf{Global-MMLU-Lite}}              \\
+% German      & \textbf{87.50} & 75.8  & 78.0 \\
+% Spanish     & \textbf{88.50} & 78.0  & 81.3 \\
+% French      & \textbf{85.75} & 76.8  & 79.3 \\
+% Italian     & \textbf{87.75} & 78.3  & 79.3 \\
+% Japanese    & \textbf{84.25} & 68.3  & 77.5 \\
+% Korean      & \textbf{83.00} & 66.0  & 75.8 \\
+% Portuguese  & \textbf{86.25} & 79.3  & 82.8 \\
+% Chinese     & \textbf{84.00} & 76.0  & 77.8 \\
+% Average     & \textbf{85.88} & 74.81  & 79.00 \\
+% \midrule
+% \multicolumn{4}{l}{\textbf{Multilingual Math (MGSM)}} \\
+% Spanish     & \textbf{90.40} & -  & 85.6 \\
+% German      & \textbf{89.60} & -  & 80.8 \\
+% French      & \textbf{86.40} & -  & 80.8 \\
+% Chinese     & \textbf{82.00} & -  & 78.4 \\
+% Japanese    & \textbf{81.20} & -  & 68.8 \\
+% Russian     & \textbf{89.60} & -  & 83.6 \\
+% Average     & \textbf{86.53} & -  & 79.67 \\
+% \bottomrule
+% \end{tabular}
+% \caption{Accuracy of Nemotron-Super-3-Base model versus existing SoTA models on multilingual benchmarks. N-Super-3 is short for Nemotron-Super-3. The best score is highlighted in each row.}
+% \label{table:base_evals_multilingual}
+% \end{table}

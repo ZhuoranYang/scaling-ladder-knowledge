@@ -1,0 +1,1065 @@
+\documentclass{article}
+
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2022
+
+
+% ready for submission
+% \usepackage{neurips_2022}
+
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+%\usepackage[preprint, nonatbib]{neurips_2023}
+\usepackage[final, nonatbib]{neurips_2023}
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+%     \usepackage[final]{neurips_2022}
+
+
+% to avoid loading the natbib package, add option nonatbib:
+    % \usepackage[nonatbib]{neurips_2022}
+
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+
+\usepackage[
+    %backend=biber, 
+    natbib=true,
+    citestyle=numeric-comp,
+    bibstyle=ieee,
+    sorting=nty
+]{biblatex}
+\addbibresource{neurips_2023.bib}
+
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{subcaption}
+\usepackage{bm}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage[noend]{algorithmic}
+\usepackage{multirow}
+\usepackage[flushleft]{threeparttable}
+
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{multirow}
+\usepackage{xspace}
+%\usepackage{hyperref}
+%\usepackage{subfigure}
+%\usepackage{bm}
+\usepackage{color}
+\usepackage{wrapfig}
+\usepackage{bbding}
+%\usepackage{floatrow}
+% \usepackage{tikz}
+% \newcommand*{\circled}[1]{\lower.7ex\hbox{\tikz\draw (0pt, 0pt)%
+%     circle (.5em) node {\makebox[1em][c]{\tiny #1}};}}
+
+
+\newcommand{\ie}{\emph{i.e.,}\xspace}
+\newcommand{\eg}{\emph{e.g.,}\xspace}
+\newcommand{\etal}{\emph{et al.}\xspace}
+\def\revise{\textcolor{red}}
+%%
+
+\newcommand{\yao}[1]{{\color{cyan} YF: #1}}
+
+
+%\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+%\renewcommand{\algorithmicensure}{\textbf{Init:}}
+%\renewcommand{\algorithmiccomment}[1]{\hfill// #1}
+%\newenvironment{packed_enumerate}{
+%	\begin{enumerate}
+%		\setlength{\itemsep}{0pt}
+%		\setlength{\parskip}{0pt}
+%		\setlength{\parsep}{0pt}
+%	}{\end{enumerate}
+%}
+%\setlength{\textfloatsep}{5pt plus 1.0pt minus 2.0pt}
+%\setlength{\abovecaptionskip}{3pt plus 3pt minus 2pt}
+%\definecolor{f3green}{RGB}{0,144,81}
+%\definecolor{f3brown}{RGB}{148,82,0}
+%\newtheorem{scalingrule}{Scaling Rule}
+%\newtheorem{theorem}{Theorem}
+%\newcommand{\innerproduct}[2]{\langle #1, #2 \rangle}
+
+%\DeclareMathOperator*{\E}{\mathbb{E}}
+%\DeclareMathOperator*{\prob}{P}
+%\DeclareMathOperator*{\g}{\text{\slshape g}}
+
+%\title{An Empirical Study on Further Scaling Large Language Model under Token-Crisis}
+
+\title{To Repeat or Not To Repeat: \\ Insights from Scaling LLM under Token-Crisis}
+
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+\stepcounter{footnote}
+
+%\author{Anonymous Author(s) \\ 
+%Address}
+
+
+\author{
+Fuzhao Xue$^{1}$ \quad
+Yao Fu$^2$ \quad
+Wangchunshu Zhou$^3$ \quad
+Zangwei Zheng$^{1}$ \quad
+Yang You$^{1}$\thanks{Correspondence to youy@comp.nus.edu.sg} \\
+$^1$National University of Singapore \\
+$^2$University of Edinburgh \\
+$^3$ETH Zurich \\
+%yao.fu@ed.ac.uk\\
+%wangchunshu.zhou@inf.ethz.ch
+%Shenggui Li$^{1,}$ \quad Fuzhao Xue$^{1}$\thanks{Equal Contribution}  \quad Chaitanya Baranwal$^1$ \quad Yongbin Li$^1$ \quad Yang You$^1$\\
+%$^1$Department of Computer Science, National University of Singapore
+%\{zangwei, f-xue, zihengq, youy\}@comp.nus.edu.sg \\
+%\{zouxuan, pengtai.xu, da.tang, zhen.li1, chenguang.xi, peng.wu, leqi.zou,\\ yijie.zhu, ming.chen, xiangzhuo.ding, youlong.cheng\}@bytedance.com
+}
+
+\begin{document}
+
+
+\maketitle
+
+
+\begin{abstract}
+
+Recent research has highlighted the importance of dataset size in scaling language models. 
+However, large language models (LLMs) are notoriously token-hungry during pre-training, and high-quality text data on the web is likely to be approaching its scaling limit for LLMs.
+To further enhance LLMs, a straightforward approach is to repeat the pre-training data for additional epochs. 
+In this study, we empirically investigate three key aspects under this approach. First, we explore the consequences of repeating pre-training data, revealing that the model is susceptible to overfitting, leading to multi-epoch degradation. Second, we examine the key factors contributing to multi-epoch degradation, finding that significant factors include dataset size, model parameters, and training objectives, while less influential factors consist of dataset quality and model FLOPs. Finally, we explore whether widely used regularization can alleviate multi-epoch degradation. Most regularization techniques do not yield significant improvements, except for dropout, which demonstrates remarkable effectiveness but requires careful tuning when scaling up the model size. Additionally, we discover that leveraging mixture-of-experts (MoE) enables cost-effective and efficient hyper-parameter tuning for computationally intensive dense LLMs with comparable trainable parameters, potentially impacting efficient LLM development on a broader scale.
+
+
+%and contribute 11 takeaways about further scaling LLM under token-crisis. Some of these takeaways, \eg using mixture-of-experts to tune hyper-parameters of a more computational-expensive dense LLM in a cheaper and faster way, can also have a broader impact on efficient LLM development.
+
+
+%To address this token-crisis issue, we plan to investigate following approaches: (1) training LLMs with repeated data; (2) training LLMs with data generated by off-the-shelf LLMs; and (3) implementing adaptive parameter activation and computation allocation. Our goal is to explore these directions and enable the community to create more effective LLMs without data constraints.
+
+\end{abstract}
+
+
+% \section{TL;DR for Practitioner}
+
+
+%===========================
+\section{Introduction}\label{Introduction}
+
+
+Large Language Models (LLMs) have demonstrated remarkable performance on various NLP tasks~\citep{2020t5,li2022self}, and have even become a part of our daily lives through applications such as ChatGPT and Bard. This success has been largely attributed to scaling up transformer-based language models, as evidenced by recent work~\citep{kaplan2020scaling, rae2021scaling, tay2021scale}. In the early stages of transformer scaling, researchers observed that larger models could achieve comparable performance with smaller models using fewer training steps and less pre-training data~\citep{kaplan2020scaling}, leading to early views that model size might be one of the most critical factors in achieving better performance. 
+
+
+
+\textbf{Dataset size is more important than we thought in LLM scaling.}
+%The importance of scaling LLMs with more data has been underscored in 
+Recent work~\citep{hoffmann2022training} found that the pre-training dataset size plays a more significant role than previously thought and proposed compute-optimal scaling (\ie Chinchilla scaling law), where model size and training dataset size should be scaled equally for optimal performance given a fixed computation budget. For instance, an under-trained larger model like Gopher-280B~\citep{rae2021scaling} can be outperformed by a well-trained smaller model like Chinchilla-70B if not enough data is used in larger model training. 
+The intuition here is that the decreased model size can be compensated by the increased size of data. 
+The effectiveness of the Chinchilla scaling law is further validated by the recent success of LLaMA-65B~\citep{touvron2023llama} and PaLM-2~\citep{anil2023palm}.
+
+%, which was trained on 1.4 trillion tokens by Meta AI and significantly outperformed OPT-175B~\citep{zhang2022opt} trained with only 180 billion tokens.
+% \yao{I would drop the comparison to OPT because OPT's problem also includes training instability. 
+% And would add PaLM-2 which also confirms Chinchilla's scaling law.}
+
+%These results not only reinforce the importance of Chinchilla scaling law but also highlight the need for even larger pre-training datasets to achieve state-of-the-art LLM performance.
+
+
+% \begin{wrapfigure}{r}{0.5\textwidth}
+% \vspace{-0.6cm}
+%   \begin{center}
+%     \includegraphics[width=0.45\textwidth]{token_modeling.pdf}
+%   \end{center}
+%   \vspace{-0.4cm}
+%   \caption{Modeling number of tokens in stock and number of tokens required by training compute-optimal LLM.}\label{fig:token_modeling}
+% \vspace{-0.6cm}
+% \end{wrapfigure}
+
+\begin{figure}
+\vspace{-1cm}
+  \begin{center}
+    \includegraphics[width=0.45\textwidth]{token_modeling.pdf}
+  \end{center}
+  \vspace{-0.4cm}
+  \caption{Modeling number of tokens in stock and number of tokens required by training compute-optimal LLM.}\label{fig:token_modeling}
+\vspace{-0.6cm}
+\end{figure}
+
+
+\textbf{Insufficient tokens hinder LLM scaling.} State-of-the-art LLMs require vast amounts of internet-scale text data for pre-training, such as the 780 billion tokens used for PaLM-540B~\citep{chowdhery2022palm} and the 1.4 trillion tokens used for Chinchilla-70B~\citep{hoffmann2022training}. However, this raises two critical questions: (1) how many tokens are needed to fully train SoTA LLMs, and (2) how many tokens are available for pre-training? To answer these questions, we modeled token requirements using Chinchilla scaling law and estimated the scale of potential high-quality pre-training data based on recent research~\citep{villalobos2022will}. Unfortunately, as shown in Figure~\ref{fig:token_modeling}, the growth rate of high-quality text data on the internet is much slower than the growth rate of data required by LLMs.
+For instance, to fully pre-train PaLM-540B, 10.8 trillion tokens would be needed, but the total stock of high-quality text data is only around 9 trillion tokens.
+Moreover, the high-quality text data is growing at a rate of 4-5\% per year, in line with the world economy, which is much slower than the pace of LLM growth and hardware improvement. According to recent study~\cite{villalobos2022will}, high-quality text data may not suffice the requirements of scaling LLMs and in a pessimistic scenario, and we may run out of new data between 2023 and 2027. In light of the compute-optimal scaling study, this may already have occurred. Therefore, data may be becoming a more significant bottleneck for scaling transformers than hardware. In this paper, we refer to this problem as the ``token-crisis''.
+%\yao{Generally would suggest to tone down and use arguments like: there are estimates that high-quality text data may not suffice the requirements of scaling LLMs and in a pessimistic scenario, we may run out of new data between 2023 and 2027. These estimates echo with the observation that SOTA LLMs report less than 2T training data.} 
+
+
+In addition, it is important to note that the pre-training dataset size prediction discussed above is based on the compute-optimal training proposed in~\citep{hoffmann2022training}, which only considered the training cost of LLMs and ignored the inference cost. However, given that LLMs are often used as a service, such as in the case of Bard and Bing, and perform a significant amount of inference every day, it is crucial to consider the inference cost in compute-optimal modeling as well. Therefore, in order to achieve the best performance with the least computation cost per sample, it is likely that LLMs will require even more data than we estimated in Figure~\ref{fig:token_modeling}. This further emphasizes the importance of making full use of the off-the-shelf high-quality text data for LLM pre-training.
+ 
+
+
+\textbf{The token-crisis is even more severe when it comes to non-English data.} According to the Web Technology Surveys\footnote{\url{https://w3techs.com/technologies/overview/content_language}}, English content makes up over 56\% of the web, with non-English data from over 100 languages comprising only 44\% of the total. This long-tailed distribution of data makes it much harder for LLMs to perform well on non-English tasks. Despite PaLM's impressive 540B parameters and training on 780B tokens~\citep{chowdhery2022palm}, including 22\% non-English data, it still lags behind models such as mT5~\citep{xue2020mt5} and ByT5~\citep{xue2022byt5} on non-English tasks like Multilingual QA. 
+%\yao{By ``lagging behind'' I assume you mean PaLM prompting v.s. ByT5 fine-tuning?} \revise{Finetuned PaLM is still worse than ByT5, see PaLM Paper Section 6.7.}
+With native English speakers making up just 5\% of the world's population, achieving comparable performance on non-English tasks is highly desirable from fair access and democratizing LLMs perspectives.
+% \yao{would use ``fair access'' and ``democratizing LLMs'' to replace ``moral and human rights''} \revise{Good Suggestion!}
+
+
+\textbf{Using pre-training data repeatedly.} To alleviate the token-crisis, one straightforward approach is training LLM for multiple epochs. The practice of multi-epoch training varies in subfields of machine learning.
+Although there exist models like Vision Transformers~\citep{dosovitskiy2020image} that are typically trained for many epochs (\eg 300 epochs on ImageNet~\citep{russakovsky2015imagenet}),
+ LLMs are often trained for only one or a few epochs~\citep{chowdhery2022palm,hoffmann2022training,touvron2023llama}. 
+Currently, it is unclear what multiple epochs mean for language model pretraining:
+while Hoffmann \textit{et al.} \cite{hoffmann2022training} suggest that training LLM with repeated tokens can be harmful to performance, Taylor \textit{et al.} \cite{taylor2022galactica} observed improvements when training a 120B model for 4 epochs. 
+Therefore, although training with repeated data may seem superficially simple, 
+it has a nontrivial influence on practitioners and therefore
+further investigation is needed to determine its effects. 
+
+\textbf{Contributions and Insights} This paper presents a systematic empirical study of repeating pre-training data for token-crisis problem, making it the first work of its kind. We summarize 11 insights in three aspects. First, we investigate what would happen when training with repeated pre-training data in Section~\ref{sec:consequnce} and found (1) Encoder-Decoder\footnote{We verified Encoder-Decoder is actually not that different from Decoder-only model in Appendix~\ref{sec:en-de}} model on C4 dataset is comparably data-hungry as stated in Chinchilla scaling law; (2) Larger models are more prone to overfitting when training with repeated data. 
+
+We study three components (\ie data, model, objectives) in Section~\ref{sec:keyfactors} to explore the key factors contributing to multi-epoch degradation. We found (3) Training LLM with a larger dataset for multiple epochs can alleviate the multi-epoch degradation; (4) The use of high-quality data\footnote{The data quality here is relative. For instance, we think the quality of C4 is low when comparing with Wikipedia but C4 is good when comparing with C4 unclean. In addition, we limit the quality discussion here to web-scale pre-training data. High-quality instruction tuning data is not in this scope.} does not mitigate multi-epoch degradation. 
+%\yao{Need to define ``high-quality''} \revise{Good Point. We may should claim the very high quality because we are comparing Wiki vs C4. Wiki is a well-known (maybe best) dataset. We should tone down here.} 
+(5) The number of parameters plays a crucial role in multi-epoch degradation, even when the computation budget is fixed. The effect of FLOPs on this issue is negligible; (6) The Mixture-of-Experts transformer can even be employed to predict the behavior of dense models that have comparable parameters but require much more computation; (7) Utilizing a mixture of training objectives, such as UL2~\citep{tay2022unifying}, can accelerate LLM learning, but it also leads to faster memorization, resulting in worse multi-epoch degradation.
+
+We then investigate whether off-the-shelf regularization technologies can alleviate multi-epoch degradation in Section~\ref{sec:tricks}. We found (8) While most existing transformer regularization techniques struggle, dropout proves to be highly effective, despite its infrequent usage in LLM pre-training; (9) Dropout can be introduced only at the later stage of pre-training (after a few epochs) to ensure faster learning at the early stage of pre-training; (11) When scaling to very large models, dropout requires additional tuning.
+
+We finally make use of insight (6) to alleviate the challenge introduced by insight (10). That is our final insight (11): The MoE model can serve as a more affordable and faster alternative to fine-tune hyper-parameters (e.g., dropout rate) of large dense models with comparable parameters but significantly more FLOPs. We think this approach has great potential to have a broader impact on efficient LLM development.
+
+
+
+%\textbf{Contributions and Insights} This paper presents a systematic empirical study of the token-crisis problem, making it the first work of its kind. We first 
+
+
+
+%The key contributions and specific insights can be summarized as follows:
+% (1) Chinchilla scaling law remains valid when training the Encoder-Decoder T5 model with the C4 dataset.
+% (2) Larger models are more prone to overfitting under token-crisis conditions.
+% (3) Training a language model (LLM) with a larger dataset for multiple epochs can alleviate the issue of multi-epoch degradation.
+% (4) The use of high-quality data does not mitigate multi-epoch degradation.
+% (5) The number of parameters plays a crucial role in multi-epoch degradation, even when the computation budget is fixed. The effect of FLOPs on this issue is negligible.
+% (6) The Mixture-of-Experts transformer can be employed to predict the behavior of dense models that have comparable parameters but require much more computation.
+% (7) Utilizing a mixture of training objectives, such as UL2, can accelerate LLM learning. However, it also leads to faster data consumption and memorization, resulting in worse multi-epoch degradation.
+% (8) While most existing transformer regularization techniques struggle, dropout proves to be highly effective, despite its infrequent usage in LLM pre-training.
+% (9) Dropout can be introduced during the later stage of pre-training (after a few epochs) to alleviate multi-epoch degradation.
+% (10) When scaling to very large models, dropout requires additional tuning.
+% (11) The MoE model can serve as a more affordable and faster alternative to fine-tune the hyperparameters (e.g., dropout rate) of large dense models with comparable parameters but significantly more FLOPs.
+
+
+\section{What Are the Consequences of Repeating Pre-training Data?}\label{sec:consequnce}
+
+
+
+In this study, we adopt T5 1.1 
+%\yao{What does 1.1 mean} 
+%\revise{T5 actually has two versions. The original T5 is T5 1.0. They released a new series of T5 (T5 1.1) together with the new Jax LLM training script. T5 1.1 has slightly different implementations and performs better.}
+as our default pre-training configuration. This means that, unless specified otherwise, we utilize the C4 dataset~\citep{2020t5} along with the identical model architecture, training objectives, and hyper-parameters as described~\citep{2020t5}. Detailed hyper-parameters can be found in Appendix~\ref{sec:default-hyper-parameters}.
+%For the reason why we select 
+
+\begin{figure}[t]
+% \centering
+\vspace{-0.6cm}
+\begin{minipage}[b]{0.45\linewidth}
+\centering
+\includegraphics[width=1.0\textwidth]{TokenRequired.pdf}
+\caption{We observe a linear relationship between the number of tokens required to fully train the model and the number of model trainable parameters, which validates that the Chinchilla scaling law still holds when training T5 on C4 dataset.}\label{fig:token_required}
+\end{minipage}\hspace{0.5cm}
+\begin{minipage}[b]{0.45\linewidth}
+\includegraphics[width=1.0\textwidth]{repeat_token.pdf}
+\caption{We train models at three different scales (\ie T5-Base, T5-Large, T5-XL) with different dataset sizes but the same amount of total computation budget (\ie batch size 128, sequence length 512, training steps $2^{19}$ (around 524K).}\label{fig:repeat_token}
+\end{minipage}
+\vspace{-0.6cm}
+% \caption{Comparing the overfitting trend of dense model and MoE model with comparable parameters but different FLOPs.}
+% \label{fig:model_predict}
+% \vspace{-0.3cm}
+\end{figure}
+
+% \begin{figure}[t]
+% \vspace{-0.6cm}
+%   \begin{center}
+%     \includegraphics[width=0.5\textwidth]{TokenRequired.pdf}
+%   \end{center}
+%   %\vspace{-0.4cm}
+
+% %\vspace{-0.6cm}
+% \end{figure}
+
+% \begin{figure}[t]
+% %\vspace{-0.6cm}
+%   \begin{center}
+    
+%   \end{center}
+%   %\vspace{-0.4cm}
+  
+% %\vspace{-0.6cm}
+% \end{figure}
+
+
+
+\textbf{Insight (1): Training T5 on C4 is Data-Hungry} In this section, our focus is to investigate the effects of training a LLM for multiple epochs under token-crisis conditions. Before delving into that, it is essential to examine whether we have a similar data-hungry observation like Chinchilla scaling law in a widely-used open-sourced setting, specifically training an encoder-decoder transformer on the C4 dataset. 
+To assess this, we follow \citep{hoffmann2022training} and train models with six different configurations. For detailed configurations, please refer to Appendix~\ref{sec:detailed-configuration}. We then compare the validation accuracy for masked token prediction at various computation budgets. When a larger model outperforms a smaller model, it indicates that the smaller model has received sufficient tokens. The number of tokens used to train the smaller model can then be considered as the token requirement for full training. Figure~\ref{fig:token_required} illustrates our findings, showing a linear relationship between the number of tokens required and the model size. Overall, our results indicate that the Chinchilla scaling law holds true when training T5 with the C4 dataset.
+
+
+
+
+
+
+\textbf{Insight (2): Multi-epoch Degradation} As suggested in Figure~\ref{fig:token_modeling}, we anticipate encountering token scarcity issues as we continue to scale. Consequently, our next investigation revolves around training LLMs with repeated data. To explore this, we randomly select several subsets of the C4 dataset containing approximately $2^{35}$, $2^{29}$, and $2^{27}$ tokens, resulting in each token being repeated $1$, $2^{6}$, and $2^{8}$ times, respectively.
+The results, as presented in Figure~\ref{fig:repeat_token}, demonstrate the expected performance degradation when training LLMs with repeated tokens. Furthermore, we observe that larger models are more susceptible to overfitting under token-crisis conditions. Specifically, when trained without a sufficiently large dataset, T5-XL, despite consuming more computational resources, performs worse than T5-Large having access to $4\times$ data ($2^{29}$ vs $2^{27}$ tokens).
+
+
+\begin{table}[t]
+\small
+\caption{We finetune pre-trained T5 checkpints on SQuAQ\citep{rajpurkar-etal-2016-squad} dataset. The C4 Top-1 Acc denotes the masked token prediction accuracy on C4 validation set before fine-tuning. On SQuAD, we report both Exact Match (EM) and F1 score.}
+\vspace{5pt}
+\centering
+\begin{tabular}{l l ll }
+\toprule 
+Model      &     C4      & \multicolumn{2}{l}{SQuAD} \\  \cmidrule(lr){2-2} \cmidrule(lr){3-4} 
+                & Val Acc & EM & F1  \\ \midrule
+T5 Base ($2^{35}$ tokens, 1 epoch)       & 64.6      & 82.4   & 90.0       \\ 
+T5 Base repeat $2^{8}$  ($2^{27}$ tokens, $2^{8}$ epochs)  &61.7 (-2.9)       & 79.9 (-2.5)  & 88.1 (-1.9)   \\ \bottomrule
+\end{tabular}
+\label{tbl:downstream-std}
+%\vspace{-0.5cm}
+\end{table}
+
+
+
+
+\textbf{Downstream performance check} Given that fine-tuning LLMs allows us to unlock additional capabilities, such as following instructions and aligning with human behavior~\citep{NEURIPS2022_b1efde53}, it is crucial to assess whether the pre-training degradation also adversely affects downstream tasks. Considering that the fine-tuning dataset is typically smaller in scale, we perform fine-tuning on SQuAD~\citep{rajpurkar-etal-2016-squad} dataset using pre-trained checkpoints.
+The results, presented in Table~\ref{tbl:downstream}, indicate that the token-crisis experienced during pre-training indeed has a detrimental impact on downstream tasks. For instance, the model trained with $2^{27}$ tokens, despite achieving a validation set score of 2.9 points in pre-training, experiences a drop of 1.9 points in F1 score for the downstream task.
+
+\begin{figure}[t]
+\vspace{-0.1cm}
+  \begin{minipage}[t]{0.43\textwidth}
+    %\centering
+    \vspace{-0.3cm}
+    \includegraphics[width=\textwidth]{dataset_size.pdf}
+    \caption{We repeatly use $2^{27}$ and $2^{29}$ tokens for $2^8$ times by using batch size 128 and 512 for $2^{18}$ steps.} %. Please note the global training cost of these two runs are different, that is the reason why $4\times$ batch size model is significantly better.
+    \label{fig:dataset_size}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[t]{0.55\textwidth}
+    %\centering
+    \vspace{+0.2cm}
+    %\small
+    \captionsetup{type=table}
+    \caption{We pre-train two T5 models on a subset of C4 and a subset of Wikipedia with the same computation budget. Both of these two subsets have around \ie $2^{27}$ tokens. We then finetune these two checkpoints on SQuAD and report the Exact Match (EM) and F1 score.}
+    \begin{tabular}{l ll }
+    \toprule 
+    Dataset         & \multicolumn{2}{l}{SQuAD} \\   \cmidrule(lr){2-3}  Acc & EM & F1  \\ \midrule
+    C4 ($2^{35}$ tokens)           & 82.4   & 90.0       \\ 
+    C4 ($2^{27}$ tokens)      & 79.9 (-2.5)  & 88.1 (-1.9)   \\
+    Wikipedia ($2^{35}$ tokens)           & 82.4   & 89.9       \\ 
+    Wikipedia ($2^{27}$ tokens)     & 79.4 (-3.0)  & 87.6 (-2.3)   \\
+    \bottomrule
+    \end{tabular}
+    \label{tbl:dataset_quality}
+  \end{minipage}
+
+\vspace{-0.6cm}
+\end{figure}
+
+% \begin{figure}[t]
+% %\vspace{-0.6cm}
+%   \begin{center}
+%     \includegraphics[width=0.5\textwidth]{dataset_size.pdf}
+%   \end{center}
+%   %\vspace{-0.4cm}
+%   \caption{We repeatly use $2^{27}$ and $2^{29}$ tokens for $2^8$ times, which means we train the model with batch size 128 and 512 for $2^{18}$ steps. Please note the global training cost of these two runs are different, that is the reason why $4\times$ batch size model is significantly better.}\label{fig:dataset_size}
+% %\vspace{-0.6cm}
+% \end{figure}
+
+
+\section{What Are the Key Factors Contributing to Multi-Epoch Degradation?}\label{sec:keyfactors}
+
+
+
+
+\subsection{Data}\label{sec:data}
+
+
+\textbf{Insight (3): Dataset Size} In Figure~\ref{fig:repeat_token}, we investigated the impact of dataset size and the number of token repeats while keeping the total computation budget fixed. To further explore the importance of dataset size, we conducted another experiment where we fixed the number of token repeats and varied the dataset size. Specifically, we repeatedly used $2^{27}$ and $2^{29}$ tokens for $2^8$ times, corresponding to training the model with a batch size of 128 and 512 for $2^{18}$ steps.
+As depicted in Figure~\ref{fig:dataset_size}, we observed a significant overfitting phenomenon when training with $2^{27}$ tokens for $2^8$ epochs. However, when using $2^{29}$ tokens for the same number of training steps, the model did not experience degradation. Since we changed both batch size and number of tokens, to ensure a more fair comparison, we conduct another set of ablation study by fixing the batch size in Appendix~\ref{sec:ablation-bsz}.
+%Please note the global training cost of these two runs are different, that is the reason why $4\times$ batch size model is significantly better in general. 
+These results indicate that employing a larger dataset can alleviate the issue of multi-epoch degradation.
+
+
+% \begin{table}[t]
+% \small
+% \caption{We pre-train two T5 models on a subset of C4 and a subset of Wikipedia with the same computation budget. Both of these two subsets have around \ie $2^{27}$ tokens. We then finetune these two checkpoints on SQuAD and report the Exact Match (EM) and F1 score.}
+% \vspace{5pt}
+% \centering
+% \begin{tabular}{l ll }
+% \toprule 
+% Dataset         & \multicolumn{2}{l}{SQuAD} \\   \cmidrule(lr){2-3}  Acc & EM & F1  \\ \midrule
+% C4 ($2^{35}$ tokens)           & 82.4   & 90.0       \\ 
+% C4 ($2^{27}$ tokens)      & 79.9 (-2.5)  & 88.1 (-1.9)   \\
+% Wikipedia ($2^{35}$ tokens)           & 82.4   & 89.9       \\ 
+% Wikipedia ($2^{27}$ tokens)     & 79.4 (-3.0)  & 87.6 (-2.3)   \\
+% \bottomrule
+% \end{tabular}
+% \label{tbl:dataset_quality}
+% %\vspace{-0.5cm}
+% \end{table}
+
+\textbf{Insight (4): Dataset Quality} Taylor \textit{et al.} \cite{taylor2022galactica} successfully trained a 120B model on 106B tokens for 4 epochs. They suggest that dataset quality may be a key factor to avoid overfitting, although they did not conduct experiments to validate this hypothesis. As suggested in~\citep{chowdhery2022palm,touvron2023llama}, we assume Wikipedia dataset~\citep{devlin2018bert} is our high-quality dataset.
+To perform a fair comparison with the C4 dataset, we sampled approximately $2^{27}$ tokens from Wikipedia and trained the model for $2^{19}$ steps. Due to the differences in pre-training data usage, we directly compare the performance on a downstream task. As presented in Table~\ref{tbl:dataset_quality}, the model trained on a subset of Wikipedia exhibits a similar level of degradation to the model trained on a subset of C4. This indicates that the high-quality pre-training data from Wikipedia does not alleviate the issue of multi-epoch degradation. Certainly, the low quality here is relative. For extremely low-quality data like C4 with cleaning, the data quality will probably harm the performance.
+
+
+\subsection{Model}
+
+\begin{figure}[t]
+\vspace{-0.8cm}
+% \centering
+\begin{minipage}[t]{0.45\linewidth}
+% \centering
+\includegraphics[width=1.0\textwidth]{fix_flops_change_params.pdf}
+\subcaption{We use comparable FLOPs and change the number of trainable parameters by using ParamShare with $0.5\times$ parameters, vanilla model with $1\times$ parameters and MoE with $2\times$ parameters.}\label{fig:fix_flops_change_params}
+\end{minipage}\hspace{0.8cm}
+\begin{minipage}[t]{0.45\linewidth}
+\includegraphics[width=1.0\textwidth]{fix_params_change_flops.pdf}
+\subcaption{We fix the number of trainable parameters and change FLOPs by increasing the parameter sharing and re-using of each trainable transformer block.}\label{fig:fix_params_change_flops}
+
+\end{minipage}
+%\vspace{-0.4cm}
+\caption{The dash lines mean this model is trained with enough tokens for one epoch (\ie no repeated data usage). The solid lines mean that these models are trained with limited data for multiple epochs.}
+\vspace{-0.8cm}
+\end{figure}
+
+
+
+
+
+\textbf{Insight (4) \& (5): Decoupling Parameters and FLOPs} Scaling the foundation model is a crucial aspect, but it is unclear which factor plays a more significant role in multi-epoch degradation. During the scaling process, both the number of parameters and the computational cost increase. To disentangle the effects of these two factors, we introduce Mixture-of-Experts (MoE)~\citep{lepikhin2020gshard} and parameter sharing (ParamShare)~\citep{dehghani2018universal} to increase or decrease parameters with comparable computation cost. 
+MoE allows for a substantial increase in the number of parameters while maintaining comparable FLOPs per sample. We implement a T5 MoE model based on ST-MoE~\citep{zoph2022st}, where an MoE layer is added every 4th transformer block, with each MoE layer consisting of 16 experts. 
+On the other hand, ParamShare reduces the number of parameters while keeping the FLOPs fixed. Following ALBERT~\cite{lan2019albert}, we create a T5 ParamShare model with 6 layers of trainable parameters in both the encoder and decoder. We reuse each trainable transformer block twice, resulting in the same FLOPs as the vanilla T5 model but with only around $0.5\times$ the number of parameters.
+
+To analyze the effects of parameter variation while maintaining comparable FLOPs, we use ParamShare with $0.5\times$ parameters, vanilla model with $1\times$ parameters and MoE with $2\times$ parameters. In Figure~\ref{fig:fix_flops_change_params}, we observe that the model with less parameters is less influenced by the usage of repeated tokens, indicating a reduced impact of multi-epoch degradation. On the other hand, the MoE model with more trainable parameters is highly prone to overfitting when trained on limited data. To further investigate the behavior of MoE models, we conduct ablation study on the number of experts in Appendix~\ref{sec:moe-num-experts}. We found MoE models are less data-efficient and more data-hungry~\citep{lou2021cross,kim2021scalable,xue2022go,xue2022one}. While MoE can be a beneficial inductive bias when sufficient data is available, caution should be exercised when using MoE models under token-crisis or in low-resource language scenarios.
+
+
+% \begin{figure}[t]
+% %\vspace{-0.6cm}
+%   \begin{center}
+%     \includegraphics[width=0.5\textwidth]{fix_params_change_flops.pdf}
+%   \end{center}
+%   %\vspace{-0.4cm}
+%   \caption{We conduct experiments with three different configurations: (1) we do not share any of 12 Base-level transformer layers; (2) we fix the number of trainable layers but reuse each layer two times, so this model has $2\times$ FLOPs; (3) we further increase the computation by using 6 wider trainable layers (\ie Large-level transformer layer) and reuse each layer for four times, resulting $4\times$ FLOPs with comparable parameters.}\label{fig:fix_params_change_flops}
+% %\vspace{-0.6cm}
+% \end{figure}
+
+
+To investigate the influence of the computation budget, we fix the number of trainable parameters and vary the FLOPs by conducting experiments with three different configurations:
+(1) None of the 12 base-level transformer layers in both the encoder and decoder are shared.
+(2) We still use 12 layers of trainable parameters but reuse each layer twice, resulting in a model with $2\times$ the FLOPs compared to the baseline.
+(3) We further increase the computation by using 6 wider trainable layers (referred to as large-level transformer layers) and reusing each layer four times. This configuration results in a model with $4\times$ the FLOPs compared to the baseline but with comparable parameters.
+The results, as shown in Figure~\ref{fig:fix_params_change_flops}, indicate that although the model with more computation achieves slightly better performance when scaling the FLOPs alone, we do not observe a clear increase in degradation. 
+
+
+
+% \begin{figure}
+% %\vspace{-0.6cm}
+%   \begin{center}
+%   \includegraphics[width=0.5\textwidth]{moe_base_predict.pdf}
+%   \end{center}
+%   %\vspace{-0.4cm}
+%   \caption{We compare the overfitting trend of a Large-level dense model and a Base-level MoE model. These two models have a comparable number of trainable parameters (784M vs 701M) but the MoE model has only around $0.39\times$ FLOPs and $2.1\times$ throughput.}\label{fig:moe_base_predict}
+% %\vspace{-0.6cm}
+% \end{figure}
+
+\begin{figure}[t]
+\vspace{-0.5cm}
+\centering
+\begin{minipage}[t]{0.45\linewidth}
+\centering
+\includegraphics[width=0.9\textwidth]{moe_base_predict.pdf}
+\subcaption{We compare a Large-level dense model and a Base-level MoE model. Both models have similar trainable parameters (784M vs 701M), but the MoE model has significantly reduced FLOPs (0.39$\times$) and improved throughput (2.1$\times$).}
+\label{fig:moe_base_predict}
+\end{minipage}\hspace{0.8cm}
+\begin{minipage}[t]{0.45\linewidth}
+\includegraphics[width=0.9\textwidth]{moe_large_predict.pdf}
+\subcaption{We compare an XL-level dense model and a Large-level MoE model. Both models have similar trainable parameters (2.8B vs 2.4B), but the MoE model has significantly reduced FLOPs (0.32$\times$) and improved throughput (3.8$\times$).}
+\label{fig:moe_large_predict}
+\end{minipage}
+\vspace{-0.2cm}
+\caption{Comparing the overfitting trend of dense model and MoE model with comparable parameters but different FLOPs.}
+\label{fig:model_predict}
+\vspace{-0.5cm}
+\end{figure}
+
+
+\textbf{Insight (6): Using MoE to Predict the Behavior of Larger Dense Models}
+The previous findings regarding MoE models are relatively negative. However, we made an interesting observation when comparing a large-level dense model and a base-level MoE model. Despite having a comparable number of trainable parameters (784M vs. 701M), the MoE model has only around $0.39\times$ the FLOPs and $2.1\times$ the throughput. Surprisingly, these two models exhibit almost the same overfitting trend, as shown in Figure~\ref{fig:moe_base_predict}. To further investigate this observation on a larger scale, we compare an XL-level dense model with a large-level MoE model. Similar to the previous finding, these models, with comparable parameters (2.4B vs. 2.8B), exhibit a similar overfitting trend, despite the large-level MoE model having only $0.32\times$ the FLOPs and $3.8\times$ the throughput.
+
+We believe that this finding is significant. In the era of large models, training a model at the final large scale is extremely expensive. Therefore, being able to predict the behavior of larger models using smaller and more cost-effective models, as stated in GPT-4~\citep{OpenAI2023GPT4TR}, is highly desirable. With our finding, we can accurately predict the behavior of larger models using sparse MoE models with significantly lower carbon emissions. We provide an example of how this finding can be utilized in Section~\ref{sec:moe-hyper-tuning}.
+
+
+\subsection{Training Objective}
+
+% \begin{figure}[t]
+% %\vspace{-0.6cm}
+%   \begin{center}
+%     \includegraphics[width=0.5\textwidth]{ul2.pdf}
+%   \end{center}
+%   %\vspace{-0.4cm}
+%   \caption{we compare the vanilla masked language modeling (MLM) objective in T5 and UL2 training objective with the same training hyper-parameters under the setting of using enough pre-training data and limited data for multiple epochs, respectively.}\label{fig:ul2}
+% %\vspace{-0.6cm}
+% \end{figure}
+
+
+
+\begin{figure}[t]
+%\vspace{+0.5cm}
+  \begin{minipage}[t]{0.48\textwidth}
+    \centering
+    \vspace{-0.6cm}
+    \includegraphics[width=0.85\textwidth]{ul2.pdf}
+    %\vspace{-0.6cm}
+    \caption{We compare T5 and UL2 with the same training hyper-parameters under two different settings, \ie using enough pre-training data once and repeating limited data for multiple epochs.}\label{fig:ul2}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[t]{0.5\textwidth}
+    %\centering
+    \vspace{+0.2cm}
+    %\small
+    \captionsetup{type=table}
+    \caption{We pre-train T5 and UL2 with limited data for multiple epochs. We then fine-tune these models on SQuAD to check the larger gap of UL2 pre-training performance indeed has a more negative impact on downstream tasks.}\label{tbl:ul2_downstream}
+    \begin{tabular}{l ll }
+    \toprule 
+    Dataset         & \multicolumn{2}{l}{SQuAD} \\   \cmidrule(lr){2-3}  Acc & EM & F1  \\ \midrule
+    MLM w/o repeat           & 82.4   & 90.0       \\ 
+    MLM w/ repeat      & 79.9 (-2.5)  & 88.1 (-1.9)   \\
+    UL2 w/o repeat           & 82.5   & 90.1       \\ 
+    UL2 w/ repeat     & 79.6 (-2.9)  & 87.6 (-2.5)   \\
+    \bottomrule
+    \end{tabular}
+  \end{minipage}
+
+\vspace{-0.6cm}
+\end{figure}
+
+
+
+
+% \begin{table}[t]
+% \small
+% \caption{we pre-train T5 and UL2 with limited data for multiple epochs. We then fine-tune these models on SQuAD to check the larger gap of UL2 pre-training performance indeed has a more negative impact on downstream tasks.}
+% \vspace{5pt}
+% \centering
+% \begin{tabular}{l ll }
+% \toprule 
+% Dataset         & \multicolumn{2}{l}{SQuAD} \\   \cmidrule(lr){2-3}  Acc & EM & F1  \\ \midrule
+% MLM w/o repeat           & 82.4   & 90.0       \\ 
+% MLM w/ repeat      & 79.9 (-2.5)  & 88.1 (-1.9)   \\
+% UL2 w/o repeat           & 82.5   & 90.1       \\ 
+% UL2 w/ repeat     & 79.6 (-2.9)  & 87.6 (-2.5)   \\
+% \bottomrule
+% \end{tabular}
+% \label{tbl:ul2_downstream}
+% %\vspace{-0.5cm}
+% \end{table}
+
+
+
+\textbf{Insight (7): Can Diverse Training Objectives Alleviate Multi-Epoch Degradation?} 
+We investigate whether diverse training objectives can improve models from different aspects and alleviate the token-crisis. Specifically, we study the UL2 training objective proposed by Tay \textit{et al.} \cite{tay2022unifying}, which is a mixture of widely used pre-training objectives (\eg PaLM 2), including next token prediction and masked language modeling. UL2 covers the two most important training objectives in LLM pre-training. Similar to the previous experiments, we use $2^{27}$ tokens for $2^{8}$ epochs. However, since UL2 pre-training objective is more challenging than the objective used in vanilla T5, it is unfair to directly compare the pre-training validation masked token prediction accuracy. Therefore, we report downstream results on the SQuAD dataset for reference. It is important to note that we use the same hyper-parameters as T5 for a fair comparison.
+
+The results, summarized in Figure~\ref{fig:ul2} and Table~\ref{tbl:ul2_downstream}, compare the vanilla masked language modeling (MLM) objective in T5 with the UL2 training objective using the same training hyper-parameters. We examine both scenarios of using enough pre-training data and using limited data for multiple epochs. Although we cannot directly compare the validation accuracy of T5 and UL2, it is evident that UL2 is more prone to overfitting and exhibits a more pronounced multi-epoch degradation. For instance, when using the vanilla masked language modeling objective on the base-level model, the performance does not drop during training. However, with the UL2 objective, the validation accuracy starts to decline early on in the pre-training phase. Moreover, in the downstream evaluation (Table~\ref{tbl:ul2_downstream}), the performance drop of UL2 is larger than that of vanilla T5. However, it is important to highlight that, although UL2 shows negative results in our token-crisis setting, it actually verifies the effectiveness of the UL2 training objective. The findings in this section indicate that UL2 can accelerate the model's learning process, which is precisely the key aspect of a well-designed LLM pre-training objective.
+
+
+
+
+\section{Can Regularization Alleviate Multi-Epoch Degradation?}\label{sec:tricks}
+
+
+\begin{table}[t]
+\small
+%\vspace{-0.8cm}
+\caption{We conduct an ablation study on how widely used tricks, \ie dropout~\citep{JMLR:v15:srivastava14a},  droppath~\citep{huang2016deep}, label-smoothing~\citep{szegedy2016rethinking}, and weight decay~\citep{loshchilov2017decoupled} alleviate token-crisis.}
+\vspace{5pt}
+\centering
+\begin{tabular}{l | llll | l }
+\toprule 
+Limited Data & Dropout & DropPath & Label-Smoothing & Weight Decay & Val Acc \\ \midrule
+\XSolidBrush & \XSolidBrush & \XSolidBrush & \XSolidBrush& \XSolidBrush & 64.5 \\
+\XSolidBrush & \Checkmark & \XSolidBrush& \XSolidBrush & \XSolidBrush & 63.6 \\ \midrule
+\Checkmark & \XSolidBrush & \XSolidBrush & \XSolidBrush & \XSolidBrush & 61.7 \\ 
+\Checkmark & \Checkmark & \XSolidBrush & \XSolidBrush & \XSolidBrush & 62.9 \\ 
+\Checkmark & \Checkmark & \Checkmark & \XSolidBrush & \XSolidBrush & 63.0 \\ 
+\Checkmark & \Checkmark & \XSolidBrush & \Checkmark & \XSolidBrush  & 62.6 \\ 
+\Checkmark & \Checkmark & \XSolidBrush & \XSolidBrush & \Checkmark & Nan \\ 
+      
+\bottomrule
+\end{tabular}
+\label{tbl:tricks_ablation}
+\vspace{-0.6cm}
+\end{table}
+
+
+\textbf{Exploring Widely Used Regularization Technologies} We explore widely used regularization technologies, including dropout~\citep{JMLR:v15:srivastava14a}, droppath~\citep{huang2016deep}, label-smoothing~\citep{szegedy2016rethinking}, and weight decay~\citep{loshchilov2017decoupled}, to alleviate the multi-epoch degradation observed under token-crisis. We present the results of the ablation study in Table~\ref{tbl:tricks_ablation}. Our findings indicate that using dropout alone is highly effective in alleviating the multi-epoch degradation. Adding additional regularizations on top of dropout does not lead to further performance improvements. In fact, introducing weight decay can even make the training process unstable. This finding is actually good news for practitioners because dropout is easy to implement with model parallelism. Although we can see a slight improvement when using label-smoothing, we do not consider it as default because label-smoothing may introduce unforeseen issues for beam search. Regarding DropPath, its effectiveness may be limited in our case due to the use of tensor parallelism~\citep{shoeybi2019megatron} during pre-training. Introducing more communication across GPU or TPU cores to support DropPath may slow down the training process and reduce hardware utilization.
+
+%Overall, these results highlight the importance of dropout as a powerful regularization trick for transformer training. Its simplicity of implementation and ease of hyper-parameter tuning make it an appealing choice for addressing the multi-epoch degradation challenge. However, it is worth noting that other regularization tricks may still be beneficial in different contexts or for specific tasks.
+
+
+
+\textbf{Insight (8): Dropout as an Effective yet Underutilized Regularization Technique in LLM} An interesting observation is that most existing LLMs with over 10 billion parameters, such as GPT-3, PaLM, LLaMA, Chinchilla, and Gopher, do not utilize dropout as a regularization technique. We hypothesize that the reason is that using dropout can potentially slow down the model's learning process when an ample amount of training data is available, as demonstrated in Table~\ref{tbl:tricks_ablation}. However, it is worth noting that Galactica~\citep{taylor2022galactica} is an exception as they incorporate dropout in their training process. This could explain why they were able to successfully train a 120 billion-parameter model without experiencing overfitting, despite emphasizing the importance of data quality as a key factor in their work. Please note We have investigated the influence of data quality in Section~\ref{sec:data} and found it to be less significant than we thought.
+
+\begin{figure}[t]
+\vspace{-0.6cm}
+  \begin{center}
+    \includegraphics[width=0.4\textwidth]{dropout_stage.pdf}
+  \end{center}
+  \vspace{-0.4cm}
+  \caption{We train three Large-level models, including one model without dropout, one model using dropout from start, and one model using dropout after $2^{15}\approx32K$ steps (\ie w/ dropstage). }\label{fig:dropout_stage}
+%\vspace{-0.6cm}
+\end{figure}
+
+
+\textbf{Insight (9): Gradual Integration of Dropout during Training}
+In order to ensure that the model performs well throughout the entire training process, we explore an alternative approach where dropout is introduced only at a later stage of the training process. For the early stage of training, we do not use dropout.
+In Figure~\ref{fig:dropout_stage}, we conducted an experiment using $2^{27}$ tokens for $2^{8}$ epochs, where a Large-level model was pretrained for a total of $2^{19}$ steps. In the first $2^{15}$ steps, we did not employ dropout, and for the remaining $2^{19}-2^{15}$ steps, we applied dropout with a rate of 0.1. The results show that the model with dropout introduced at a later stage performs comparably to the model with dropout from the beginning. Upon closer examination, we also observed that the model using dropout later outperforms the model with dropout from the start during the early stages of pre-training.
+These findings suggest that gradually integrating dropout during training can achieve comparable performance to using dropout from the beginning, while potentially offering some advantages in the initial phases of training. This approach allows for flexibility in the application of dropout, ensuring the model's performance is not compromised during the early training stage.
+
+
+
+\begin{figure}[t]
+\centering
+\vspace{-0.4cm}
+\begin{minipage}[b]{0.32\linewidth}
+\centering
+\includegraphics[width=1.0\textwidth]{base_dropout.pdf}
+\subcaption{Base-level models}
+\label{fig:base_dropout}
+\end{minipage}
+\begin{minipage}[b]{0.32\linewidth}
+\includegraphics[width=1.0\textwidth]{large_dropout.pdf}
+\subcaption{Large-level models}
+\label{fig:large_dropout}
+\end{minipage}
+\begin{minipage}[b]{0.32\linewidth}
+\includegraphics[width=1.0\textwidth]{xl_dropout.pdf}
+\subcaption{XL-level models}
+\label{fig:xl_dropout}
+\end{minipage}
+\vspace{-0.1cm}
+\caption{We set dropout as 0.0 or 0.1 when training at different scales with limited data.}
+\label{fig:diff_scales_dropout}
+\vspace{-0.6cm}
+\end{figure}
+
+
+
+\textbf{Insight (10): Dropout Performance at Different Model Scales} While dropout has shown promising results at the Base-level, we aimed to investigate its effectiveness when scaling up the models. We conducted experiments using dropout with a rate of 0.1 and trained models with limited data for multiple epochs, as shown in Figure~\ref{fig:diff_scales_dropout}. The results clearly demonstrate that dropout can have a significant positive impact on performance across different scales of models.
+However, it is important to note that dropout is not a perfect solution, particularly when dealing with XL-scale model. Even with dropout applied, there is still a slight drop in validation accuracy at the later stages of training for the XL-level model. This suggests that while dropout can effectively mitigate overfitting and improve performance, it may face additional challenges when scaling up to larger models.
+
+\section{MoE Hyper-Parameter Tuning}\label{sec:moe-hyper-tuning}
+
+We discovered that as we scale up, dropout may necessitate additional hyper-parameter tuning. However, conducting hyper-parameter tuning at a large scale can be extremely costly. For instance, in our specific scenario, training T5-XL five times would require approximately \$37,000 USD for renting Google Cloud TPUs. Considering even larger models like PaLM and GPT-4, trained on even larger datasets, this cost becomes unmanageable. To address this issue and minimize the expense associated with hyper-parameter tuning, we leverage the insight that a Sparse MoE model can approximate the optimal hyper-parameters by predicting the behavior of a larger dense model.
+
+\begin{figure}[t]
+\centering
+\vspace{-1.5cm}
+\begin{minipage}[t]{0.4\linewidth}
+% \centering
+\includegraphics[width=1.0\textwidth]{sweet_dropout.pdf}
+\vspace{-0.5cm}
+  \caption{We first sweep dropout from 0.1 to 0.5 for Large-scale MoE and then sweep the same range for XL-scale Dense model to validate.}\label{fig:sweet_dropout}
+
+\end{minipage}\hspace{0.8cm}
+\begin{minipage}[t]{0.4\linewidth}
+\includegraphics[width=1.0\textwidth]{scaling_dropout.pdf}
+\vspace{-0.5cm}
+  \caption{We compare the model trained with enough data and the models trained with limited data with and without dropout.}\label{fig:scaling_dropout}
+\end{minipage}
+\vspace{-0.6cm}
+
+\end{figure}
+
+
+
+
+
+% \begin{figure}[t]
+% %\vspace{-0.6cm}
+%   \begin{center}
+%     \includegraphics[width=0.5\textwidth]{sweet_dropout.pdf}
+%   \end{center}
+%   %\vspace{-0.4cm}
+%   \caption{We first sweep dropout rate \{0.1, 0.2, 0.3, 0.4, 0.5\} for Large-scale MoE model and then sweep the same range of dropout rate for XL-scale Dense model.}\label{fig:sweet_dropout}
+% %\vspace{-0.6cm}
+% \end{figure}
+
+
+
+
+
+\textbf{Insight (11): Determining Optimal Hyper-parameters for Dense Models through MoE Sweeping} 
+We first validate the aforementioned insight regarding MoE behavior prediction still holds after incorporating dropout in Appendix~\ref{sec:moe-dropout-verify}. Then, to identify the optimal hyper-parameters for dense models, we employed a two-step process. First, we conducted a sweeping analysis of the dropout rate in the Large-scale MoE model across the range of \{0.1, 0.2, 0.3, 0.4, 0.5\}. Subsequently, we performed the same sweeping procedure for the XL-scale Dense model to validate the accuracy of the dropout rate identified by the MoE model. As illustrated in Figure~\ref{fig:sweet_dropout}, both the Dense XL and MoE Large models exhibit nearly identical curves. Notably, they indicate that setting the dropout rate to 0.2 or 0.3 yields the optimal performance. 
+
+This discovery holds significant practical value for practitioners. The advantage of leveraging the MoE model for hyper-parameter tuning is evident. It requires considerably fewer computational resources compared to the dense model, despite possessing comparable parameters. This translates into substantial savings in computation resources for debugging and hyper-parameter tuning. For example, in this specific set of experiments, sweeping the MoE Large model incurred an expenditure of approximately 10.6K USD on the Google Cloud Platform. Conversely, training the Dense XL model only once required 7.4K USD. Consequently, the entire development process, including sweeping, amounted to a total cost of 18K USD, which is only 0.48 times the expense of directly tuning the Dense XL model. As we scale up to larger models and conduct more experiments, the potential of MoE Hyper-Parameter Tuning to conserve computational resources and reduce carbon emissions becomes increasingly promising for future endeavors.
+
+% \begin{figure}[t]
+% %\vspace{-0.6cm}
+%   \begin{center}
+%     \includegraphics[width=0.5\textwidth]{scaling_dropout.pdf}
+%   \end{center}
+%   %\vspace{-0.4cm}
+%   \caption{We compare the model trained with enough data and the models trained with limited data with and without dropout.}\label{fig:scaling_dropout}
+% %\vspace{-0.6cm}
+% \end{figure}
+
+\textbf{Final Performance after Dropout Sweep} 
+Having determined the appropriate dropout rate based on the MoE model, we proceed to scale up the models accordingly. Figure~\ref{fig:scaling_dropout} illustrates the outcomes of this scaling process. Notably, we only used around $2^{27}$ tokens, which should be only able to train a 16M T5 model according to Chinchilla scaling law. However, we can see the model can still improve when scaling to 2.8B parameters, \ie over $1700\times$ larger than the 16M model. We believe this is a significant result for such a simple method, \ie introducing an appropriate dropout rate via MoE Hyper-Parameter Tuning.
+
+
+%Even when employing a suitable dropout rate, there is still a substantial gap between models trained with full tokens (without dropout) and those trained with a limited number of tokens through data repetition. This discrepancy arises because, for the purpose of clarity, we repeated only a small number of tokens (i.e., $2^{27}$) across multiple epochs ($2^8$ epochs). In more typical scenarios, such as repeating 1T tokens for 10 epochs, the observed gap would probably be smaller.
+
+
+% We finally use the dropout rate found based on MoE to scale the models up. In Figure~\ref{fig:scaling_dropout}, we can see, when using an appropriate dropout rate, model trained by repeating much fewer tokens many times can still get benefits when scaling up to more parameters. Please note the gap between full tokens without dropout and limited tokens with repeated data in Figure~\ref{fig:scaling_dropout} is large because we repeat only a small number of tokens ($2^{27}$) many times ($2^{8}$ epochs) for a more clear comparison. This gap would be smaller under a more common setting such as repeating 1T tokens for 10 epochs.
+
+%Please note the gap between full tokens without dropout and limited tokens with repeated data in Figure~\ref{fig:scaling_dropout} is large because we repeat only $2^{27}$ tokens many times ($2^{8}$ epochs) for a more clear comparison. In the real-world pre-training setting such as training a LLM with 5T parameters by repeating 10T tokens for only 10 epochs, this gap may be much smaller. We do not have enough computation resources to conduct experiments on this unprecedented scale, but we show this gap would be smaller when using 
+
+%\section{Discussion}
+
+% We can also observe that more data is still meaningful. The gap in Figure~\ref{fig:scaling_dropout} is large because we use only $2^{27}$ tokens and repeat many times ($2^{8}$ epochs) for a more clear comparison. In the real-world LLM pre-training setting, based on our modeling in Figure~\ref{fig:token_modeling}, $2^{8}$ epochs of tokens in stock have been able to train a 128T LLM.
+
+
+%According to Figure~\ref{fig:repeat_token}, this gap would be significantly smaller when using fewer repeats.
+
+
+\section{Conclusion}
+
+In this study, we investigated the token-crisis problem and thoroughly explored various approaches to training LLMs with repeated tokens. Our investigation covered what is token-crisis, what would happen if we use repeated data under token crisis, why there is multi-epoch degradation when repeating data, and how can we alleviate this issue with off-the-shelf approaches. We also demonstrated the effectiveness of using MoE to predict the behavior of more computationally expensive dense models, offering a valuable means of accelerating LLM development more broadly.
+
+\section*{Acknowledge}
+
+Yang You's research group is being sponsored by NUS startup grant (Presidential Young Professorship), Singapore MOE Tier-1 grant, ByteDance grant, ARCTIC grant, SMI grant and Alibaba grant. We also thank the TPU computing resources from Google TRC (TPU Research Cloud) grant.
+
+%four key aspects: data, model, training objectives, and tricks. Through our research, we uncovered several insightful findings that we believe can greatly benefit the LLM research community, particularly in scaling LLMs with limited off-the-shelf data.
+%For instance, we demonstrated the effectiveness of using Mixture-of-Experts (MoE) models to predict the behavior of more computationally expensive dense models, offering a valuable means of accelerating LLM development more broadly.
+
+% Our future work will focus on mitigating the token-crisis problem through two primary avenues: generating additional data using existing LLMs and designing more data-efficient model architectures. Given that the number of parameters plays a critical role in controlling LLM overfitting, we plan to explore adaptive parameter allocation strategies that assign different activated parameters to frequent samples and rare samples. This adaptive approach holds the potential to significantly enhance data efficiency in LLM training.
+
+
+%We found dropout is a very powerful trick to alleviate the LLM multi-epoch degradation, although we usually do not use it for faster learning during LLM pre-training. 
+
+
+% \section{MoE}
+
+
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\printbibliography
+
+\newpage
+\appendix
+\noindent\textbf{\Large Appendix}
+
+\section{Frequent Asked Questions}
+
+We list the potential frequent asked questions and the point-to-point answers as follows:
+
+
+\subsection{Selection of Encoder-Decoder T5 Model and C4 Dataset}
+
+Firstly, the C4 dataset is a widely studied large-scale pre-training dataset that has been open-sourced. It is relatively easier to prepare and maintain compared to the dataset used in LLaMA. T5 was originally proposed and developed in conjunction with the C4 dataset. Therefore, using the T5 model with the C4 dataset aligns with established practices and facilitates comparability with prior research.
+
+Furthermore, while decoder-only architectures have been predominant in existing Language Models (LLMs), it is still unclear whether decoder-only models consistently outperform encoder-decoder architectures. Recent research by Tay \textit{et al.} \cite{tay2022unifying} demonstrated that encoder-decoder architectures exhibit superior performance at the 20B scale. Additionally, the specific architecture employed by OpenAI's GPT-4 remains unknown to external researchers. Consequently, there is ongoing debate and uncertainty regarding the superiority of decoder-only models.
+
+In reality, the difference between decoder-only and encoder-decoder architectures may not be as significant as initially perceived. Both architectures utilize an autoregressive decoder, and the main distinction lies in determining which tokens are fed into the encoder and which ones are fed into the decoder. Another difference arises in multi-turn dialogue systems, where encoder-decoder architectures may require recomputation of certain activations.
+
+\subsection{Lack of Significant Improvement of UL2 in Table~\ref{tbl:ul2_downstream}}
+
+The lack of significant improvement of UL2 over the vanilla T5 model in Table~\ref{tbl:ul2_downstream} can be attributed to a specific difference in our implementation. Unlike the original UL2 implementation by Tay \textit{et al.} \cite{tay2022unifying}, we did not utilize dropout in our experiments. By removing dropout from the UL2 training process, it is possible that we experienced a performance drop, leading to the comparable results observed between UL2 and the vanilla T5 model in our experiments.
+
+\subsection{Reason for Not Training a Larger Scale Model (10B+)}
+
+While training a larger-scale model like 10B+ parameters would indeed provide valuable insights, the primary reason for not doing so is the limitation of computational resources. Conducting a comprehensive set of experiments covering various aspects of the token-crisis issue requires substantial computational power, which includes significant financial costs, time requirements, and carbon emissions. Therefore, in order to balance these factors and optimize our research efforts, we decided to scale up to approximately 3B parameters to explore the token-crisis problem within the available resource constraints.
+
+\subsection{Performance Drop Without Enough Data Even If We Are Using Dropout}
+
+Even when employing a suitable dropout rate, there is still a substantial gap between models trained with full tokens (without dropout) and those trained with a limited number of tokens through data repetition. This discrepancy arises because, for the purpose of clarity, we repeated only a small number of tokens (i.e., $2^{27}$) across multiple epochs ($2^8$ epochs). In more typical scenarios, such as repeating 1T tokens for 10 epochs, the observed gap would probably be smaller.
+
+
+
+
+
+% \end{itemize}
+
+\newpage
+
+\section{Related Work}
+
+
+
+
+\subsection{Multi-Epoch LLM Pre-training}
+
+The topic of training LLMs for multiple epochs only received little attention in existing literature. Hoffmann \textit{et al.} \cite{hoffmann2022training} suggested that training LLMs for multiple epochs may have detrimental effects. On the other hand, Tay \textit{et al.} \cite{tay2022unifying} trained a 120B model for 4 epochs without observing multi-epoch degradation, although they attribute their success primarily to the high-quality data used. biderman \textit{et al.} \cite{biderman2023pythia} found that deduplicating pre-training data had no clear benefit on language modeling performance. Additionally, Hernandez \textit{et al.} \cite{hernandez2022scaling} discovered that repeating a small fraction of data during LLM pre-training can significantly harm model performance.
+
+In contrast to these works, our study focuses specifically on the token-crisis problem and investigates the consequences of further scaling LLMs by repeating a fixed amount of data multiple times. To the best of our knowledge, ours is the first paper to explore the token-crisis and train LLMs for multiple epochs. Many of the insights we present, such as using Mixture-of-Experts (MoE) models to predict the behavior of more computationally expensive dense models, are novel and valuable contributions to our research community.
+
+\subsection{Pre-training with Synthetic Data}
+
+Existing research has examined the concept of pre-training LLMs with synthetic data as a means of mitigating data scarcity. For instance, Ri \textit{et al.} \cite{ri-tsuruoka-2022-pretraining} designed artificial languages with structural properties that mimic natural language, while Wu \textit{et al.} \cite{NEURIPS2022_89379d5f} successfully pre-trained LLMs through simpler synthetic tasks. Other works, such as TAPEX~\citep{liu2021tapex}, address the challenge of data scarcity in specific domains.
+
+In contrast, our paper focuses on training LLMs in the context of the token-crisis problem with multiple epochs, which is distinct from the perspective of using synthetic data. However, we believe this line of research is relevant because it has the potential to alleviate the token-crisis in LLMs, thereby addressing the associated challenges and limitations.
+
+
+\section{Limitations}
+
+\textbf{Scalability to State-of-the-Art Models:} Although we conducted experiments on models with 3B parameters, we acknowledge that we did not explore the performance of our approach on state-of-the-art scale models, such as the 175B-parameter GPT-3. The primary reason for this limitation is the lack of computational resources required for running experiments on very large models multiple times. Given the token-crisis scenario and the need for extensive experimentation, conducting experiments on larger models remains prohibitively expensive.
+
+\textbf{Dataset Quality Assumptions:} Our Insight (4) relies on using C4 as low-quality data and Wikipedia as high-quality data. While we acknowledge that the data quality of C4 is acceptable, we adopted this setting because many existing LLMs have utilized Wikipedia for pre-training for at least one epoch, and this choice is supported by claims of better data quality. It is worth noting that other datasets with different characteristics may yield different results when applied to our approach.
+
+\textbf{Limitations of Insight (6) in Handling FLOPs Disparities:}  Our Insight (6) may encounter challenges when dealing with significant gaps in FLOPs between models. For example, we found that the Base-level MoE model with 64 experts in every MoE layer cannot perfectly predict the behavior of an XL-level dense model, although it still exhibits a higher susceptibility to overfitting compared to the Base-level MoE model with 16 experts. This observation aligns with the notion that very sparse models may have under-trained parameters, leading to imperfect predictions. Further investigation is necessary to address this limitation and enhance the accuracy of Insight (6) when confronted with substantial FLOPs disparities.
+
+
+
+
+\newpage
+
+\section{Ablation Study on Batch Size of Larger Dataset Size}\label{sec:appendix-ablation-bsz}
+
+\begin{figure}[h]
+%\vspace{-0.6cm}
+  \begin{center}
+    \includegraphics[width=0.48\textwidth]{dataset_size_longer.pdf}
+  \end{center}
+  %\vspace{-0.4cm}
+  \caption{We fix the batch size and number of repeats, and then train the model with 4 times more steps to go through 4 times more tokens.}\label{fig:batch_size_ablation}
+%\vspace{-0.6cm}
+\end{figure}
+
+We can see when using smaller batch size than what we did in Figure~\ref{fig:dataset_size}, model still has little multi-epoch degradation. This further verifies that larger dataset can alleviate the multi-epoch degradation.
+
+
+\section{Ablation Study on Number of Experts for MoE}\label{sec:moe-num-experts}
+
+
+\begin{figure}[h]
+%\vspace{-0.6cm}
+  \begin{center}
+    \includegraphics[width=0.48\textwidth]{moe_expert_scaling.pdf}
+  \end{center}
+  %\vspace{-0.4cm}
+  \caption{we use relatively limited tokens to train three T5-MoE models with 4, 16, 64 experts at each MoE layer. We can observe MoE with more experts, which have more trainable parameters have a more serious multi-epoch degradation.}\label{fig:moe_expert_scaling}
+%\vspace{-0.6cm}
+\end{figure}
+
+
+To further investigate the behavior of MoE models, we train three T5-MoE models with 4, 16, and 64 experts using a relatively limited number of tokens\footnote{Following the convention in~\citep{zoph2022st}, the number of experts represents the number of expert FFNs in each MoE layer. In our case, we use one MoE layer every 4 layers in both the encoder and decoder, resulting in a total of 6 MoE layers in the T5 MoE Base model. For more details about the MoE hyperparameters, please refer to Appendix~\ref{sec:default-hyper-parameters}.}. In Figure~\ref{fig:moe_expert_scaling}, we observe that as the number of trainable parameters increases with more experts, the MoE models experience more severe multi-epoch degradation. These findings indicate that the additional parameters in MoE models are indeed leading to faster memorization of the training data. 
+
+
+
+
+\section{Encoder-Decoder vs Decoder-Only}\label{sec:en-de}
+\begin{figure}[h]
+\vspace{-0.4cm}
+  \begin{center}
+    \includegraphics[width=0.4\textwidth]{ende_vs_demoe.pdf}
+  \end{center}
+  %\vspace{-0.4cm}
+  \caption{We train three models (\ie encoder-decoder, decoder-only, MoE-based decoder-only) with the same data (C4) and training objective (Span-Corruption). }\label{fig:ende_de_demoe}
+\vspace{-0.3cm}
+\end{figure}
+
+We can see encoder-decoder is clearly better than decoder-only but the MoE based decoder-only model having comparable trainable parameters with encoder-decoder performs almost the same as encoder-decoder model.  Therefore, as suggested by UL2 paper, the different behaviours of encoder-decoder and decoder-only are more from the training objective instead of model architecture. That is the reason why we explore UL2 training objective in our Section 3.3.
+
+
+
+\section{Ablation Study on Batch Size of Larger Dataset Size}\label{sec:ablation-bsz}
+
+\begin{figure}[h]
+\vspace{-0.4cm}
+  \begin{center}
+    \includegraphics[width=0.4\textwidth]{dataset_size_longer.pdf}
+  \end{center}
+  %\vspace{-0.4cm}
+  \caption{We fix the batch size and number of repeats, and then train the model with 4 times more steps to go through 4 times more tokens.}\label{fig:dataset_size_longer}
+\vspace{-0.4cm}
+\end{figure}
+
+We can see when using smaller batch size than what we did in Figure~\ref{fig:dataset_size_longer}, model still has little multi-epoch degradation. This further verifies that larger dataset can alleviate the multi-epoch degradation.
+
+\section{Downsteam Evaluation}
+
+\begin{table}[h]
+\small
+\vspace{-0.5cm}
+\caption{The updated fine-tuning results. We include the standard deviation of 5 runs.}
+\vspace{5pt}
+\centering
+\begin{tabular}{l ll ll }
+\toprule 
+Model      & BoolQ  &  RTE      & \multicolumn{2}{l}{SQuAD} \\  \cmidrule(lr){2-2} \cmidrule(lr){3-3} \cmidrule(lr){4-5} 
+                & Acc & Acc & EM & F1  \\ \midrule
+C4-SpanCorr-Repeat1    & 77.0$\pm$0.7   & 68.9$\pm$0.8     & 82.3$\pm$0.9   & 90.0$\pm$0.9      \\ 
+C4-SpanCorr-Repeat$2^{8}$   & 73.8$\pm$1.0   & 66.4$\pm$0.3     & 80.0$\pm$0.6   & 88.1$\pm$0.5      \\ 
+C4-UL2-Repeat1       & 78.8$\pm$0.9   & 72.2$\pm$1.2     & 82.3$\pm$0.8   & 90.2$\pm$0.7      \\ 
+C4-UL2-Repeat$2^{8}$   & 74.5$\pm$0.6   & 68.4$\pm$0.7     & 79.3$\pm$1.1   & 87.3$\pm$1.2     \\ 
+C4-Wiki-Repeat1       & 74.2$\pm$0.7   & 69.3$\pm$1.1     & 82.6$\pm$0.8   & 90.1$\pm$0.6      \\ 
+C4-Wiki-Repeat$2^{8}$  & 71.4$\pm$0.4   & 64.9$\pm$0.5     & 79.6$\pm$1.0   & 87.9$\pm$1.3     \\  \bottomrule
+\end{tabular}
+\label{tbl:downstream}
+%\vspace{-0.5cm}
+\end{table}
+
+
+
+%\newpage
+\section{Verification of MoE Behavior Prediction with Dropout}\label{sec:moe-dropout-verify}
+
+
+\begin{figure}[h]
+%\vspace{-0.6cm}
+  \begin{center}
+    \includegraphics[width=0.5\textwidth]{moe_dropout_check.pdf}
+  \caption{We add dropout to train two models with comparable trainable parameters, \ie Large-level Dense model and Base-level MoE. }\label{fig:moe_dropout_check}
+  \end{center}
+  %\vspace{-0.4cm}
+
+%\vspace{-0.6cm}
+\end{figure}
+
+
+
+
+To validate the aforementioned insight regarding MoE behavior prediction, we conducted an examination incorporating dropout, as depicted in Figure~\ref{fig:moe_dropout_check}. Remarkably, our findings reveal that the MoE model maintains a remarkably similar training behavior to that of the dense model, even when utilizing additional computation resources and possessing comparable parameters. This observation further reinforces the effectiveness of the MoE model in approximating the behavior of larger, denser models.
+
+\newpage
+
+\section{Default Hyper-parameters}\label{sec:default-hyper-parameters}
+
+\begin{table}[h]
+%\vspace{-0.5cm}
+% \small
+\caption{Default pre-training hyper-parameters.}
+\vspace{5pt}
+\centering
+\begin{tabular}{l l}
+\toprule 
+Name  &  Value    \\ \midrule
+Learning Rate    & 0.01 \\
+Learning Rate Decay & Square Root Decay (0.8) \\
+Optimizer & Adafactor \\
+Batch Size & 128 \\
+Training Steps & 524288 ($2^{19}$) \\
+Dropout & 0.0 \\
+DropPath & 0.0 \\
+Label Smoothing & 0.0 \\
+Weight Decay & 0.0 \\
+\bottomrule
+\end{tabular}
+\label{tbl:hyper-parameters}
+%\vspace{-0.5cm}
+\end{table}
+
+\begin{table}[h]
+%\vspace{-0.5cm}
+% \small
+\caption{Default MoE hyper-parameters.}
+\vspace{5pt}
+\centering
+\begin{tabular}{l l}
+\toprule 
+Name  &  Value    \\ \midrule
+Num of Experts    & 16 \\
+MoE Layer Layout & Every fourth \\
+Train Capacity Factor & 1.25 \\
+Test Capacity Factor & 2.0 \\
+Num Selected Experts & 2 \\
+Router Weight  & 1e-2 \\
+Z-loss Weight  & 1e-4 \\
+\bottomrule
+\end{tabular}
+\label{tbl:moe-hyper-parameters}
+%\vspace{-0.5cm}
+\end{table}
+
+We follow T5 1.1 implementation in T5x and ST-MoE implementation in Flaxformer. The default hyper-parameters are shown in Table~\ref{tbl:hyper-parameters} and Table~\ref{tbl:moe-hyper-parameters}. The pre-training parameters in Table~\ref{tbl:hyper-parameters} are used in both dense and MoE model training.
+
+
+We conduct experiments on Google Cloud TPU. For Base-level and Large-level models, we use 32 TPU v3 cores, and 128 TPU v3 cores are employed to train XL-level models.
+
+
+\newpage
+
+\section{Model Configurations}\label{sec:detailed-configuration}
+
+
+\begin{table}[h]
+%\vspace{-0.5cm}
+% \small
+\caption{Default MoE hyper-parameters.}
+\vspace{5pt}
+\centering
+\begin{tabular}{l llllll}
+\toprule 
+Scale  & \# Enc Layers & \# Dec Layers & \# Heads &  Hidden Dim & MLP Dim & \#Params\\ \midrule
+Small   & 8 & 8 & 6 & 512 & 1024 & 78M\\
+Mid   & 10 & 10 & 10 & 640 & 1280 & 140M\\
+Base   & 12 & 12 & 12 & 768 & 2048 & 247M\\
+Base Plus & 16 & 16 & 14 & 896 & 2560 & 432M\\
+Large & 24 & 24 & 16 & 1024 & 2816 & 783M\\
+Large Plus & 24 & 24 & 22 & 1408 & 4096 & 1.4B \\
+XL & 24 & 24 & 32 & 2048 & 5120 & 2.8B \\
+\bottomrule
+\end{tabular}
+\label{tbl:model-configs}
+%\vspace{-0.5cm}
+\end{table}
+
+For Base, Large, XL scale, we follow the default setting in T5x. To obtain a more smooth scaling curve, we add more configurations like Small, Mid, Base Plus and Large Plus. Please note the XL scale was not used to draw the scaling curve in Figure~\ref{fig:token_required} because of the expensive training cost.
+
+\newpage
+
+\section{More Results}
+
+In this section, we share more other approaches we explored.
+
+\subsection{Training with Larger or Smaller Batch}
+
+Empirically, larger batch size is easier to overfit, and smaller batch size can usually reduce overfitting. We found this widely-used commonsense still holds in LLM token-crisis. However, we think this trick is not that useful because training LLM with smaller batch size is inefficient.
+
+%in Figure~\revise{123}. 
+
+
+\subsection{Training with Longer or Shorter Sequence}
+
+We train the same amount of tokens with longer or shorter sequences with the same total token usage. That is, for longer sequence, we train for fewer steps and more steps are used to train with shorter sequences. We found using longer sequences can achieve better performance.
+
+
+\subsection{Randomly Activating One Embedding Layer from Multiple Embedding Layers}
+
+We suggested the over-fitting can be alleviated when adding more randomness into input embeddings. We therefore init multiple embedding layers and randomly activate one of these embedding layers for each input sequence. However, we did not observe this design can alleviate multi-epoch degradation even if we regularize different embedding layers have different embeddings. 
+
+\subsection{Adding Dropout Before and After Linear Layers}
+
+Considering dropout is very effective, we tried to add dropout before and after each linear layer. Adding dropout after one layer means a column-wise weight masking. Adding dropout before and after one layer denotes element-wise weight masking. We found such regularization is too strong and makes LLM achieve inferior performance even if we set a small dropout rate on the XL-level model.
+
+
+
+
+
+
+
+
+
+\end{document}

@@ -1,0 +1,1177 @@
+                                                 Cost-Optimal Grouped-Query Attention for Long-Context Modeling
+
+                                                              Yingfa Chen1∗ , Yutong Wu2∗ , Chenyang Song1 , Zhenleng Thai1 ,
+                                                                Xingyu Shen1 , Xu Han1† , Zhiyuan Liu1† , and Maosong Sun1
+                                                           1
+                                                             NLP Group, DCST, IAI, BNRIST, Tsinghua University, Beijing, China
+                                                             2
+                                                               SIST, University of Science and Technology Beijing, Beijing, China
+                                                                   chenyingfa1999@gmail.com, wuyutong_yuna@163.com
+                                                                             {han-xu,liuzy}@tsinghua.edu.cn
+
+
+                                                                   Abstract                           maintaining quality to ensure cost-effectiveness
+                                                                                                      (Hoffmann et al., 2022; Hu et al., 2024; Abdin
+                                                 Grouped-Query Attention (GQA) is a widely
+arXiv:2503.09579v3 [cs.CL] 26 Sep 2025
+
+
+
+
+                                                                                                      et al., 2024). However, the vast majority of
+                                                 adopted strategy for reducing the computa-
+                                                                                                      LLMs are Transformer-based (Vaswani et al., 2017;
+                                                 tional cost of attention layers in large language
+                                                 models (LLMs). However, current GQA con-             Grattafiori et al., 2024), and the cost of running
+                                                 figurations are often suboptimal because they        such architectures does not solely depend on the
+                                                 overlook how context length influences infer-        model size. Specifically, during inference, a cache
+                                                 ence cost. Since inference cost grows with           of keys/values (i.e., KV cache) is maintained to
+                                                 context length, the most cost-efficient GQA          avoid recomputation in attention layers, resulting in
+                                                 configuration should vary accordingly. In this       memory costs that scale linearly with the context
+                                                 work, we analyze the relationship among con-
+                                                                                                      length. Also, attention layers include the computa-
+                                                 text length, model size, GQA configuration,
+                                                 and model loss, and introduce two innovations:
+                                                                                                      tion of pair-wise attention scores and the weighted
+                                                 (1) we decouple the total head size from the hid-    summation of value vectors, incurring per-token
+                                                 den size, enabling more flexible control over        computational costs that scale linearly with the
+                                                 attention FLOPs; and (2) we jointly optimize         context length. Many studies have aimed to re-
+                                                 the model size and the GQA configuration to ar-      duce these costs, including KV cache compression
+                                                 rive at a better allocation of inference resources   (Li et al., 2024a), prompt compression (Pan et al.,
+                                                 between attention layers and other components.       2024; Li et al., 2024b), sparse attention (Lou et al.,
+                                                 Our analysis reveals that commonly used GQA
+                                                                                                      2024; Ge et al., 2024; Jiang et al., 2024), etc.
+                                                 configurations are highly suboptimal for long-
+                                                 context scenarios. Moreover, we propose a               One of the most widely used techniques for re-
+                                                 recipe for deriving cost-optimal GQA configu-        ducing memory costs is Grouped-Query Attention
+                                                 rations. Our results show that for long-context      (GQA) (Ainslie et al., 2023), in which attention
+                                                 scenarios, one should use fewer attention heads      heads are split into groups and the heads in each
+                                                 while scaling up the model size. Configura-          group share the same KV vectors. Current imple-
+                                                 tions selected by our recipe can reduce both         mentations of GQA have two critical limitations:
+                                                 memory usage and FLOPs by more than 50%
+                                                                                                      (1) Most existing models unnecessarily restrict the
+                                                 compared to Llama-3’s GQA, with no degrada-
+                                                 tion in model capabilities. Our findings offer
+                                                                                                      total number of head dimensions to be equal to the
+                                                 valuable insights for designing efficient long-      hidden size, resulting in redundant FLOPs (floating-
+                                                 context LLMs.1                                       point operations). (2) When deciding on the num-
+                                                                                                      ber of attention heads and groups, current models
+                                                                                                      do not take into account the influence of context
+                                         1       Introduction                                         length on the computational and memory costs, re-
+                                         It is well established that increasing the size of           sulting in suboptimal long-context configurations.
+                                         large language models (LLMs) can improve their                  In this paper, we aim to optimize the cost-
+                                         language modeling qualities (Hestness et al., 2017;          effectiveness of GQA Transformers from the per-
+                                         Kaplan et al., 2020). Thus, many prior studies               spective of resource allocation. Concretely, we
+                                         have focused on minimizing model size while                  categorize inference costs into time-invariant costs,
+                                                                                                      which are constant with respect to context length
+                                             1
+                                              The code and models are available at https://www.       (e.g., fixed model parameters), and time-variant
+                                         github.com/THUNLP/cost-optimal-gqa.
+                                            * Equal contributions.                                    costs, which grow with context length (e.g., at-
+                                            †
+                                              Corresponding authors.                                  tention computation and KV cache). To freely
+  Change 1: Decoupling hidden size and head number                                Result Inference costs (@128K)
+    Adjustable        Fixed ❌                Adjustable         Adjustable ✅      Allocate more resources to time-invariant parts
+                                                                                                                                            1.2B
+                    Attention                                    Attention            Time-variant          Time-invariant
+    KV Cache                                 KV Cache
+                      FLOPs                                        FLOPs
+          Ordinary GQA                                                                                                               1.8B
+                                   Flexible adjustment of time-variant compute
+
+
+  Change 2: Joint optimization of GQA configuration and model size                           -50.8%                    -57.8%
+                                                                                                                                            1.2B
+    Adjustable        Fixed ❌                Adjustable         Adjustable ✅
+   Time-variant   Time-invariant            Time-variant      Time-invariant
+   memory/FLOPs    memory/FLOPs            memory/FLOPs       memory/FLOPs                                                          1.8B
+                                                                                     Llama-3 Ours              Llama-3 Ours
+                                                                                       GQA                       GQA
+        Faster but worse                         Faster and better                   Memory (GB)               FLOPs (1e15)
+
+
+
+Figure 1: Our approach makes two changes to unlock the flexible adjustment of memory and compute allocation be-
+tween time-invariant components (model weights) and time-variant components (KV cache/attention computation).
+Optimizing resource allocation results in cost-optimal GQA configuration (“Ours”), which has markedly lower
+memory and FLOPs usage compared to Llama-3, without compromising model capabilities.
+
+
+control the resource allocated to time-variant and                                 pute resources among time-variant and time-
+time-invariant parts, we make two changes to the                                   invariant components.
+existing GQA design procedures: (1) By decou-
+pling the total number of head dimensions and the                                • We present the first rigorous study to search
+model hidden size, we unlock a free hyperparam-                                    for the optimal GQA configuration in terms
+eter to control the compute allocated to attention                                 of inference costs for reaching a target loss.
+operations. (2) We jointly optimize GQA config-                                    Our three-step approach can precisely iden-
+urations and model size to modulate the resource                                   tify cost-optimal GQA configurations without
+allocation between time-variant and time-invariant                                 exhaustively sweeping many configurations.
+components. After these changes, we can answer
+                                                                                 • Our framework reveals valuable insights for
+our main research question:
+                                                                                   designing more cost-effective Transformer
+     Given an expected inference context                                           LLMs, especially in long-context scenarios.
+     length and target loss, how can GQA be
+                                                                             2    Related Work
+     configured to minimize inference costs
+     while achieving that loss?                                            This paper explores how to build efficient long-
+                                                                           context LLMs based on GQA Transformer. Please
+To avoid sweeping all combinations of model                                refer to the LLM-related surveys (Zhao et al., 2023;
+sizes and GQA configurations, we present a three-                          Lu et al., 2024) for more details on LLMs.
+step search procedure (detailed in Section 4).
+Our approach is empirically validated on models                            Grouped-Query Attention The original Trans-
+up to 1.2B parameters. Empirical results show                              former model employs multi-head attention (MHA)
+that the widely used Llama-3 GQA configuration                             (Vaswani et al., 2017), in which each layer consists
+(Grattafiori et al., 2024) is highly suboptimal at                         of multiple heads that are computed in parallel,
+128K (which is the context length supported by                             and the layer’s output is the sum of the heads’ out-
+Llama-3). Instead, our approach gives a configu-                           puts. To improve decoding efficiency, especially
+ration that achieves the same loss while reducing                          improving memory efficiency, multi-query atten-
+inference FLOPs and memory usage by more than                              tion (MQA) (Shazeer, 2019) shares the weights
+50% (Figure 1 (right)).                                                    of all key and value projections among all heads,
+   The contributions of this paper can be summa-                           significantly reducing KV cache size and memory
+rized by the following points:                                             bandwidth requirements during autoregressive de-
+                                                                           coding. Grouped-query attention (GQA) (Ainslie
+   • By decoupling the model hidden size from                              et al., 2023) extends this by partitioning heads into
+     the attention head number and jointly optimiz-                        groups where each group shares a common KV
+     ing the model size and GQA configuration,                             projection. Formally, MHA is a variant of GQA
+     we can flexibly allocate memory and com-                              with independent KV projections per query head,
+                                                   Adjustable?
+       Notation    Meaning                 Vanilla GQA This paper        Constrained by
+       T           Context length               ✗                ✗       None
+       N           Model size                   ✗                ✓       None
+       nh          Attention head number        ✗                ✓       None
+       nkv         KV head number               ✓                ✓       None
+       L           Number of layers             ✗                ✗       N and pre-defined aspect ratio (d/L)
+       d           Model hidden size            ✗                ✗       N and pre-defined aspect ratio (d/L)
+       dff         FFN intermediate size        ✗                ✗       dff ≈ 8d/3
+       dh          Head size                    ✗                ✗       dh = 64
+       V           Vocabulary size              ✗                ✗       Pre-defined vocabulary
+
+   Table 1: Notations in the paper. We optimize more free hyperparameters, resulting in better cost-efficiency.
+
+
+while MQA corresponds to the extreme where all             tionship concerning model size and training data
+queries share one common KV projection. Recent             size. They utilize this relationship to minimize
+attention methods based on low-rank factorization,         the model loss given a fixed training FLOPs bud-
+such as MLA (DeepSeek-AI et al., 2024), can also           get. However, there are two critical limitations: (1)
+be viewed as variants of GQA. Hence, it can be             These works do not consider the influence of con-
+said that most of the current popular LLMs (Groen-         text length on the computational and memory costs.
+eveld et al., 2024; Biderman et al., 2023; Hu et al.,      (2) These laws prioritize the optimal allocation of
+2024; Grattafiori et al., 2024; Yang et al., 2025b)        compute during training, ignoring inference costs.
+are built based on GQA.                                    Although Sardana et al. (2023) supplement scal-
+                                                           ing laws by accounting for total inference FLOPs,
+Efficient Long-Context Attention Attention
+                                                           their inference cost estimation ignores the influ-
+mechanisms pose a major bottleneck in long-
+                                                           ence of context length and memory usage during
+context settings due to high computational and
+                                                           inference. Our work extends these studies by ac-
+memory costs, especially from the KV cache. To
+                                                           counting for both the computational and memory
+mitigate this, techniques like sparse attention (Lou
+                                                           costs during inference and addressing the impact
+et al., 2024; Ge et al., 2024; Jiang et al., 2024),
+                                                           of context lengths.
+prompt compression (Pan et al., 2024; Xiao et al.,
+2024), and KV cache compression (Liu et al.,               3     Preliminaries: Computational and
+2024; Hooper et al., 2024; Zhang et al., 2024;                   Memory Costs of GQA Transformers
+Yao et al., 2024; Cai et al., 2024) have been pro-
+posed. While these methods build on and optimize           In this section, we first briefly introduce GQA
+GQA, they often compromise performance rela-               Transformers (Ainslie et al., 2023) and describe
+tive to vanilla GQA. Our work focuses on identi-           key model configurations and their impact on com-
+fying cost-optimal GQA configurations for long-            putational and memory costs. Then, we provide a
+context scenarios through precise characterization         more accurate formula for the computational and
+of model size, context length, and attention head          memory costs of Transformer-based LLMs that
+configurations in terms of their impacts on model          explicitly considers context length and can guide
+performance, computational cost, and memory cost.          the design of cost-optimal long-context LLMs. Ta-
+The efficient long-context attention methods de-           ble 1 lists the main notations in this paper, and
+scribed above remain orthogonal to our GQA archi-          Appendix A provides a more complete list.
+tecture search and can be subsequently applied as
+complementary optimizations to the cost-optimal            3.1       GQA Transformers
+GQA structures. For more details on efficient long-        A Transformer model consists of L layers, each
+context attention methods, please refer to the sur-        of which consists of an attention block and a feed-
+veys (Yuan et al., 2024; Shi et al., 2024).                forward network (FFN) block. For each layer, let
+                                                           xi , yi ∈ Rd denote the i-th input and output em-
+Scaling Laws for LLMs Recent studies on scal-              bedding, where d is the model hidden dimension.
+ing laws for LLMs (Hestness et al., 2017; Kaplan
+et al., 2020; Hoffmann et al., 2022) have estab-           Attention Blocks For each head in an attention
+lished that model loss follows a log-linear rela-          block, xi is first projected into query qi = xi Wq ∈
+ Component          Parameters        Per-token FLOPs              Type                  Time-invariant       Time-variant
+ Input emb.            dV                     0                    FLOPs (Cinfer )             2N               4T Ldh nh
+ ATT proj.      2Lddh (nh + nkv )     4Lddh (nh + nkv )            Mem. (Minfer )               N               2T Ldh nkv
+ ATT comp.              0                4LT nh dh
+ FFN                2Lddff                4Lddff             Table 3: The time-invariant and time-variant costs of
+ Output emb.            0                   2dV
+                                                             GQA Transformers during inference.
+Table 2: Parameters and per-token FLOPs (forward
+pass) of the main components in Transformers. “Input
+                                                             3.2     Inference Costs of GQA Transformers
+emb.” and “Output emb.” represent the input and out-
+put embedding layers, respectively, sharing the same         Table 2 summarizes the number of parameters for
+embedding weights. “ATT proj.” and “ATT comp.” rep-          each component in the Transformer model and the
+resent the projection and computation processes of all       FLOPs associated with it. Table 3 summarizes the
+attention blocks, respectively.
+                                                             memory and computational costs during inference.
+
+Rdh , key ki = xi Wk ∈ Rdh , value vi = xi Wv ∈              Inference Computational Costs Cinfer (T ) is the
+Rdh , where dh is the head dimension, then the               number of FLOPs used to process one token within
+attention head output is computed as                         the context with T tokens. This is roughly given as
+
+                      qi K ⊤                                          Cinfer (T ) = Cconst + Catt (T )
+                            
+      h̃i = softmax √      i
+                               Vi Wo⊤ ∈ Rd , (1)
+                         dh                                                          =       2N           + 4T Ldh nh ,      (3)
+                                                                                             |{z}           | {z }
+                                                                                         Time-invariant     Time-variant
+where Wq , Wk , Wv , Wo ∈ Rd×dh are learnable
+projection matrices. K⊤        ⊤            ⊤
+                                              
+                        i = k1 ⊕ · · · ⊕ ki and             where Cconst denotes the “time-invariant FLOPs”,
+Vi⊤ = v1⊤ ⊕ · · · ⊕ vi⊤ are the KV cache for the
+       
+                                                             the number of FLOPs invariant to the current time
+current attention head, where ⊕ denotes the con-             step. Catt (T ) denotes the “time-variant FLOPs”,
+catenation along the sequence dimension. In MHA              which is the number of FLOPs used to compute the
+Transformers, each attention block consists of nh            attention softmax process.
+heads computed in parallel, and the final attention
+output hi ∈ Rd is the sum of all head outputs. In            Inference Memory Costs M (T ) is defined as
+GQA, every nh /nkv query heads share the same                the memory required to process one token within
+KV projection matrices, where nkv is the number              the context with T tokens. Ignoring the necessary
+of KV heads.                                                 system overhead, we need to store the model pa-
+                                                             rameters and the KV cache, which is roughly:
+FFN Blocks     An FFN block is defined as
+                                                                     Minfer (T ) = N + Nkv (T )
+                       
+                     ⊤
+          yi = σ hi Wup   Wdown ∈ Rd ,                (2)
+                                                                                     =        N           + 2T Ldh nkv ,     (4)
+                                                                                             |{z}           | {z }
+where Wup ∈ Rd×dff , Wdown ∈ Rdff ×d are learn-                                          Time-invariant      Time-variant
+able projection matrices and σ(·) is an element-
+wise activation function.                                    where N denotes the number of model parameters
+                                                             and Nkv (T ) denotes the number of values in the
+Hyperparameter Constraints Let V denote                      KV cache for the context with T tokens.
+the vocabulary size and N denote the model
+size. We assume that dh and V are fixed2 , and               Takeaways As listed in Table 3, inference costs
+dff ≈ 8d/3, following common LLM design                      can be split into four types: time-invariant FLOPs
+choices (Grattafiori et al., 2024; Groeneveld et al.,        and memory, and time-variant FLOPs and memory.
+2024; Biderman et al., 2023). For each model size            The time-invariant costs are directly proportional to
+N , we assume that the optimal aspect ratio d/L is           the model size (N ), while time-variant FLOPs can
+determined in advance (taken from Biderman et al.            be controlled by nh , and time-variant memory can
+(2023)), so each N corresponds to a unique pair              be controlled by nkv . Thus, adjusting N , nh , and
+(d, L). Table 1 (right) lists these constraints.             nkv permits fine-grained control over these four
+    2
+                                                             kinds of costs. This analysis also implies that a
+      Keeping dh and V constant for varying model sizes is
+a common practice. Examples include Llama-3 (Grattafiori     large model may have lower inference costs if its
+et al., 2024) and Qwen3 (Yang et al., 2025a).                time-variant costs are low enough.
+Training Costs Since this work mainly focuses          formulate the optimization objective as follows,
+on minimizing inference costs, the calculation for
+                                                              arg min Z(T, N, nh , nkv )
+the training costs is left to Appendix C.                     nh ,nkv ,N
+
+                                                                    s.t. L(T, N, nh , nkv ) ≤ L∗                 (5)
+4     Method                                                                 α              β
+                                                                where Z = λMinfer + (1 − λ)Cinfer ,
+                                                       where L∗ is the target LM loss, L is the model loss,
+Our objective is to find the GQA configuration that    λ ∈ [0, 1], α, β ∈ R control the trade-off between
+minimizes inference costs while attaining a given      compute and memory based on deployment con-
+loss. We approach this by framing the problem as       straints3 . Setting λ = 1 minimizes only Minfer ,
+balancing the time-variant and time-invariant costs.   while λ = 0 minimizes only Cinfer . We refer to
+In order to unlock the ability to flexibly allocate    Z as the hardware-aware cost. By default, we set
+different amounts of compute and memory to the         λ = 0.9, α = 1/2, β = 1/3 based on hardware
+time-variant and time-invariant components, we         utilization tests in our environment. In other words,
+make two changes to existing GQA design proce-         the inputs to the optimization objective are (L∗ , T )
+dures: (1) We decouple the number of attention         and the outputs are (N, nh , nkv ).
+heads from the model hidden dimension, and (2)
+we jointly optimize the model size and the GQA         Influence of Context Length We empirically ob-
+configuration. Figure 1 (left) shows the effect of     serve that the effect of context length T on loss L
+these two changes, and Table 1 shows the adjusta-      is largely invariant to N , nh , and nkv (verified
+bility of different hyperparameters in this work       in Section 5.7). This means we can train with
+compared to vanilla GQA.                               moderate context lengths (e.g., T = 8K) and ex-
+                                                       trapolate the loss to longer contexts, saving pre-
+                                                       cious computation resources. However, the influ-
+Change 1: Decoupling the Head Number from
+                                                       ence of model size N and GQA head configuration
+the Hidden Dimension Most existing GQA
+                                                       H = (nh , nkv ) on loss is coupled and must be
+Transformers adopt nh × dh = d, which is ar-
+                                                       jointly modeled. To this end, we adopt a three-step
+bitrarily chosen in the original Transformer paper
+                                                       procedure:
+(Vaswani et al., 2017). This is an unnecessary re-
+striction, rendering GQA unable to adjust the time-    Step 1: Candidate Selection Define a candidate
+variant FLOPs. We decouple nh from d, unlocking        set of attention configurations:
+a free hyperparameter nh that controls the number
+                                                         Hcand = {nh = 1, 2, 4, . . . , max(d)/dh }
+of FLOPs of attention blocks.
+                                                                   × {nkv = 1, 2, 4, . . . , max(d)/dh } (6)
+                                                                s.t. nkv ≤ nh ,
+Change 2: Joint Optimization of Model Size
+and GQA Configuration In addition to the time-         where max(d) is the hidden size of the largest
+variant costs, we also want to control the time-       model used to fit scaling curves in step 2. We round
+invariant costs (FFNs, attention QKV/output pro-       max(d)/dh to the nearest power of 2 if necessary.
+jections, etc.). Specifically, by reducing N , but
+                                                       Step 2: Scaling Curves Fitting For each H ∈
+increasing nh , we can allocate more compute to
+                                                       Hcand , we train a series of small-scale models with
+time-variant components. Similarly, we can allo-
+                                                       varying N using a sufficiently long context length
+cate more compute to time-invariant components
+                                                       (we use T = 8K), and fit the model loss using a
+by increasing N and decreasing nh . This paper
+                                                       power-law scaling function4 as
+aims to identify the optimal allocation of memory
+                                                                                   a b
+and compute between the time-variant and time-                      L(N ; H) =            + E,          (7)
+invariant components, by jointly tweaking the GQA                                    N
+configuration (nh , nkv ) and the model size N .       where a, b are configuration-dependent coefficients
+                                                       and E is the “natural entropy of language”.
+                                                           3
+4.1   Cost-Optimal GQA Search                                Although Minfer and Cinfer have different measurement
+                                                       units, (λ, α, β) allow us to control the importance of compute
+                                                       and memory resources under a unified metric.
+Objective Formulation With the ability to freely           4
+                                                             We use the number of non-embedding parameters because
+adjust the time-variant and time-invariant costs, we   it produces more predictable scaling laws in our experiments.
+Step 3: Cost Minimization For each GQA con-                             Expected inference context length (T )
+figuration H, we solve for the smallest model size            L ∗
+                                                                       8K       16K      32K      64K     128K
+N ∗ (H) that satisfies the loss constraint as                  3.0     32, 1    16, 1     8, 1    4, 1      4, 1
+                                                               2.9     32, 1    16, 1    16, 1    8, 1      4, 1
+                                a                              2.8     32, 2    16, 1    16, 1    8, 1      8, 1
+              N ∗ (H) =                 .         (8)          2.7     32, 4    16, 2    16, 1   16, 1      8, 1
+                          (L∗ − E)1/b                          2.6     32, 8    16, 4    16, 2   16, 2      8, 1
+                                                               2.5    32, 16    16, 8    16, 4   16, 2     16, 2
+Then, we calculate the inference cost for each con-            2.4    32, 32   32, 32    32, 8   32, 8     32, 4
+                                                              2.35    32, 32   32, 32   32, 32   32, 16    32, 8
+figuration and select the one with the lowest cost
+                                                        Table 4: The cost-optimal GQA configuration (nh , nkv )
+    (N ∗ (H), H ∗ ) = arg min Z(T, N, nkv , nh ). (9)   for different target loss L∗ and context lengths (T ),
+                        H
+                                                        while minimizing the hardware-aware cost (Z, see Sec-
+                                                        tion 4.1). For reference, the loss of 1B, 3B, and 8B of
+5     Experiments                                       Llama-3 GQA is 2.615, 2.448, and 2.362, respectively.
+We first explain the experimental settings (Sec-
+                                                        5.2       Loss vs. Inference Costs
+tion 5.1). Then, we present the main results and
+takeaways (Section 5.2), followed by the actual         Here, we compare the loss-cost tradeoffs of dif-
+cost-optimal GQA configurations derived using our       ferent GQA configurations. Figure 2 reports the
+approach (Section 5.3) and an analysis of the influ-    results for a subset of Hcand , showing LM loss as
+ence of nh and nkv on LM loss (Section 5.4). After      functions of various inference costs (Minfer , Cinfer ,
+that, we present the results for the setting where      and Z), with a context length of 128K tokens. To
+total training FLOPs is aligned (Section 5.6). Fi-      save space, we report the result of other context
+nally, we verify that the effect of T on L is largely   lengths in Appendix H.1.
+independent of N and H (Section 5.7).                   Takeaway 1 We find that loss does not have a
+                                                        simple relationship (e.g., power-plus-constant func-
+5.1    Experimental Settings
+                                                        tion) with either memory or computational costs.
+More details of the experimental settings are in        However, it is possible to predict the loss by fitting
+Appendix D, Appendix E, and Appendix F.                 the loss as a function of N , then transforming the
+                                                        fitted curves along the x-axis to account for the
+Model Configurations We adopt the popular               time-variant costs. Fitting loss as a power-plus-
+Llama-3 (Grattafiori et al., 2024) architecture. For    constant function of N is highly accurate, with R2
+each GQA configuration, we train models from 3M         values over 0.999.
+to 1.2B in size. We keep the model configurations
+as close as possible to Biderman et al. (2023). We      Takeaway 2 The commonly used Llama-3 GQA
+have max(d)/dh = 32, this results in 21 candidate       configuration (i.e., H = d/dh , 8)5 is highly sub-
+configurations (i.e., |Hcand | = 21).                   optimal at 128K context length. For instance,
+                                                        Llama-3.2-1B uses this head configuration and sup-
+Data     Configurations We        use    SlimPa-        ports 128K context length. At that length, using
+jama (Soboleva et al., 2023) in our experiments.        H = (8, 1) and increasing the model size to 1.8B
+It is a deduplicated version of the RedPajama           would achieve the same loss (2.615) while reduc-
+corpus (Weber et al., 2024) with 627B tokens.           ing 50.8% and 57.8% inference memory and
+In most of our experiments, we use a 20:1 ratio         FLOPs usage, respectively (shown in Figure 1
+between training data and model parameters, as          (right)). Alternatively, using H = 8, 1 can achieve
+suggested by Hoffmann et al. (2022). Additionally,      a loss that is 0.117 lower than Llama-3.2-1B with
+we always ensure that each batch has 512K tokens.       the same per-token inference budget in terms of Z.
+
+Training Configurations We follow common                5.3       Cost-Optimal GQA Configuration
+practices in most of our experiments. We use the        Table 4 reports the cost-optimal GQA for different
+AdamW optimizer with the WSD learning rate              expected inference context lengths T and target
+scheduler (Hu et al., 2024). We choose the max-            5
+                                                             We use “Llama-3 GQA” to refer to the GQA configuration
+imum learning rate by sweeping different values         on Llama-3 and not the actual publicly released checkpoint,
+with the MHA model for each model size.                 which is trained on huge amounts of proprietary data.
+       3.2                                    3.2                                           3.2
+                                                                                                                                         H = 8, 8
+       3.0                                    3.0                                           3.0                                          H = 8, 4
+                                                                                                                                         H = 8, 2
+       2.8                                    2.8                                           2.8                                          H = 8, 1
+Loss
+
+
+
+
+                                                                                                                                         H = 4, 1
+                                                                                                                                         H = 2, 1
+       2.6                                    2.6                                           2.6                                          H = 1, 1
+
+       2.4                                    2.4                                           2.4
+                       109            1010                   1014           1015                                           105
+               Memory cost (bytes) (Minfer)         Computational cost (FLOPs) (Cinfer)               Hardware-aware cost (Z)
+
+Figure 2: Loss as a function of inference costs with a context length of 128K, assuming we use BF16 for both
+parameters and the KV cache. H = (nh , nkv ) denotes the attention head configuration. nh and nkv have different
+effects on the memory cost, computational cost, and loss. x-axis is in log scale.
+
+
+losses L∗ . When the target loss is high, the model                                  2.75                               nkv = 1        nkv = 8
+is small, making the time-invariant costs low. Thus,                                                                    nkv = 2        nkv = 16
+                                                                                     2.70                               nkv = 4        nkv = 32
+
+                                                                              Loss
+the optimal configuration allocates more resources
+to the time-invariant part by increasing N and re-                                   2.65
+ducing nh and nkv . Similarly, when T is great,                                      2.60
+the time-variant costs are high, making it more at-                                         0     5       10      15      20      25     30
+                                                                                                         Number of query heads (nh)
+tractive to reduce nh and nkv more aggressively.
+The results also indicate that there is nothing espe-                       Figure 3: The loss for different number of query heads
+cially attractive about the commonly used Llama-3                           (nh ) and KV heads (nkv ), with 1.2B model parameters.
+GQA configuration (d/dh , 8). For certain combi-
+nations of L∗ and T , the GQA configuration is                                Evaluation Metric                     H = 32, 8          H = 8, 1
+cost-optimal. However, for a greater number of                                                                   (Llama-3 GQA)          (Ours)
+combinations, it is sub-optimal. The result implies                           Train. throughput (tok/s)               18,655            31,260
+that the configuration of GQA Transformers should                             Infer. throughput (tok/s)               12,921            20,643
+consider the expected inference context length. Di-                           Common-sense                            45.7%             45.5%
+                                                                              NIAH (1-8K)                             90.9%             96.9%
+rectly applying the popular GQA configuration re-                             NIAH (16K)                              30.4%             46.0%
+sults in wasting hardware resources.                                          NIAH (32K)                              15.1%             18.7%
+                                                                              NIAH (64K)                               6.1%              7.9%
+5.4          Influence of Query and KV Heads                                  NIAH (128K)                              5.2%              6.7%
+
+Figure 3 shows the relationship between loss and                            Table 5: The throughput of two GQA configurations at
+the number of query heads and KV heads (i.e.,                               128K context length, and their accuracy on common-
+different GQA configurations), with a model size of                         sense reasoning (average of 8 tasks) and retrieval tasks
+1.2B. Similar results are observed with other model                         (NIAH, varying context length). Although H = 8, 1
+sizes as well. We emphasize two main takeaways.                             has more parameters (1.8B vs. 1.2B), it is much faster
+                                                                            for both training and inference.
+Takeaway 1 The loss reduction by increasing
+either nh or nkv exhibits diminishing returns. This
+                                                                            model to capture a greater number of dependency
+means that when nh or nkv is great, increasing
+                                                                            patterns. Meanwhile, having more KV heads pro-
+these hyperparameters to reduce loss may not be
+                                                                            vides more capacity to store information for each
+worth the cost increase. We also found that they
+                                                                            token. The empirical results may indicate that the
+exhibit a power-plus-constant relationship (details
+                                                                            former is more important for performance.
+in Appendix I).
+
+Takeaway 2 Increasing nh reduces the loss more                              5.5       Downstream Performance
+than increasing nkv by the same amount, although                            Now, we compare the cost-optimal configura-
+both of them cause the same parameter increase.                             tion against Llama-3 GQA in terms of train-
+This means the nh is more important for model                               ing/inference throughput and downstream perfor-
+expressivity. Having more query heads allows the                            mance. At T = 128K and L∗ = 2.615 (the loss
+                 MHA            GQA (nkv = 8)        H=8,1                                        0.00
+
+
+
+
+                                                                      Relative Loss Diff. (∆L)
+                                                                                                                                                       H = 1, 1
+                                                                                                                                                       H = 2, 1
+                                                                                                                                                       H = 4, 1
+       3.2                         3.2                                                           −0.02                                                 H = 8, 1
+                                                                                                                                                       H = 16, 1
+       3.0                         3.0                                                                                                                 H = 2, 2
+                                                                                                 −0.04
+Loss
+
+
+
+                                                                                                                                                       H = 4, 4
+       2.8                         2.8                                                                                                                 H = 8, 8
+
+       2.6                         2.6                                                                                                                 H = 16, 16
+
+
+       2.4        -88% Mem         2.4             -83% FLOPs                                        512        1K    2K     4K    8K      16K
+                                                                                                                     Context Length (T )
+               109       1010            1014              1015
+             Memory (bytes)                 Inference FLOPs
+                                                                  Figure 5: Relative loss difference between various GQA
+                                                                  configurations and the H = 1, 1 model, as a function of
+Figure 4: Loss as a function of memory and computa-
+                                                                  context length T . Model size is 470M.
+tional costs, aligned by total training FLOPs at 128K
+tokens. Each curve is trained with the same amount of
+                                                                                                    0.00
+
+
+
+
+                                                                   Loss Diff. (∆L)
+training compute.                                                                                                                                      150M
+                                                                                                                                                       470M
+
+
+
+
+                                                                      Relative
+                                                                                                  −0.05
+                                                                                                                                                       1.2B
+
+of Llama-3 GQA at 1.2B model size), the cost-                                                     −0.10
+
+optimal GQA configuration is H = 8, 1. Specif-
+                                                                                                           8K          16K          32K          64K        128K
+ically, we train two models, one with H = 32, 8                                                                              Context Length (T )
+(Llama-3 GQA) and one with H = 8, 1. Train-
+ing starts with a 4K context length on 20B tokens.                Figure 6: Relative loss difference between varying
+It is then trained with 128K context length for                   model size and the 150M model, as a function of context
+1B tokens. More training details is given in Ap-                  length T . These are MHA models.
+pendix J.1.
+   Training throughput is computed based on the                   5.7                              Influence of Context Length
+training time while inference throughput is mea-                  In this section, we empirically show that the re-
+sured with a batch size of 1 on one NVIDIA                        lationship between context length T and loss L is
+A800 GPU (with T = 128K). For downstream                          largely invariant to N and nh when T is sufficiently
+performance, we evaluate the models on zero-                      large. To this end, we measure the relative loss dif-
+shot common-sense reasoning (Gao et al., 2024)                    ference between various models and a “baseline”:
+and needle-in-a-haystack (NIAH) (Hsieh et al.,
+                                                                                                                          L(T ) − Lbaseline (T )
+2024), which are two widely used LLM bench-                                                              ∆L(T ) =
+marks (more details in Appendix J.2). The result                                                                             Lbaseline (T )
+is shown in Table 5. One can see that the differ-                 Figure 5 shows the relative loss difference between
+ences in common-sense reasoning and long-context                  various GQA configurations with H = 1, 1 as the
+retrieval are rather small. Meanwhile, the cost-                  baseline. Figure 6 shows this relationship when
+optimal model (H = 8, 1) is much more efficient.                  varying N , with N =150M as the baseline. The
+                                                                  results show that the relative loss difference is rel-
+5.6      Aligning Training Costs                                  atively flat when T > 8K (all fluctuations are less
+In the previous sections, the training data is always             than 1%). The main takeaway is that when apply-
+20 tokens per parameter (i.e., the Chinchilla law).               ing our cost optimization procedure to longer con-
+This favors configurations that spend more FLOPs                  texts, we do not have to repeat step 2 (an expensive
+per token. Instead, we can allow more compute-                    process) with longer contexts since the loss change
+efficient configurations to use more training data to             of each model will remain roughly the same.
+align the training costs of different configurations.
+   Figure 4 reports the result when we always train               6                              Conclusion
+with T = 128K6 . We find that using fewer heads                   To optimize the allocation of FLOPs and memory
+is even more advantageous due to the additional                   between time-invariant and time-variant compo-
+training data, resulting in a model with the same                 nents of GQA Transformers, we first decouple the
+loss but with 88% and 83% lower memory and                        number of attention heads from the model hidden
+FLOPs usage.                                                      dimensions, enabling a more flexible distribution
+   6
+    LMs are usually trained with short contexts most of the       of FLOPs and memory. Next, we refine the estima-
+time, so this result may not apply.                               tion of computational and memory costs in existing
+approaches by incorporating context length. Our         References
+findings reveal that typical configurations of GQA
+                                                        Marah Abdin, Jyoti Aneja, Hany Awadalla, Ahmed
+are significantly suboptimal for specific context        Awadallah, Ammar Ahmad Awan, Nguyen Bach,
+lengths. Through detailed analysis, we provide           Amit Bahree, Arash Bakhtiari, Jianmin Bao, Harkirat
+valuable insights for improving resource allocation      Behl, and 1 others. 2024. Phi-3 technical report: A
+by jointly adjusting the model size and the num-         highly capable language model locally on your phone.
+                                                         arXiv preprint arXiv:2404.14219.
+ber of attention heads. As the demand for greater
+inference context lengths continues to grow, our        Joshua Ainslie, James Lee-Thorp, Michiel de Jong, Yury
+work marks a critical advancement toward efficient         Zemlyanskiy, Federico Lebron, and Sumit Sanghai.
+long-context LLMs.                                         2023. GQA: Training generalized multi-query trans-
+                                                           former models from multi-head checkpoints. In Pro-
+                                                           ceedings of EMNLP.
+Limitations
+Like most phenomena in neural language models,          Jimmy Lei Ba, Jamie Ryan Kiros, and Geoffrey E. Hin-
+                                                           ton. 2016. Layer Normalization. arXiv preprint
+we cannot be certain that the conclusions will hold        arXiv:1607.06450.
+when the models are further scaled up. The power-
+plus-constant scaling law is also not guaranteed,       Stella Biderman, Hailey Schoelkopf, Quentin Gregory
+although it has been empirically validated up to          Anthony, Herbie Bradley, Kyle O’Brien, Eric Hal-
+                                                           lahan, Mohammad Aflah Khan, Shivanshu Purohit,
+hundreds of billions of parameters. Similarly, there       Usvsn Sai Prashanth, Edward Raff, Aviya Skowron,
+is no guarantee that these laws and our conclusions        Lintang Sutawika, and Oskar Van Der Wal. 2023.
+will hold for an arbitrarily large amount of training      Pythia: A Suite for Analyzing Large Language Mod-
+data. In general, we have kept our experiments             els Across Training and Scaling. In Proceedings of
+                                                           ICML.
+close to research conventions, and the scale of the
+largest models in our experiments (i.e., 1.2B for       Ruisi Cai, Yuandong Tian, Zhangyang Wang, and Beidi
+Llama-3 GQA and 1.8B for our cost-optimal GQA)            Chen. 2024. LoCoCo: Dropping In Convolutions
+is comparable to some real-world LLMs.                    for Long Context Compression. In Proceedings of
+   We have not thoroughly ablated the influence           ICML.
+of all possible hyperparameters due to limited re-      DeepSeek-AI, Aixin Liu, Bei Feng, Bin Wang, Bingx-
+sources. Some important hyperparameters that may          uan Wang, Bo Liu, Chenggang Zhao, Chengqi Deng,
+affect our conclusions include the head dimension,        Chong Ruan, Damai Dai, Daya Guo, Dejian Yang,
+vocabulary size, and model aspect ratio. More             Deli Chen, Dongjie Ji, Erhang Li, Fangyun Lin, Fuli
+                                                          Luo, Guangbo Hao, Guanting Chen, and 81 others.
+extensive ablation studies are a promising future         2024. DeepSeek-V2: A Strong, Economical, and Ef-
+research direction.                                       ficient Mixture-of-Experts Language Model. arXiv
+   More recent LLMs have adopted even more                preprint arXiv:2405.04434.
+advanced techniques that complicate the calcula-
+tions of inference costs. Some notable techniques       Leo Gao, Jonathan Tow, Baber Abbasi, Stella Bider-
+                                                          man, Sid Black, Anthony DiPofi, Charles Foster,
+include speculative decoding, sparse mixture-of-          Laurence Golding, Jeffrey Hsu, Alain Le Noac’h,
+experts, and hybrid recurrence-attention models.          Haonan Li, Kyle McDonell, Niklas Muennighoff,
+Applying our approach to such models remains a            Chris Ociepa, Jason Phang, Laria Reynolds, Hailey
+promising area for future research.                       Schoelkopf, Aviya Skowron, Lintang Sutawika, and
+                                                          5 others. 2024. The Language Model Evaluation
+                                                          Harness.
+Acknowledgments
+This work is supported by the National Key              Suyu Ge, Yunan Zhang, Liyuan Liu, Minjia Zhang,
+                                                          Jiawei Han, and Jianfeng Gao. 2024. Model tells you
+Research and Development Program of China                 what to discard: Adaptive KV cache compression for
+(2024YFB4505603) and a grant from the Guoqiang            llms. In Proceedings of ICLR.
+Institute, Tsinghua University.
+                                                        Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri,
+                                                          Abhinav Pandey, Abhishek Kadian, Ahmad Al-
+                                                          Dahle, Aiesha Letman, Akhil Mathur, Alan Schel-
+                                                          ten, Alex Vaughan, Amy Yang, Angela Fan, Anirudh
+                                                          Goyal, Anthony Hartshorn, Aobo Yang, Archi Mi-
+                                                          tra, Archie Sravankumar, Artem Korenev, Arthur
+                                                          Hinsvark, and 17 others. 2024. The Llama 3 Herd of
+                                                          Models. arXiv preprint arXiv:2407.21783.
+Dirk Groeneveld, Iz Beltagy, Evan Walsh, Akshita            Qing Li, and Lei Chen. 2024a. A survey on large
+  Bhagia, Rodney Kinney, Oyvind Tafjord, Ananya             language model acceleration based on KV cache man-
+  Jha, Hamish Ivison, Ian Magnusson, Yizhong Wang,          agement. arXiv preprint arXiv:2412.19442.
+  Shane Arora, David Atkinson, Russell Authur, Khy-
+  athi Chandu, Arman Cohan, Jennifer Dumas, Yanai         Zongqian Li, Yinhong Liu, Yixuan Su, and Nigel Col-
+  Elazar, Yuling Gu, Jack Hessel, and 24 others. 2024.      lier. 2024b. Prompt compression for large language
+  OLMo: Accelerating the Science of Language Mod-           models: A survey. arXiv preprint arXiv:2410.12388.
+  els. In Proceedings of ACL.
+                                                          Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong,
+Joel Hestness, Sharan Narang, Newsha Ardalani, Gre-          Zhaozhuo Xu, Vladimir Braverman, Beidi Chen, and
+  gory F. Diamos, Heewoo Jun, Hassan Kianinejad,            Xia Hu. 2024. KIVI: A Tuning-Free Asymmetric
+  Md. Mostofa Ali Patwary, Yang Yang, and Yanqi              2bit Quantization for KV Cache. In Proceedings of
+  Zhou. 2017. Deep learning scaling is predictable,          ICML.
+  empirically. arXiv preprint arXiv:1712.00409.
+                                                          Chao Lou, Zixia Jia, Zilong Zheng, and Kewei Tu. 2024.
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch,         Sparser is faster and less is more: Efficient sparse
+   Elena Buchatskaya, Trevor Cai, Eliza Rutherford,         attention for long-range transformers. arXiv preprint
+   Diego de Las Casas, Lisa Anne Hendricks, Johannes        arXiv:2406.16747.
+   Welbl, Aidan Clark, Thomas Hennigan, Eric Noland,
+   Katherine Millican, George van den Driessche, Bog-     Zhenyan Lu, Xiang Li, Dongqi Cai, Rongjie Yi, Fang-
+   dan Damoc, Aurelia Guy, Simon Osindero, Karén            ming Liu, Xiwen Zhang, Nicholas D Lane, and
+   Simonyan, Erich Elsen, and 3 others. 2022. An em-        Mengwei Xu. 2024. Small language models: Sur-
+   pirical analysis of compute-optimal large language       vey, measurements, and insights. arXiv preprint
+   model training. In Proceedings of NeurIPS.               arXiv:2409.15790.
+Coleman Hooper, Sehoon Kim, Hiva Mohammadzadeh,
+  Michael W Mahoney, Yakun Sophia Shao, Kurt              Zhuoshi Pan, Qianhui Wu, Huiqiang Jiang, Menglin
+  Keutzer, and Amir Gholami. 2024. KVQuant:                 Xia, Xufang Luo, Jue Zhang, Qingwei Lin, Victor
+  Towards 10 Million Context Length LLM Infer-              Rühle, Yuqing Yang, Chin-Yew Lin, H. Vicky Zhao,
+  ence with KV Cache Quantization. arXiv preprint           Lili Qiu, and Dongmei Zhang. 2024. LLMLingua-
+  arXiv:2401.18079.                                         2: Data distillation for efficient and faithful task-
+                                                            agnostic prompt compression. In Findings of ACL.
+Cheng-Ping Hsieh, Simeng Sun, Samuel Kriman, Shan-
+  tanu Acharya, Dima Rekesh, Fei Jia, Yang Zhang,         Alec Radford and Karthik Narasimhan. 2018. Im-
+  and Boris Ginsburg. 2024. RULER: What’s the Real          proving language understanding by generative pre-
+  Context Size of Your Long-Context Language Mod-           training.
+  els? arXiv preprint arXiv:2404.06654.
+                                                          Nikhil Sardana, Jacob Portes, Sasha Doubov, and
+Shengding Hu, Yuge Tu, Xu Han, Ganqu Cui, Chaoqun           Jonathan Frankle. 2023. Beyond chinchilla-optimal:
+  He, Weilin Zhao, Xiang Long, Zhi Zheng, Yewei             Accounting for inference in language model scaling
+  Fang, Yuxiang Huang, Xinrong Zhang, Zhen Leng             laws. arXiv preprint arXiv:2401.00448.
+  Thai, Chongyi Wang, Yuan Yao, Chenyang Zhao, Jie
+  Zhou, Jie Cai, Zhongwu Zhai, Ning Ding, and 5 oth-      Noam Shazeer. 2019. Fast transformer decoding:
+  ers. 2024. MiniCPM: Unveiling the potential of small      One write-head is all you need. arXiv preprint
+  language models with scalable training strategies. In     arXiv:1911.02150.
+  COLM.
+                                                          Luohe Shi, Hongyi Zhang, Yao Yao, Zuchao Li, and
+Huiqiang Jiang, Yucheng Li, Chengruidong Zhang,             Hai Zhao. 2024. Keep the Cost Down: A Review on
+  Qianhui Wu, Xufang Luo, Surin Ahn, Zhenhua Han,           Methods to Optimize LLM’s KV-Cache Consump-
+  Amir H Abdi, Dongsheng Li, Chin-Yew Lin, and              tion. In Proceedings of COLM.
+  1 others. 2024. MInference 1.0: Accelerating Pre-
+  filling for Long-Context LLMs via Dynamic Sparse        Daria Soboleva, Faisal Al-Khateeb, Robert Myers, Ja-
+  Attention. In Proceedings of ICML.                        cob R Steeves, Joel Hestness, and Nolan Dey. 2023.
+Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B.          SlimPajama: A 627B token cleaned and deduplicated
+   Brown, Benjamin Chess, Rewon Child, Scott Gray,          version of RedPajama.
+   Alec Radford, Jeffrey Wu, and Dario Amodei. 2020.
+   Scaling laws for neural language models. arXiv         Jianlin Su, Murtadha Ahmed, Yu Lu, Shengfeng Pan,
+   preprint arXiv:2001.08361.                                Wen Bo, and Yunfeng Liu. 2024. RoFormer: En-
+                                                             hanced transformer with rotary position embedding.
+Diederik P. Kingma and Jimmy Ba. 2015. Adam: A               Neurocomput.
+  method for stochastic optimization. In Proceedings
+  of ICLR.                                                Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob
+                                                            Uszkoreit, Llion Jones, Aidan N Gomez, Ł ukasz
+Haoyang Li, Yiming Li, Anxin Tian, Tianhao Tang,            Kaiser, and Illia Polosukhin. 2017. Attention is all
+  Zhanchao Xu, Xuejia Chen, Nicole Hu, Wei Dong,            you need. In Proceedings of NeurIPS.
+Maurice Weber, Daniel Y Fu, Quentin Gregory An-           Notation     Meaning
+ thony, Yonatan Oren, Shane Adams, Anton Alexan-
+ drov, Xiaozhong Lyu, Huu Nguyen, Xiaozhe Yao,                             Model hyperparameters
+ Virginia Adams, Ben Athiwaratkun, Rahul Chala-           V            Vocabulary size, always set to 50,304.
+ mala, Kezhen Chen, Max Ryabinin, Tri Dao, Percy
+                                                          L            Number of layers
+ Liang, Christopher Re, Irina Rish, and Ce Zhang.
+ 2024. RedPajama: an Open Dataset for Training            d            Model hidden dimension
+ Large Language Models. In Proceedings of NeurIPS         dh           Head size, always set to 64.
+ Datasets and Benchmarks Track.
+                                                          dff          FFN intermediate size, we always set dff =
+Guangxuan Xiao, Yuandong Tian, Beidi Chen, Song                        8d/3.
+  Han, and Mike Lewis. 2024. Efficient streaming          σ            The activation function in FFN
+  language models with attention sinks. In Proceedings
+  of ICLR.                                                nh           Number of attention heads
+                                                          nkv          Number of KV heads (or groups in GQA)
+Ruibin Xiong, Yunchang Yang, Di He, Kai Zheng,
+  Shuxin Zheng, Chen Xing, Huishuai Zhang, Yanyan                       Inference and Training Costs
+  Lan, Liwei Wang, and Tieyan Liu. 2020. On Layer
+                                                          Cinfer       The computational cost (in FLOPs) per for-
+  Normalization in the Transformer Architecture. In
+                                                                       ward pass with a context length of T tokens.
+  Proceedings of ICML.
+                                                          Minfer       The memory usage (in floating-point values)
+An Yang, Anfeng Li, Baosong Yang, Beichen Zhang,                       of serving the model with a context length of
+  Binyuan Hui, Bo Zheng, Bowen Yu, Chang Gao,                          T tokens.
+  Chengen Huang, Chenxu Lv, Chujie Zheng, Dayi-           Ctrain       The computational cost (in FLOPs) used to
+  heng Liu, Fan Zhou, Fei Huang, Feng Hu, Hao Ge,                      train the model with a context length of T
+  Haoran Wei, Huan Lin, Jialong Tang, and 41 others.                   tokens.
+  2025a. Qwen3 Technical Report. arXiv preprint
+  arXiv:2505.09388.                                       Mtrain       The memory usage (in floating-point values)
+                                                                       of training the model with a context length of
+An Yang, Baosong Yang, Beichen Zhang, Binyuan Hui,                     T tokens.
+  Bo Zheng, Bowen Yu, Chengyuan Li, Dayiheng Liu,         Z            Hardware-aware costs combining both Minfer
+  Fei Huang, Haoran Wei, Huan Lin, Jian Yang, Jian-                    and Cinfer . Defined in Section 4.1.
+  hong Tu, Jianwei Zhang, Jianxin Yang, Jiaxi Yang,
+  Jingren Zhou, Junyang Lin, Kai Dang, and 23 others.                         Other parameters
+  2025b. Qwen2.5 technical report. arXiv preprint         T            Context length
+  arXiv:2412.15115.
+                                                          N            Number of model parameters.
+Yao Yao, Zuchao Li, and Hai Zhao. 2024. SirLLM:           Dtrain       Number of training tokens.
+  Streaming Infinite Retentive LLM. In Proceedings
+                                                          λ, α, β      Hyperparameters controlling the importance
+  of ACL.
+                                                                       of memory and compute resources.
+Jiayi Yuan, Hongyi Liu, Yu-Neng Chuang, Songchen Li,
+   Guanchu Wang, Duy Le, Hongye Jin, Vipin Chaud-               Table 6: List of notations used in the paper.
+   hary, Zhaozhuo Xu, Zirui Liu, and 1 others. 2024.
+   KV Cache Compression, But What Must We Give
+   in Return? a Comprehensive Benchmark of Long          A      Notations
+   Context Capable Approaches. In Proceedings of
+   EMNLP.                                                For completeness, we provide a list of notations we
+Biao Zhang and Rico Sennrich. 2019. Root mean square     used in the paper, reported in Table 6.
+  layer normalization. In Proceedings of NeurIPS.
+                                                         B      Discussions
+Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong
+  Chen, Lianmin Zheng, Ruisi Cai, Zhao Song, Yuan-       What About Other Efficient Attention? This
+  dong Tian, Christopher Ré, Clark Barrett, and 1 oth-
+  ers. 2024. H2O: Heavy-hitter oracle for efficient      paper primarily adjusts the allocation of compute
+  generative inference of large language models. In      and memory usage by tweaking the model size
+  Proceedings of NeurIPS.                                (controlled with L and d) and head configuration
+Wayne Xin Zhao, Kun Zhou, Junyi Li, Tianyi Tang,
+                                                         (nh , nkv ) in GQA, which is a rather simple method.
+ Xiaolei Wang, Yupeng Hou, Yingqian Min, Beichen         As mentioned, there are many techniques for im-
+ Zhang, Junjie Zhang, Zican Dong, and 1 others. 2023.    proving the efficiency of the attention layer, al-
+ A survey of large language models. arXiv preprint       though those have enjoyed less adoption. When us-
+ arXiv:2303.18223.
+                                                         ing these techniques, the computational and mem-
+                                                         ory costs may be considerably different, and some
+of our conclusions may not apply. Despite so, our                              N      L          d
+work is still a valuable improvement over existing
+implementations of GQA.                                                      1.2B     36    1536
+   Recently, Multi-head Latent Attention (MLA)                               1.8B     36    2048
+(DeepSeek-AI et al., 2024) was proposed as a                                  4B      48    2560
+strong alternative to GQA for reducing the KV                                 6B      54    3072
+cache size. During inference, MLA reformulates                               13B      64    4096
+the attention computation such that all heads share                          33B      72    6144
+a unified representation for keys and values. In this                        64B      80    8192
+case, our analysis still applies, since MLA can be
+                                                          Table 7: The pre-defined configurations used to calcu-
+seen as a kind of GQA with a different head dimen-        late the aspect ratio of arbitrarily sized models. For
+sion (dh ) and number of attention heads (nh , nkv ),     models smaller than 1.2B, we use the configurations in
+and it uses a more complex function to generate           Table 9.
+the QKV vectors.
+What If Context Length Varies? The formulas                Cost Type                Time-invar.         Time-var.
+
+for computational costs (see Table 8) are affine           Infer. FLOPs (Cinfer )      2N              4T Ldh nh
+                                                           Infer. Mem. (Minfer )        N              2T Ldh nkv
+functions of T , so the expected costs are:
+                                                           Train. FLOPs (Ctrain )    6Dtrain N       12Dtrain T Ldh nh
+           E(Cinfer (T )) = Cinfer (E(T ))                 Train. Mem. (Mtrain )       4N                 T dL
+
+          E(Minfer (T )) = Minfer (E(T ))                 Table 8: The time-invariant and time-variant costs of
+        E(Ctrain (Ttrain )) = Ctrain (E(Ttrain ))         GQA Transformers during inference and training.
+       E(Mtrain (Ttrain )) = Mtrain (E(Ttrain ))
+
+where Ttrain is the context length during training.       H is already given, which may be a function of
+Hence, it suffices to compare the costs with the          d. For the aspect ratio, we perform linear interpo-
+expected context length.                                  lation between the nearest two pre-defined model
+                                                          configurations. The pre-defined model aspect ratios
+Will the Findings Break Down When Scaling Up              are given in Table 7. Then, we use binary search
+the Model/Data Size? This is a never-ending ar-           to find the L that corresponds to N ∗ (H). We can
+gument against most neural architectural changes,         calculate d from L and a. Then, we calculate nh
+because no matter the scale of our experiments,           and nkv from d and the specified configuration.
+we can never be sure that the behavior holds for          With all these values (non-integers) known, we can
+larger scales. However, our experiments have al-          calculate the model size as well as the inference
+ready covered model sizes up to 1.2B, which is            costs.
+already the size of some widely-used models at               To produce an actual model in practice,
+the moment (Grattafiori et al., 2024; Yang et al.,        we suggest simply choosing the configuration
+2025b). Empirically, it has been widely validated         (N, nh , nkv ) closest to the derived answer in step
+that the scaling law is highly predictable to a good      3. The slight variations in the performance of the
+extent beyond the largest model (e.g., Llama-3 ac-        resulting configuration are negligible compared to
+curately predicted the loss of a 405B model with          the huge cost savings gained by selecting the cost-
+experiments on model sizes up to 16B). Thus, we           optimal configuration using our approach.
+are confident that our conclusions hold at least for
+models up to 10B parameters.                              C    Training Costs of GQA Transformers
+B.1   How to Calculate the Costs of Models of             Training Computational Costs In addition to
+      Arbitrary Sizes?                                    inference costs, different head configurations also
+In step 3 of our procedure (proposed in Section 4.1),     result in different training costs, because the num-
+we arrive at a critical model size N ∗ (H). It is a       ber of training FLOPs, Ctrain , is a function of Cinfer .
+real value, so it does not correspond to an actual        Following Kaplan et al. (2020), we estimate the
+model configuration. To calculate the inference           FLOPs of the backward pass as double the FLOPs
+costs (Minfer , Cinfer , Z) of a model of this size, we   of the forward pass. Let Dtrain denote the number
+need H and the aspect ratio of the model a = d/L.         of training tokens, Ti denotes the number of tokens
+preceding the i-th training token in the training        hyperparameters found in existing LLMs such as
+corpora, then the training FLOPs are:                    GPT (Radford and Narasimhan, 2018) and Llama
+                                                        (Grattafiori et al., 2024). We also ensure that the
+        Ctrain ≈ 3Dtrain Cinfer T            (10)        aspect ratio d/L is similar to those used by exist-
+               = 6Dtrain (N + 2LT dh nh ),       (11)    ing modeling scaling works (Biderman et al., 2023;
+                                                         Hoffmann et al., 2022; Yang et al., 2025b). We
+                              | {z }
+                                 Attention
+                                                         use the GPT-2 tokenizer, which has a vocabulary
+where T is the average value of {Ti |i =                 size of 50,304, and we tie the input and output
+1, · · · , Dtrain }. When all examples in the training   embeddings.
+corpora are set to the constant length Ttrain , dur-
+ing training, we have T = Ttrain /2. However, in         Learning Rate The maximum learning rate (LR)
+practice, when training long-context LLMs, it is         is chosen by a grid search on {1 × 10i , 2 × 10i , 5 ×
+more common to use short contexts for most of            10i | i = −3, −4, −5} with the vanilla MHA, and
+the time, and only use long contexts consisting of       choosing the one with best LM loss. Then, we just
+a small number of tokens to adapt the model to           keep the LR the same across different GQA config-
+the target context length. Hence, the time-variant       urations. While different configurations may have
+FLOPs may only make up a small portion of the            different optimal LR, exhaustively sweeping all LR
+training FLOPs, making the cost largely indepen-         for each configuration is prohibitively expensive.
+dent of the GQA configuration. Consequently, our         Differences From Vanilla GPT Compared to
+paper considers training costs, but focuses more on      the vanilla GPT model (Radford and Narasimhan,
+optimizing inference costs.                              2018), we make the following changes to better
+Training Memory Costs We only need to store              align with more recent LLMs:
+model parameters, activations, gradients, and opti-
+mizer states during training. Assuming the widely-           • We use RoPE (Su et al., 2024) with a θ value
+used Adam (Kingma and Ba, 2015) optimizer with-                of 500,000, which is widely used in current
+out offloading any storage to the CPU, the memory              LMs (Grattafiori et al., 2024).
+cost is roughly:                                             • We use SwiGLU FFN instead of the ReLU
+           Mtrain (T ) ≈ 4N + |{z}
+                              T dL .             (12)          FFN in GPT.
+                                Activations
+                                                             • We use pre-norm (Xiong et al., 2020) and use
+While it is important to lower the cost of caching             RMSNorm (Zhang and Sennrich, 2019) in-
+activations when T is large, we do not have a free             stead of LayerNorm (Ba et al., 2016), which
+hyperparameter to adjust this cost (like nh for com-           is more common in current LLMs. The ep-
+putational costs and nkv for memory costs). To                 silon in RMSNorm is 10−6 .
+reduce the size of activations, we have to mod-
+ify d and/or L, which either drastically changes             • Our model has no bias terms or dropout,
+the model size or its aspect ratio. Either of such             which is also common practice and can
+changes leads to major consequences that are be-               slightly increase the training efficiency.
+yond the scope of this paper. Regarding the 4N part
+of training memory cost, it is only dependent on         E    Data Processing
+the total model size, so it suffices to minimize the
+model size, which is already addressed in many ex-       In most of our experiments, we used SlimPajama
+isting works (Kaplan et al., 2020; Grattafiori et al.,   (Soboleva et al., 2023). We append an EOS token
+2024; Sardana et al., 2023).                             to each document in the corpus before chunking
+                                                         the documents into the specified training length. If
+D    Model Configurations                                the last chunk is shorter than the specified training
+                                                         length, it will be discarded.
+Table 9 shows the configurations of the models
+in our experiments for fitting the scaling law. In       F    Training Configurations
+general, we ensure that dh = 64, dff ≈ 8d/3
+(rounded to the closest multiple of 32) when scal-       Here, we provide the default training configurations
+ing the model size, which is adopted from common         we used during the experiments.
+                                              T = 8K                                                                     T = 32K                                                              T = 128K
+                                Emb.                                                          0.6          Emb.                                                                  Emb.
+                                                                                                                                                                    0.8
+                                ATT proj.                                                                  ATT proj.                                                             ATT proj.
+                   0.6           (QK T)V                                                      0.5           (QK T)V                                                               (QK T)V
+                                ATT out                                                                    ATT out                                                  0.6          ATT out
+FLOPs proportion
+
+
+
+
+                                                                           FLOPs proportion
+
+
+
+
+                                                                                                                                                 FLOPs proportion
+                                                                                              0.4
+                                FFN                                                                        FFN                                                                   FFN
+                   0.4          Logits                                                        0.3          Logits                                                                Logits
+                                                                                                                                                                    0.4
+                                                                                              0.2
+                   0.2                                                                                                                                              0.2
+                                                                                              0.1
+                   0.0                                                                        0.0                                                                   0.0
+                          108               109             1010                                     108               109            1010                                 108               109           1010
+                                             Model Size                                                                 Model Size                                                            Model Size
+
+
+
+Figure 7: The proportion of FLOPs allocated to different components in a Transformer LM, with multi-head
+attention and RoPE. As the context length increases, most FLOPs are spent on the time-variant computation of the
+attention operator σ(QK⊤ )V, where σ is the row-wise softmax function.
+
+                                              T = 8K                                                                     T = 32K                                                              T = 128K
+                                                                                               0.8
+                    0.8           Model
+                                  KV                                                                                                                                 0.8
+Memory proportion
+
+
+
+
+                                                                           Memory proportion
+
+
+
+
+                                                                                                                                                 Memory proportion
+                    0.6           Emb                                                          0.6
+                                                                                                             Model                                                   0.6                                           Model
+                    0.4                                                                        0.4           KV                                                                                                    KV
+                                                                                                             Emb                                                     0.4                                           Emb
+                    0.2                                                                        0.2                                                                   0.2
+                    0.0                                                                        0.0                                                                   0.0
+                                108           109            1010                                          108           109           1010                                      108           109          1010
+                                             Model size                                                                 Model size                                                            Model size
+
+
+
+Figure 8: The proportion of memory allocated to different components in a Transformer LM, with multi-head
+attention and RoPE. As the context lengths increase, most of the memory usage is spent on storing the KV cache.
+
+
+                           Model size                  L            d     dh                        LR                                (Hu et al., 2024), with a maximum LR of
+                                                                                                                                      5 · 10−4 , 10% warmup steps steps and 20% de-
+                                  3M                   4           256    64                    1e-3                                  cay steps. Warmup starts from 0 and increases
+                                 19M                   6           512    64                    1e-3                                  linearly to the maximum LR. The decay stage
+                                 85M                   12           768   64                    1e-3                                  uses a cosine annealing scheme, where the
+                                 150M                  12          1024   64                    1e-3                                  minimum LR is 10% of the maximum LR.
+                                 200M                  16          1024   64                    5e-4
+                                 470M                  24          1280   64                    5e-4                                 • Batch size: 512K tokens.
+                                 680M                  24          1536   64                    2e-4
+                                 1.2B                  36          1536   64                    2e-4                                 • Floating-point precision: We use BF16 dur-
+                                                                                                                                       ing training and FP16 during evaluation.
+Table 9: The configurations of the vanilla models with
+MHA in our experiments, we try to keep it as close                                                                           Hardware All training experiments were run on
+to the configurations from Biderman et al. (2023) as                                                                         A800 GPUs, mostly with 8 GPUs.
+possible.
+                                                                                                                             G        Memory and Compute Allocations by
+                                                                                                                                      Model Size
+                    • Optimizer: We use the widely-used AdamW
+                      optimizer (Kingma and Ba, 2015), with β1 =                                                             Figure 7 and 8 show the FLOPs and memory break-
+                      0.9, β2 = 0.95, and a weight decay of 0.1.                                                             down of different components as a function of
+                      We only apply weight decay to linear layers,                                                           model size. One can see that changes in the model
+                      which excludes the re-scaling factor in RM-                                                            size and/or context length can influence the allo-
+                      SNorm. We also use a gradient clipping value                                                           cation of FLOPs and memory between different
+                      of 1.0.                                                                                                components in the model. For instance, when
+                                                                                                                             the context has 128K tokens, the vast majority of
+                    • Learning rate scheduler: We use the                                                                    FLOPs is spent computing the attention scores
+                                                                                                                                                                     √  and
+                      warmup-stable-decay (WSD) LR scheduler                                                                                                      ⊤
+                                                                                                                             value summation (i.e., softmax qi K / dh V),
+and the vast majority of memory is spent caching       functions for the curves are:
+KVs. With 1B model parameters, roughly 90% of
+memory will be spent storing the KV cache, and               L = 0.579n−0.124
+                                                                       h      + 2.473          (470M)
+only 10% will be used to store the model param-              L = 0.398n−0.177
+                                                                       h      + 2.583          (680M)
+eters (assuming the KVs and model parameters                           −0.227
+                                                             L = 0.301nh      + 2.622           (1.2B)
+use the same precision). In other words, the time-
+variant costs dominate the overall inference costs.    Since the larger model has a greater constant term,
+Thus, at this context length, we can minimize the      this means that these curves will intersect at a cer-
+overall costs by allocating more resources to the      tain point (at around nh = 8K). This is likely incor-
+time-invariant components by increasing N and          rect, since the 1.2B model has strictly more param-
+decreasing nh and nkv .                                eters than the other models (although at such large
+                                                       values of nh , the relative difference in model size is
+H More Results: Loss vs. Inference Costs               very small). This means that the fitted curves will
+                                                       break down before nh = 8K. Fortunately, virtually
+Here, we provide the results for the relationship      all LLMs with open weights have fewer than 128
+between loss and inference costs for other context     heads, and the fitted curves are very accurate up
+lengths. The results are shown in Figure 9, 10, and    to 128 heads with R2 values over 0.999. Thus, we
+11. We can see that for shorter context lengths, the   conclude that the law is empirically accurate for
+gain of reducing nh or nkv is relatively small, but    the vast majority of openly available LLMs.
+the commonly used GQA (nkv = 8) configuration             Similarly, Figure 13 shows that this trend is con-
+is still suboptimal at 32K context length. At 1.2B     sistent across different context lengths. The fitted
+parameters, GQA uses more FLOPs and memory             curves are
+than H = 8, 1. For longer context lengths such as
+512K, we can achieve the same loss with less than            L = 1.513n−0.039
+                                                                       h      + 1.53         (T = 1K)
+10% of the original memory usage by using fewer              L = 1.436n−0.041
+                                                                       h      + 1.53         (T = 2K)
+KV heads, but a larger model (increasing N ).                L = 1.356n−0.044 + 1.53         (T = 8K)
+                                                                       h
+
+H.1   Influence of Query and KV Heads for              When nh approaches infinity, the model parameters
+      Different Context Lengths                        will be dominated by the attention projection matri-
+                                                       ces (i.e., QKVO projections). Hence, they converge
+Here, we provide the supplementary results for
+                                                       to the same constant term, which is known as the
+Section 5.4 for other context lengths (8K, 32K, and
+                                                       “natural entropy of language”. During curve fitting,
+512K). Similar to the previous section, a greater
+                                                       this constant term is chosen to minimize to fitting
+context length means that the advantage of using
+                                                       error, and we arrive at 1.53. The R2 values of these
+fewer heads is greater. In the following section, we
+                                                       fits are over 0.999.
+explicitly fit the relationship between loss and nh
+                                                          From these results, we conclude that this power-
+and nkv with power-plus-constant functions.
+                                                       plus-constant scaling law between loss and the
+                                                       number of heads is exhibited independently of
+I   The Scaling Laws of Attention Heads                model size and context length. One important im-
+                                                       plication of this result is that increasing the number
+In this section, we show that one can predict the
+                                                       of heads to improve model quality gives diminish-
+loss for a certain head configuration using experi-
+                                                       ing returns. This means that beyond a certain point,
+ments with a smaller number of heads. Specifically,
+                                                       the loss reduction brought by further increasing the
+we find that—for the first time—the relationship
+                                                       number of heads is not worth the cost increase.
+between loss and the number of attention heads
+closely resembles a power-plus-constant function:      I.1   Constant Number of KV Heads
+                                                       Some LMs (e.g., Llama-3 (Grattafiori et al., 2024))
+                L(nh ) = anbh + c                      keep the number of KV heads constant when scal-
+                                                       ing up the model. Therefore, we also investigate
+where L is the LM loss, and a, b, c ∈ R are coef-      the relationship between LM loss and nh when nkv
+ficients. Figure 12 shows that this relationship is    is constant. Figure 14 shows this relationship with
+observed with different model sizes. The concrete      different values of nkv and two model sizes. We
+           3.2                              3.2                             3.2
+                                                                                                            Llama-3 GQA
+           3.0                              3.0                             3.0                             H = 8, 8
+                                                                                                            H = 8, 4
+           2.8                              2.8                             2.8                             H = 8, 2
+    Loss
+
+
+                                                                                                            H = 8, 1
+           2.6                              2.6                             2.6                             H = 4, 1
+                                                                                                            H = 2, 1
+           2.4                                2.4                              2.4                          H = 1, 1
+                    108 109 1010                    1012 1013 1014                   104           105
+                 Memory cost (bytes) (Minfer) Computational cost (FLOPs) (Cinfer) Hardware-aware cost (Z)
+
+Figure 9: Loss as a function of memory, computational, and hardware-aware (Z in Section 4.1) costs during
+inference with a context length of 8K tokens.
+
+           3.2                              3.2                             3.2
+                                                                                                            Llama-3 GQA
+           3.0                              3.0                             3.0                             H = 8, 8
+                                                                                                            H = 8, 4
+           2.8                              2.8                             2.8                             H = 8, 2
+    Loss
+
+
+
+
+                                                                                                            H = 8, 1
+           2.6                              2.6                             2.6                             H = 4, 1
+                                                                                                            H = 2, 1
+           2.4                                2.4                              2.4                          H = 1, 1
+                   108    109 1010                   1013 1014 1015                104            105
+                 Memory cost (bytes) (Minfer) Computational cost (FLOPs) (Cinfer) Hardware-aware cost (Z)
+
+Figure 10: Loss as a function of memory, computational, and hardware-aware (Z in Section 4.1) costs during
+inference with a context length of 32K tokens.
+
+        3.2                                 3.2                              3.2
+                                                                                                             Llama-3 GQA
+        3.0                                 3.0                              3.0                             H = 8, 8
+                                                                                                             H = 8, 4
+        2.8                                 2.8                              2.8                             H = 8, 2
+ Loss
+
+
+
+
+                                                                                                             H = 8, 1
+        2.6                                 2.6                              2.6                             H = 4, 1
+                                                                                                             H = 2, 1
+        2.4                                2.4                                2.4                            H = 1, 1
+                109       1010       1011        1015 1016 1017                             105
+              Memory cost (bytes) (Minfer) Computational cost (FLOPs) (Cinfer)    Hardware-aware cost (Z)
+
+Figure 11: Loss as a function of memory, computational, and hardware-aware (Z in Section 4.1) costs during
+inference with a context length of 512K tokens.
+
+discover that the relationship is still a power-plus-                 the same. It consists of two phases. The first phase
+constant law, but the fitted curves are notably less                  uses the same settings as the scaling experiments in
+accurate, with R2 values over 0.97. It is worth not-                  Section 5.1. After 20B tokens, we continue training
+ing that the increase in fitting error compared to                    with 128K context length for 1B tokens, using new
+Section I) may be attributed to the use of a smaller                  optimer states. This phase uses a lower maximum
+model (150M vs. 470M).                                                LR of 1e-5 for stability and to avoid catastrophic
+                                                                      forgetting.
+J       Experimental Details: Downstream
+        Performance                                                   J.2    Evaluation
+This section provides details for Section 5.5.                        Here, we provide more details regarding the down-
+                                                                      stream task performance evaluation in Section 5.5.
+J.1        Training                                                   We use LM-Evaluation-harness (Gao et al., 2024)
+The training run for both the Llama-3 GQA and                         for common-sense reasoning, and the needle-in-a-
+H = 8, 1 (cost-optimal GQA) models are exactly                        haystack tasks from RULER (Hsieh et al., 2024).
+                                                               3.25                                             nkv = 1
+                                              470M                                                              1.72nh 0.03 + 1.53
+       3.0                                    680M
+                                              1.2B             3.20                                             nkv = 2
+       2.9                                                                                                      1.71nh 0.03 + 1.53
+                                                               3.15
+Loss
+
+
+
+                                                                                                                nkv = 4
+
+
+
+
+                                                        Loss
+       2.8                                                     3.10                                             1.70nh 0.03 + 1.53
+                                                                                                                nkv = 8
+       2.7                                                     3.05                                             1.67nh 0.03 + 1.53
+             100        101             102                    3.00                                             nkv = 16
+                          # heads                                                                               1.67nh 0.03 + 1.53
+                                                                      100              101          102
+Figure 12: The relationship between LM loss and the                              # query heads (nh)
+number of attention heads, fitted with a power-plus-
+constant function. The training context length is 1K.   Figure 14: The relationship between loss and nh when
+                                                        nkv is constant. Model size is 150M.
+
+       3.0                                    T = 1k                        2K          64K (from scratch)       64K (resume)
+                                              T = 2k
+                                              T = 8k                              85M                            470M
+                                                               3.4                                  3.2
+Loss
+
+
+
+
+       2.8
+                                                               3.2                                  3.0
+       2.6                                              Loss   3.0                                  2.8
+              1    4    16       64    256      1024
+                          # heads                              2.8                                  2.6
+                                                                     2B 4B 6B 8B 10B 12B                  2B 4B 6B 8B 10B 12B
+                                                                         Training Tokens                      Training Tokens
+Figure 13: The relationship between LM loss and the
+number of attention heads, fitted with a power-plus-
+                                                        Figure 15: The loss curves of a model with 2K context
+constant function. The model size is 470M.
+                                                        length adapted to 64K through post-training compared
+                                                        to a model trained with 64K from scratch.
+For both of these tasks, we evaluate the last four
+checkpoints of the model, and report the average        texts using a smaller amount of data tailored to
+score of it. This is for reducing the randomness in     the target context length. To ensure the validity
+the results.                                            of our conclusions in such training scenarios, we
+Common-Sense Reasoning Tasks We use the                 adapted a checkpoint initially trained with a 2K
+popular LM-Evaluation-Harness (Gao et al., 2024)        context length to a 64K context length through con-
+for evaluating common-sense reasoning capabil-          tinual pretraining. This adapted model was then
+ities. We evaluate on the common-sense reason-          compared to a model trained from scratch with a
+ing tasks specified by the official implementation,     64K context length. As illustrated in Figure 15, the
+which includes 9 tasks/datasets: ARC-Challenge,         adapted model rapidly converges toward the per-
+ARC-Easy, BoolQ, HellaSwag, Lambada, PIQA,              formance of the model trained from scratch with a
+SocialIQA, Wikitext, and Winograd. The scores           64K context length. This indicates that, with suffi-
+we report in Table 5 are the average accuracy score     cient post-training, the loss of the adapted model
+(excluding Wikitext, which is evaluated with per-       approaches that of a model trained entirely from
+plexity). When available, we use the normalized         scratch. Consequently, our findings regarding in-
+accuracy scores instead of raw accuracy scores.         ference costs and the relationship between loss,
+                                                        context length, and head configuration remain ap-
+Retrieval Task We report the average accuracy           plicable to post-training scenarios.
+of the synthetic S-NIAH tasks from RULER (Hsieh
+et al., 2024), which tests the model’s ability to re-   K AI Assistance in Research and Writing
+trieve a certain “needle” (i.e., some special infor-
+                                                        We have used AI for code completion during im-
+mation) from a large body of irrelevant text.
+                                                        plementation and grammar-check during paper-
+J.3      Context Length Extension by                    writing. We do not explicitly instruct AI to write
+         Post-Training                                  any part of this paper.
+
+LLMs are typically trained on shorter sequences
+in practice, followed by adaptation to longer con-
+

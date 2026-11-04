@@ -1,0 +1,200 @@
+\section{Methodology}
+
+
+In this section, we detail the experimental design and evaluation protocol that underpin our empirical investigation. In \Cref{sec:experimental-setup}, we specify the general setup for all subsequent studies. We then describe our three-phase hyperparameter-tuning framework: Phase I (in \Cref{sec:phase1}) performs fine-grained coordinate-descent sweeps across multiple model sizes and data-to-model ratios to identify scaling-sensitive parameters; Phase II (in \Cref{sec:phase2}) refines these sensitive parameters on mid-scale settings and selects the most promising optimizers; and Phase III (in \Cref{sec:phase3}) extrapolates hyperparameter scaling laws to the 1.2 billion-parameter regime. Together, these protocols ensure principled, fair, and reproducible comparisons across different optimizers. We present the optimal configurations found and how loss changes with respect to each hyperparameter in~\Cref{app:experiments} and hope that this can facilitate future research. We also open-source the code (\url{https://github.com/marin-community/marin/tree/kaiyue/optimizers}) and the corresponding WandB runs\ (\url{https://wandb.ai/marin-community/optimizer-scaling}).
+
+\subsection{General Experimental Setup}
+\label{sec:experimental-setup}
+
+
+
+
+
+
+Following~\cite{olmo20252olmo2furious}, we conduct all our experiments on a large-scale pretraining corpus composed of three publicly available datasets, tokenized with the Llama3 tokenizer: DCLM-baseline (3.8 trillion tokens,~\cite{li2025datacomplmsearchgenerationtraining}), StarCoder V2 Data (0.25 trillion tokens,~\cite{lozhkov2024starcoder2stackv2}), and ProofPile 2 (55 billion tokens,~\cite{azerbayev2024llemmaopenlanguagemodel}). 
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    \textbf{Optimizer}           & \textbf{References}             & \textbf{Algorithm} \\
+        \midrule
+    \multicolumn{3}{l}{\textbf{Baseline}} \\
+    \midrule
+    AdamW                    &  \cite{kingma2017adammethodstochasticoptimization,loshchilov2019decoupled} & \Cref{alg:adamw}  \\
+    \midrule
+  
+    \multicolumn{3}{l}{\textbf{Variance-reduced AdamW Variants}} \\
+    \midrule
+    NadamW                    &\cite{dozat2016incorporating}        & \Cref{alg:nadamw}           \\
+    Mars                      &\cite{yuan2025mars}                  & \Cref{alg:mars}              \\
+    Cautious                  &\cite{liang2025cautious,wang2024cadamconfidencebasedoptimizationonline} & \Cref{alg:cautious}  \\
+    \midrule
+    \multicolumn{3}{l}{\textbf{Memory-efficient Optimizers}} \\
+    \midrule
+    Lion                      &\cite{chen2023symbolic}              & \Cref{alg:lion}              \\
+    Adam-mini             &\cite{zhang2025adamminiusefewerlearning} & \Cref{alg:adammini}        \\
+    \midrule
+    \multicolumn{3}{l}{\textbf{Matrix-based Optimizers}} \\
+    \midrule
+    Muon                     &\cite{jordan2024muon}                & \Cref{alg:muon}              \\
+    Scion                    &\cite{pethick2025trainingdeeplearningmodels} & \Cref{alg:scion}       \\
+    Kron (PSGD)              &\cite{Li_2018,li2022blackboxliegroup} & \Cref{alg:kron}            \\
+    Soap                     &\cite{vyas2025soapimprovingstabilizingshampoo} & \Cref{alg:soap}       \\
+    \midrule
+    \multicolumn{3}{l}{\textbf{Hessian-Approximation Optimizers}} \\
+    \midrule
+    Sophia                  &\cite{liu2024sophiascalablestochasticsecondorder} & \Cref{alg:sophia}       \\
+    \bottomrule
+  \end{tabular}
+  \caption{Optimizers under study}
+  \label{tab:optimizers}
+\end{table}
+
+
+
+\begin{table}[t]
+  \centering
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    \textbf{Model} & \textbf{Params} & \textbf{Seq Len} & \textbf{Hidden Dim} & \textbf{Inter Dim} & \textbf{\# Layers} & \textbf{\#  Heads} \\
+    \midrule
+    Llama-130M   & 130M  & 4096 & 512  & 2048  & 32 & 8   \\
+    Llama-300M   & 300M  & 4096 & 768  & 3072  & 32 & 12  \\
+    Llama-520M   & 520M  & 4096 & 1024 & 4096  & 32 & 16  \\
+    Llama-1.2B   & 1.2B  & 4096 & 1536 & 6144  & 32 & 24 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Detailed architecture hyperparameters for each model size we studied.}
+  \label{tab:model-configs}
+\end{table}
+
+Our benchmarks cover four model sizes derived from the architecture~\cite{touvron2023llamaopenefficientfoundation,touvron2023llama2openfoundation,grattafiori2024llama3herdmodels}, with approximately 130M, 300M, 520M, and 1.2B parameters. Each variant uses a fixed sequence length of 4,096 and 32 transformer layers (following~\cite{liu2024mobilellmoptimizingsubbillionparameter}), differing only in hidden dimension, intermediate dimension, and number of attention heads. Detailed hyperparameters are summarized in \Cref{tab:model-configs}. Training is implemented in JAX and executed on TPU v5 hardware. We employ a mixed-precision scheme (parameters in fp32 and activations in bf16). For each model, we use $20$ times its non-embedding parameter count to compute the Chinchilla optimal data-to-model ratio based on~\cite{hoffmann2022trainingcomputeoptimallargelanguage}. We will use \textbf{$n \times$} Chinchilla to represent training the models for $n$ times the Chinchilla optimal number of tokens.
+
+Our primary evaluation metric for the model is the language modeling loss on the English split of the C4 dataset~\cite{raffel2023exploringlimitstransferlearning}, which has been shown to be a strong proxy for downstream performance~\cite{bhagia2024establishingtaskscalinglaws}. We also track downstream accuracy and bits-per-byte on the following suite of benchmarks: ARC (Easy and Challenge)~\cite{Clark2018ARC}, BoolQ~\cite{Clark2019BoolQ}, COPA~\cite{Gordon2012COPA}, CommonsenseQA~\cite{Talmor2018CommonsenseQA}, HellaSwag~\cite{Zellers2019HellaSwag}, LAMBADA~\cite{Paperno2016LAMBADA}, OpenBookQA~\cite{Mihaylov2018OpenBookQA}, PIQA~\cite{Bisk2020PIQA}, WSC273~\cite{levesque2012winograd}, and Winogrande~\cite{Sakaguchi2020WinoGrande}.
+
+
+Our study includes a wide range of eleven optimizers listed in~\Cref{tab:optimizers}. Due to the page limit, we defer the exact algorithm descriptions of these optimizers to~\Cref{def:optimizerdesign}. We selected these eleven optimizers according to three guiding principles: (i) include widely adopted baselines such as AdamW and Lion; (ii) cover recently proposed optimizers; and (iii) when multiple methods share a similar update rule, choose a few representative algorithms. These choices ensure both breadth and depth in our comparison. We group the optimizers under study into five general classes:
+\begin{enumerate}[leftmargin=*]
+\item Our baseline algorithm is AdamW, with $m_t$ and $v_t$ being first- and second-order momentum of gradient. AdamW's update rule is $w_{t+1} = w_t 
+    - \eta\,\frac{{m_t}}{\sqrt{v_t} + \epsilon}
+    - \eta\,\lambda\,w_t$.
+\item Reducing the variance of updates is a shared motivation behind many optimizers. For example, Nesterov AdamW incorporates the Nesterov lookahead technique to estimate gradients more accurately, with the following update rule:
+$w_{t+1} = w_t 
+    - \eta\,\frac{\mathbf{\beta_1 m_t + \color{red}( 1 - \beta_1)g_t}}{\sqrt{v_t} + \epsilon}
+    - \eta \,\lambda\,w_t$.
+\item Optimizers such as Lion aim to reduce the memory required by AdamW by only keeping the first-order momentum. Lion is observed to perform better than AdamW at a small scale~\cite{liang2025cautious}: $w_{t+1} = w_t 
+    - \eta\, \mathrm{sign}(\beta_2 m_t + (1 - \beta_2)g_t)$, where $m_t$ is the first-order momentum.
+\item Other optimizers like Muon leverage the matrix structure of neural networks and perform preconditioning of gradients through matrix multiplication instead of scalar multiplication. For Muon, the key operation is called Newton-Schulz: $\mathrm{NS}(M) = M (aM + bM^\top M + c(M^\to pM)^2)$. With appropriate $a,b,c$, one can prove that $\mathrm{NS}^{(5)}(M) \approx \arg \max_{\|O\|_{\mathrm{op}} = 1} \mathrm{Tr}( O^\top M)$ when $\|M\|_{\mathrm{op}} < 1$. Muon has the following update rule: $w_{t+1} = w_t 
+    - \eta\, \mathrm{NS^{(5)}}(\beta_2 \tilde m_t + (1 - \beta_2)g_t)$. This is done for all the matrices except the token classification head and the embedding in the network. 
+\item Optimizers including Sophia are motivated by the famous Newton's method and use Hessian-vector product to approximate the diagonalized version of the Hessian matrix empirically.\footnote{We defer the result of Sophia to~\Cref{app:sophia_experiments}.}
+ \end{enumerate}
+
+\subsection{Phase I: Fine-grained Hyperparameter Coordinate Descent}
+\label{sec:phase1}
+
+\begin{table}[b]
+  \centering
+  \begin{tabular}{lccccccccccc}
+    \toprule
+    \textbf{Stage} & \textbf{LR} & \textbf{WD} & \textbf{min lr ratio} & \textbf{Warmup} & \textbf{Max Grad Norm} & \textbf{Batch} & \textbf{Val.\ Loss} \\
+    \midrule
+    Init      & 0.008 & 0.1 & 0 & 1000 &  1  & 256 & 3.298 \\
+    Round 1   & 0.008 & 0.1 & 0 & \textcolor{red}{2000}  & 1  & 256 & 3.282 \\
+    Round 2   & 0.008 & 0.1 & 0 & 2000 & 1 & \textcolor{red}{128} & 3.263 \\
+    Best      & 0.008 & 0.1 & 0 & 2000 & \textcolor{red}{2} & 128 & 3.263 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Illustrative coordinate‐descent steps for AdamW on the 130M 1× Chinchilla regime. Changed hyperparameter values are highlighted in red; We omitted some unchanged hyperparameters ($\beta_1 = 0.9,\beta_2 = 0.98 ,\epsilon = 10^{-10}$).}
+  \label{tab:adamw-sweep-example-full}
+\end{table}
+Fixed or lightly tuned baselines can severely understate an optimizer's capability and lead to overstated speedup claims. For instance, a single tweak to the learning-rate schedule with peak learning rate 6e-4 in the GPT-3 recipe \cite{brown2020languagemodelsfewshotlearners} can produce nearly a 2× speedup (\Cref{fig:motivation}, left). 
+To avoid such artifacts, we perform an exhaustive, one-at-a-time sweep over each hyperparameter, identify the set of near-best configurations in each regime, and then determine which knobs truly require re-tuning as scale changes.
+
+For each optimizer, we define a discrete grid for every hyperparameter (e.g., for AdamW, our swept hyperparameters include learning rate, weight decay, warmup steps, $\beta_{1}$, $\beta_{2}$, $\epsilon$, gradient-norm clipping, and batch size). Starting from a initial hyperparameter configuration similar to the hyperparameter configuration provided in the original paper proposing the optimizer, in each iteration, we hold all but one hyperparameter fixed at the current best values, then search the whole grid for that parameter, and accept the new value if the validation loss improves by more than $\Delta_1 = 3 \times 10^{-3}$. We repeat passes until no parameter update yields further significant gain. 
+We perform this sweeping for 6 different settings, namely 130M, 300M, 500M at 1× Chinchilla and 130M at 2×, 4×, 8× Chinchilla. 
+One exemplary  hyperparameter optimization procedure for AdamW on a model with 300M parameters and 1× Chinchilla is shown in~\Cref{tab:adamw-sweep-example-full}.
+
+
+
+\paragraph{Result of Phase I.} By the end of Phase I, we have, for each optimizer and each of the six regimes (130M, 300M, 500M at 1×; 130M at 2×, 4×, 8× Chinchilla), identified a coordinate-wise local optimum of hyperparameters—that is, the single value which, when all other knobs are held fixed, minimizes validation loss. 
+
+\subsection{Phase II: Coordinate Descent on Scaling-Sensitive Hyperparameters}
+\label{sec:phase2}
+
+\begin{table}[t]
+  \centering
+  \begin{tabular}{ll}
+    \toprule
+    \textbf{Optimizer} & \textbf{Scaling‐Sensitive Hyperparameters} \\
+    \midrule
+    AdamW             & \texttt{learning rate, warmup, weight decay, batch size} \\
+    Nesterov AdamW    & \texttt{learning rate, warmup} \\
+    Lion               & \texttt{learning rate, beta2} \\
+    Adam-mini          & \texttt{learning rate, weight decay, warmup} \\
+    Cautious           & \texttt{learning rate, batch size} \\
+    Mars               & \texttt{learning rate, warmup, beta1} \\
+    Scion              & \texttt{learning rate, beta1, \# decay steps in WSD \cite{hu2024minicpmunveilingpotentialsmall}} \\
+    Muon               & \texttt{learning rate} \\
+    Soap            & \texttt{learning rate, warmup, block size} \\
+    Kron               & \texttt{learning rate} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Scaling‐sensitive hyperparameters identified in Phase I (\Cref{sec:phase1}). To reduce the memory required by Soap, we apply the parameter blocking as in~\cite{anil2021scalablesecondorderoptimization}} 
+  \label{tab:sensitive-hyper}
+\end{table}
+
+While the extensive coordinate descent guarantees coordinate-wise optimality, it is too costly to perform on larger-scale experiments.
+We empirically observe two crucial properties of the sweeping that allow us to simplify the descent procedure:
+
+
+
+
+
+\begin{enumerate}
+    \item Losses are sensitive to only a subset of hyperparameters; many have little effect on performance when perturbed from their optimal values.
+    \item Among the sensitive hyperparameters, the optimal settings for most remain stable across scales, so tuning is needed only at smaller scales.
+\end{enumerate}
+
+
+
+
+Building on these observations, we can simplify our hyperparameter search by identifying scaling-sensitive parameters, which (i) crucially influence the final performance, and (ii) change with respect to the model scale.
+We define the \textbf{approximate-optimal configuration} for a given regime as the set of all hyperparameter tuples whose final loss lies within $\Delta_2=$6.4e-3 of the regime's best-observed loss $L^*_r$, where $r$ denotes a regime/setting, that is, $r$ is a pair of choice of model size and data budget. Concretely, let $c_h$ denotes a hyperparameter (where $h$ is the index) and $c$ be the tuple of all hyperparameters.
+\begin{enumerate}[leftmargin=*]
+    \item For each regime $r$, let $\mathcal{C}_r = \{\,c: L(c)\le L^*_r + \Delta_2\}$ be all the hyperparameter configurations in our coordinate descent procedure that yield approximately optimal loss. 
+    \item A hyperparameter $c_h$ is called \textbf{scaling-insensitive} if there exists a single value $v_h$ such that there exists  $c\in\mathcal{C}_r$ such that $c_h=v_h$  for every regime $r$ in Phase I. 
+    Otherwise, $c_h$ is \textbf{scaling-sensitive}, meaning its optimal value shifts depending on model size or data budget.
+\end{enumerate}
+
+We carry forward only the scaling-sensitive hyperparameters (shown in~\Cref{tab:sensitive-hyper}) into Phase II, thereby focusing our next round of coordinate-descent sweeps on the hyperparameters that truly require re-tuning across scaling regimes.
+We then perform sweeping for another 6 different settings, namely 300M, 500M at 2×, 4×, 8× Chinchilla. 
+
+\paragraph{Result of Phase II.}  Combined with the results in Phase I, we obtain a set of near-optimal hyperparameters and their corresponding losses for 12 different settings (130M, 300M, 500M and 1×, 2×, 4×, 8× Chinchilla).  
+
+To quantify the speedup of different optimizers over the baseline AdamW, we fit how AdamW's loss scales with data budget $D$ for each model size $N$ with the following functional form: $\hat L_N(D) = \alpha_N D^{-B_N} + \beta_N$. Suppose an optimizer achieves loss $L_{\text{optimizer}}$ at data budget $D_{\text{Optimizer}}$. We calculate the corresponding data budget needed for  AdamW to achieve this loss, denoted by $D_{\text{AdamW}}$ by finding the solution to the equation $\hat L_N(D_{\text{AdamW}}) = L_{\text{optimizer}}$. We then use $D_{\text{AdamW}}/D_{\text{Optimizer}}$ as the estimated speedup ratio. 
+
+
+
+Through this set of experiments, we observed two phenomena: (i) matrix-based optimizers consistently outperform scalar-based optimizers, but all optimizers' speedup ratios over AdamW do not exceed 1.5$\times$; and (ii) within matrix-based optimizers, Muon performs the best at 1-4× Chinchilla ratio but is overtaken by Soap and Kron when the Chinchilla ratio increases.
+
+\subsection{Phase III: Hyperparameter Scaling Law for Further Extrapolation}
+\label{sec:phase3}
+
+Having obtained optimized hyperparameter settings from Phase II (\Cref{sec:phase2}), we now fit a smooth scaling law that predicts the optimal value of each scaling-sensitive hyperparameter as a function of model size $N$ and data budget $D$.
+Concretely, we model the optimal value for each scaling-sensitive hyperparameter $h$ as:
+$
+h(N, D) \;=\; \alpha \,N^{-A}\,D^{-B} \;+\; \beta,
+$
+where $A$, $B$, $\alpha$, and $\beta$ are learned coefficients. 
+
+We estimate these parameters via non-linear least-squares on the 12 observed $(N,D,h)$ triples for each optimizer, minimizing the squared error between predicted and actual optimal hyperparameter values. To test the quality of our prediction, we ran a full Phase I sweep at $N=1.2\mathrm{B}$ and Chinchilla = 1 for AdamW. 
+Comparing the identified optimum against our fitted hyperparameters, we observe that our predicted hyperparameters yield a final loss within 3e-3 of the optimal configuration, showing that our hyperparameter scaling law can effectively predict the optimal hyperparameters. 
+We then performed two case studies to further extrapolate our benchmarking:
+\begin{enumerate}[leftmargin=*]
+    \item To test the effect of scaling up model sizes, we train 1.2B models using AdamW, Nesterov AdamW, and Muon on 1 to 8× Chinchilla ratio. 
+    \item To further test the effect of different optimizers when data-to-model ratios are high, we train 130M and 300M models using AdamW, Nesterov AdamW, Muon, and Soap on 16x Chinchilla ratio.
+\end{enumerate}
+
+
+\paragraph{Results of Phase III.} We demonstrate two potential shortcomings of Muon optimizers, which is the best optimizers in Phase I and Phase II, through experiments in this phase: (i) while Muon's speedup persists for models up to 1.2B parameters, the speedup decreases to under 1.2×; (ii) With a 16× Chinchilla ratio, NAdamW and Soap outperform Muon on the 130M model, and Soap also surpasses Muon on the 300M model.

@@ -1,0 +1,196 @@
+{
+  "status": "Historical 128-H100 / 40-day scenario; superseded for current planning by configs/industry/budget-96-h100-30d.json. Design only, not an executable trainer config.",
+  "hardware": {
+    "gpus": 128,
+    "assumed_gpu": "H100 SXM 80GB",
+    "nodes": 16,
+    "gpus_per_node": 8,
+    "hero_days": 40,
+    "dense_bf16_peak_tflops_per_gpu": 989,
+    "planning_model_tflops_per_gpu": 250,
+    "productive_wall_fraction": 0.9,
+    "rd_target_gpu_days": 1024,
+    "rd_cap_gpu_days": 1280
+  },
+  "common": {
+    "vocab_size": 50304,
+    "tokenizer": "allenai/OLMoE-1B-7B-0924; pin revision before ingestion",
+    "sequence_length": 4096,
+    "activation": "SwiGLU",
+    "normalization": "pre-RMSNorm and QK-Norm",
+    "norm_epsilon": 1e-05,
+    "rope_theta": 10000,
+    "tie_embeddings": false,
+    "bias": false,
+    "shared_experts": 0,
+    "experts_per_token": 8,
+    "router": "dropless token choice; aux load balance and router z-loss",
+    "load_balance_coefficient": 0.01,
+    "router_z_loss_coefficient": 0.001,
+    "precision": "BF16 compute; FP32 optimizer/master/gradient accumulation",
+    "gradient_clip": 1.0,
+    "init_std": 0.02,
+    "init_truncation_std": 3,
+    "tokenizer_revision": "6d84c48581ece794365f2b8e9cfb043c68ade9c5",
+    "auxiliary_loss_reduction": "must be explicitly matched and logged over executed visits; coefficients tentative until qualified OLMoE-style baseline"
+  },
+  "hero_looped": {
+    "width": 2048,
+    "physical_layers": 32,
+    "expert_hidden": 1024,
+    "experts": 96,
+    "query_heads": 32,
+    "kv_heads": 8,
+    "head_dim": 64,
+    "loop_middle_fraction": 0.5,
+    "middle_visits": 2,
+    "loop_residual_multiplier": 0.5
+  },
+  "hero_baseline": {
+    "width": 3072,
+    "physical_layers": 32,
+    "expert_hidden": 896,
+    "experts": 72,
+    "query_heads": 48,
+    "kv_heads": 12,
+    "head_dim": 64,
+    "loop_middle_fraction": 0.0,
+    "middle_visits": 1,
+    "loop_residual_multiplier": 1.0
+  },
+  "training_seed": {
+    "token_horizon": 4500000000000,
+    "global_batch_tokens": 4194304,
+    "microbatch_sequences_per_gpu": 1,
+    "gradient_accumulation": 8,
+    "optimizer": "AdamW",
+    "peak_lr_unvalidated": 0.0002,
+    "minimum_lr": 2e-06,
+    "beta1": 0.9,
+    "beta2": 0.95,
+    "epsilon": 1e-08,
+    "weight_decay_unvalidated": 0.1,
+    "schedule": "1% token warmup; stable until 80%; final 20% cosine decay",
+    "data_quality_phase2_start": 0.8,
+    "expert_parallel_degree": 8,
+    "expert_data_parallel_replicas": 16,
+    "tensor_parallel_degree": 1,
+    "pipeline_parallel_degree": 1
+  },
+  "ladder": [
+    {
+      "tier": "S0",
+      "layers": 12,
+      "loop_width": 512,
+      "loop_ffn": 256,
+      "loop_head_dim": 64,
+      "loop_kv_heads": 2,
+      "base_width": 768,
+      "base_ffn": 224,
+      "base_head_dim": 64,
+      "base_kv_heads": 3,
+      "horizons_tokens": [
+        10000000000,
+        40000000000,
+        160000000000
+      ]
+    },
+    {
+      "tier": "S1",
+      "layers": 20,
+      "loop_width": 1024,
+      "loop_ffn": 512,
+      "loop_head_dim": 64,
+      "loop_kv_heads": 4,
+      "base_width": 1536,
+      "base_ffn": 448,
+      "base_head_dim": 64,
+      "base_kv_heads": 6,
+      "horizons_tokens": [
+        30000000000,
+        120000000000,
+        480000000000
+      ]
+    },
+    {
+      "tier": "S2",
+      "layers": 24,
+      "loop_width": 2048,
+      "loop_ffn": 1024,
+      "loop_head_dim": 64,
+      "loop_kv_heads": 8,
+      "base_width": 3072,
+      "base_ffn": 896,
+      "base_head_dim": 64,
+      "base_kv_heads": 12,
+      "horizons_tokens": [
+        20000000000,
+        60000000000,
+        180000000000
+      ]
+    }
+  ],
+  "mixture": [
+    {
+      "bucket": "cc_medium_actual",
+      "phase1": 0.25,
+      "phase2": 0.15,
+      "epoch_cap": 1
+    },
+    {
+      "bucket": "cc_medium_low_actual",
+      "phase1": 0.1,
+      "phase2": 0.0,
+      "epoch_cap": 1
+    },
+    {
+      "bucket": "cc_low_actual_ablation_only",
+      "phase1": 0.0,
+      "phase2": 0.0,
+      "epoch_cap": 1
+    },
+    {
+      "bucket": "cc_medium_high_actual",
+      "phase1": 0.15,
+      "phase2": 0.1,
+      "epoch_cap": 2
+    },
+    {
+      "bucket": "cc_high_actual",
+      "phase1": 0.2,
+      "phase2": 0.3,
+      "epoch_cap": 3
+    },
+    {
+      "bucket": "cc_high_synthetic",
+      "phase1": 0.1,
+      "phase2": 0.15,
+      "epoch_cap": 2
+    },
+    {
+      "bucket": "code_starcoderdata",
+      "phase1": 0.15,
+      "phase2": 0.2,
+      "epoch_cap": 4
+    },
+    {
+      "bucket": "math_proof_pile_2",
+      "phase1": 0.05,
+      "phase2": 0.1,
+      "epoch_cap": 6
+    }
+  ],
+  "selection_rules": {
+    "loop_quality": "positive paired held-out compute-normalized gain with run-seed uncertainty; prioritize code/math without violating domain floors",
+    "loop_throughput_ratio_minimum": 0.9,
+    "measured_peak_hbm_gib_maximum": 72,
+    "long_run_minimum_steps": 10000,
+    "measured_model_tflops_gate": 200,
+    "tokens_are_frozen_after_rehearsal": true
+  },
+  "overtraining": {
+    "screening_constraint": "D/N_total >= 200, counting stored parameters including embeddings; proxy relative to dense 20TPP rule, not an established MoE optimum",
+    "preferred_model_bf16_weight_gb_max": 48,
+    "validate_fitted_moe_frontier_separately": true
+  }
+}

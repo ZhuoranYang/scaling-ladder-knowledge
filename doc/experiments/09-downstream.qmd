@@ -1,0 +1,34 @@
+---
+title: "Predicting downstream capabilities"
+---
+
+> **Reading note.** This is an explanatory reconstruction of Jiaxuan Zou’s literature synthesis. Published experiments belong to the cited teams. Numbered protocols and illustrative matrices are our planning synthesis unless explicitly attributed.
+
+The blog's §9 explains why predicting cross-entropy is easier than predicting task accuracy. Accuracy depends on threshold decisions and competing answers. If every small model scores near zero, fitting a smooth accuracy curve can produce an impressive-looking but unsupported forecast.
+
+## Three routes
+
+| Route | Intermediate quantity | Main condition |
+|---|---|---|
+| General loss to accuracy | Common validation loss | Stable relation to the task |
+| Task NLL to accuracy | Correct-answer likelihood | Calibrated likelihood-to-score relation |
+| Difficulty-cluster prediction | Per-item pass-rate vectors | Stable clusters and informative difficulty range |
+
+For a task answer's NLL $z$, a possible calibration is $p(z)=g+(1-g)/(1+\exp[a(z-b)])$, with guessing floor $g$, positive slope parameter $a$, and midpoint $b$. This is an illustrative calibration family, not a claim that every task follows it.
+
+## Procedure
+
+1. Freeze benchmark version, templates, scoring masks, and sampling budget.
+2. Measure continuous answer NLL or BPB alongside accuracy on each ladder checkpoint.
+3. Fit size/tokens-to-task-loss on fitting tiers, then calibrate task-loss-to-accuracy on development data.
+4. For floor-limited tasks, consider COD-style difficulty clustering using repeated samples across small models. Freeze clusters before final target evaluation.
+5. Test the entire prediction pipeline on larger held-out models. Propagate uncertainty through both stages.
+6. Reject the accuracy forecast when residuals exceed the decision tolerance; retain the continuous metric if it remains useful.
+
+The OLMo Task Ladder is a concrete reference for two-stage prediction. COD is a different approach built around difficulty subsets and a mapping back to the full benchmark. Neither removes the need to test architecture/data transfer or to account for benchmark sampling variance.
+
+**Deliverable:** per-task forecast with calibration data, uncertainty, holdout error, and a flag for tasks with insufficient signal.
+
+**Sources:** [blog §9](../reading/scientific-scaling-ladder.md#9-downstream-task-prediction); [Bhagia et al., 2024, OLMo Task Ladder](https://arxiv.org/abs/2412.04403); [COD, 2026 version](https://arxiv.org/abs/2502.17262v4); [Schaeffer et al., 2024](https://arxiv.org/abs/2406.04391).
+
+[Blog/notes crosswalk](../reading/jiaxuan-reading-guide.qmd) · [Detailed companion](../deep-dives/capabilities-and-validation.qmd)

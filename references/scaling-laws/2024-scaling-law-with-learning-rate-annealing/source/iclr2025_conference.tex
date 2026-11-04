@@ -1,0 +1,105 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2025_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{graphicx} 
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{wrapfig}
+\usepackage{booktabs}
+\usepackage[misc]{ifsym}
+\hypersetup{
+colorlinks=true,
+linkcolor=black,
+citecolor=black
+}
+
+
+\title{Scaling Law with Learning Rate Annealing}
+
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+
+\author{Howe Tissue \small{\Letter}\\ 
+\texttt{h-sun20@tsinghua.org.cn} \\
+\And 
+Venus Wang \\
+\texttt{wangxxing12@gmail.com} \\
+\And 
+Lu Wang \\
+\texttt{wangluloveslezhi@gmail.com} \\
+}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We find that the cross-entropy loss curves of neural language models empirically adhere to a scaling law with learning rate (LR) annealing over training steps:
+$$L(s) = L_0 + A\cdot S_1^{-\alpha} - C\cdot S_2,$$
+where $L(s)$ is the validation loss at step $s$, $S_1$ is the area under the LR curve, $S_2$ is the LR annealing area, and $L_0$, $A$, $C$, $\alpha$ are constant parameters.
+This formulation takes into account two factors: (1) power-law scaling over data size, and (2) the additional loss reduction during LR annealing. 
+Therefore, this formulation can describe the full loss curve at each step, rather than the single loss point at the end of training.
+Applying the scaling law with LR annealing and fitting only one or two training curves, we can accurately predict the loss at any given step across any learning rate scheduler (LRS).
+This approach significantly reduces computational cost in formulating scaling laws while providing more accuracy and expressiveness for training dynamics.
+Extensive experiments demonstrate that our findings hold across a range of hyper-parameters and model architectures, and our equation can extend to scaling effect of model sizes.
+Moreover, our formulation provides accurate theoretical verification and explanation for empirical results observed in numerous previous studies, particularly those focusing on LR schedule and annealing.
+We believe that this work is promising to enhance the understanding of LLM training dynamics while greatly democratizing scaling laws, and it can guide researchers in refining training strategies (e.g. critical LRS) for further LLMs~\footnote{We welcome any feedback, comment, and discussion at \href{https://www.alphaxiv.org/abs/2408.11029}{AlphaXiv} or \href{https://huggingface.co/papers/2408.11029}{HuggingFace}, where we also provide our implementation codes.}.
+
+\end{abstract}
+
+\input{inputs/intro}
+\input{inputs/prelim}
+\input{inputs/theory}
+\input{inputs/takeaway}
+\input{inputs/comparison}
+\input{inputs/discussion}
+
+
+\section{Future Works}
+\subsection{Tuning Scaling Law Format}
+We have tested a variety of equation formats to enhance the accuracy of the entire training process. As a result, the final equation format, as presented in Eq.~\ref{eq:scaling}, proves to be optimal so far
+across a range of scenarios. 
+We add only one extra parameter but obtain a very good fitting and prediction result.
+The formulation has achieved a level of practicality that enables the prediction of future loss when scaling training steps and model sizes. We expect more following researches to explore the format of the scaling law with learning rate annealing.
+
+\subsection{More Applications via Our Scaling Law}
+In Sec.~\ref{sec:takeaways}, we present many instances to apply our scaling law with LR annealing, to predict future training dynamics with a cost-free manner.
+We believe that our equation can help analyze and select more training recipes in specific scenarios.
+
+\subsection{Extension to Post-training}
+In this work, we research primarily on the scope of pretraining of LLM. We also show how to apply our equation to guide the LR re-warmup strategy in continual pre-training. We will continue researching on how to extend our equation to post-training, which might include data distribution shift, data mixture, model alignment, and specific downstream evaluations.
+
+
+\section{Conclusion}
+In conclusion, we propose that the loss curves of neural language models empirically adhere to a scaling law with learning rate annealing over training steps $s$: $L(s) = L_0 + A\cdot S_1^{-\alpha} - C\cdot S_{2}$.  
+This equation can accurately predict full loss curves across unseen learning rate schedulers.
+We present the underlying intuition and theory for deriving our equation and demonstrate that our approach can be extended to capture the scaling effect of model sizes.
+Extensive experiments demonstrate that our proposed scaling law has good accuracy, scalability, and holds under various experimental setups.
+It also offers accurate theoretical insights to the training dynamics of LLMs,
+and explains numerous phenomena observed in previous studies. We believe that the scaling law with LR annealing is promising to reshape the understanding of researchers for LLM training and scaling laws.
+
+\bibliography{iclr2025_conference}
+\bibliographystyle{iclr2025_conference}
+
+\newpage
+\appendix
+\input{inputs/appendix}
+\end{document}

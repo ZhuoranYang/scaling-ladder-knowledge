@@ -1,0 +1,32 @@
+\renewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
+\begin{algorithm}[tb]
+  \caption{Generating the $\cbs$ power law}
+  \label{alg:cbs_fitting}
+  \begin{algorithmic}
+    \small
+    \STATE Initialize $\cbsPoints = [$ $]$
+    \FOR{$N$ {\bfseries in} $\modelScales$}  % N
+      \STATE \COMMENT{Fit $B$-specific (and $N$-specific) scaling laws, $L_{B}(D)$:}
+      \FOR{$B$ {\bfseries in} $\batchSizes[N]$}  % B
+        \STATE Reset $\scaleSet = [$ $]$
+        \FOR{$D$ {\bfseries in} $10N, 20N, 80N, 320N, ...$} % D
+          \STATE Train $\LLM(N,D,B)$, get validation loss $L'$
+          \STATE $\scaleSet.add( \langle D,L' \rangle )$
+        \ENDFOR % D
+      \STATE Fit $\irr$, $\dconst$, $\beta$ for $L_{B}(D) = \irr + \dconst D^{-\beta}$ on $\scaleSet$
+      \ENDFOR % B
+      \STATE \COMMENT{Use $L_{B}(D)$ to estimate $\cbs$ at various loss values:}
+      \FOR{$\hat{L}$ in $lossTargets[N]$} % L
+        \STATE Reset $\tradeoffSet = [$ $]$
+        \FOR{$B$ {\bfseries in} $\batchSizes[N]$} % B
+          \STATE Get $\dinfer = L_{B}^{-1}(\hat{L}) = \left(\frac{\dconst}{\hat{L}-\irr}\right)^{\frac{1}{\beta}}$
+          \STATE $\tradeoffSet.add( \langle \dinfer, S$=$\nicefrac{\dinfer}{B} \rangle )$
+        \ENDFOR % B
+        \STATE Fit $\dmin$, $\smin$ for \cref{eq:tradeoff} on $\tradeoffSet$
+        \STATE $\cbs = \nicefrac{\dmin}{\smin}$
+        \STATE $\cbsPoints.add( \langle \dmin, \cbs \rangle )$
+      \ENDFOR % L
+    \ENDFOR % N
+    \STATE Fit $\ccbsalg$, $\mcbsalg$ for $\cbs = {\ccbsalg} (\dmin)^{\mcbsalg}$ on $\cbsPoints$
+  \end{algorithmic}
+\end{algorithm}

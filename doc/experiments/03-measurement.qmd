@@ -1,0 +1,40 @@
+---
+title: "Measurement: parameters, FLOPs, tokens, and loss"
+---
+
+> **Reading note.** This is an explanatory reconstruction of Jiaxuan Zou’s literature synthesis. Published experiments belong to the cited teams. Numbered protocols and illustrative matrices are our planning synthesis unless explicitly attributed.
+
+A ladder fits numbers whose meanings must remain constant. The blog's §3 makes measurement a prerequisite to experiment design: changes in parameter conventions or token accounting can create apparent scaling effects.
+
+## Define the counters
+
+| Quantity | Definition to freeze | Log separately |
+|---|---|---|
+| $N_{\mathrm{body}}$ | Transformer trunk parameter count | Embeddings and output head |
+| $N_{\mathrm{active}}$ | Parameters used per token in MoE | Total parameters and routing |
+| $D$ | Tokens contributing to the main loss | Processed and masked tokens |
+| $U$ | Deduplicated available unique tokens | Rewrites and repeated exposures |
+| $L$ | Held-out next-token cross-entropy | Auxiliary losses and task scores |
+| $C$ | Declared architecture/kernel FLOPs | Wall-clock time, communication, retries |
+
+For a standard multi-head-attention Transformer with a $4d$ feed-forward expansion and full attention-matrix accounting, the blog gives the approximation
+
+$$C\approx\left(6+\frac{\ell}{d}\right)N_{\mathrm{body}}D+6VdD.$$
+
+Here $\ell$ is context length, $d$ is hidden width, $V$ is vocabulary size, and $N_{\mathrm{body}}\approx12d^2n$ for $n$ layers. The final term represents the vocabulary projection. Causal kernels, grouped-query attention, gated MLPs, and MoE alter this accounting. Use the actual architecture and execution convention for decisions.
+
+## Procedure
+
+1. Produce an exact parameter breakdown for every architecture configuration.
+2. Record a FLOP accounting function and its assumptions.
+3. Version tokenizer, packing, masks, loss reduction, and validation corpus.
+4. Schedule evaluation at comparable fractions of training progress.
+5. Log domain losses on a common evaluation distribution.
+
+Training loss on different training mixtures changes with corpus entropy and is unsuitable as the sole mixture-ranking metric. Distributed averaging also requires a consistent denominator: averaging device means can bias loss when the devices have unequal numbers of valid tokens.
+
+**Deliverable:** a measurement specification shared by every run, including units and exclusions.
+
+**Sources:** [blog §3](../reading/scientific-scaling-ladder.md#3-measurement-specification); [Porian et al., 2024, Table 2](https://arxiv.org/abs/2406.19146); [Kaplan et al., 2020](https://arxiv.org/abs/2001.08361).
+
+[Blog/notes crosswalk](../reading/jiaxuan-reading-guide.qmd) · [Detailed companion](../deep-dives/measurement-and-compute.qmd)

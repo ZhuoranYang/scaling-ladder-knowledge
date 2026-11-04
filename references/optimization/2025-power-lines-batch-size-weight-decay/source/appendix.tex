@@ -1,0 +1,617 @@
+\section{Broader impacts}\label{sec:broader}
+\input{impact.tex}
+
+\section{Limitations}\label{sec:limitations}
+\input{limitations.tex}
+
+\section{Experimental Details}\label{sec:experimental_details}
+
+\input{tables/tab_model_info.tex}
+
+\input{tables/tab_train_steps.tex}
+
+\cref{tab:model_info} provides details on the model architecture and
+hyperparameters for models used in the experiments.
+\cref{tab:train_steps} provides, for each model scale and TPP, the
+dataset sizes used in training, the number of batch sizes tested, and
+the number of batch sizes for which $\lambda$ was tuned.
+%
+Around 400 models in total were trained for the main experiments.
+
+All the models in our main experiments were trained on the SlimPajama
+dataset~\citep{cerebras2023slimpajama}, a cleaned and deduplicated
+version of the RedPajama dataset.  We use the
+GPT-2~\citep{radford2019gpt2} vocabulary of size 50257, and a context
+length of 2048 tokens.
+%
+Following standard practice, we do not apply weight decay or bias to
+LayerNorm layers.
+%
+AdamW settings are $\beta_1 = 0.9$, $\beta_2 = 0.95$, and $\epsilon = 1$e$-8$.
+%
+Validation loss is always computed over a held-out 1.1B tokens,
+regardless of training TPP\@.  We report cross-entropy loss.
+%
+By default we parameterize with $\mup$, with hyperparameters set via
+proxy tuning, as described below.
+
+For a given TPP, all models have the exact same warmup phase: a linear
+warmup of the learning rate from 0 to the maximum value.
+%
+In all our runs, warmup was 10\% of the total steps.
+%
+Learning rate warmup is standard practice in LLM
+pre-training~\citep{brown2020language,rae2022scaling,biderman2023pythia,dubey2024llama,kosson2024analyzing}.
+
+All models in the main experiments were trained on a Cerebras CS-3
+system.  610M-parameter 20TPP models take roughly 6 hours each to
+train on a single CS-3.
+
+For a given model configuration, we find results to be very stable
+across random seeds.  To quantify the variance, we repeated
+111M-parameter, 20~TPP training four additional times for six
+different hyperparameter settings, resulting in 5 total validation
+loss results for each of the six training runs.  Standard deviation of
+the validation loss was below 0.003 in all cases.
+
+\paragraph{Proxy model hyperparameter tuning}\label{sec:proxy_tuning}
+
+\input{tables/tab_mup_hps.tex}
+
+To find the optimal $\mup$ hyperparameters (HPs), we trained a 39M
+proxy model using a width $d_{\text{model}}$ of 256, with 24 layers
+and head size of 64.  We trained this model on 800M tokens with a
+batch size of 256 sequences and a context length 2048.  We randomly
+sampled 350 configurations of base learning rates, base initialization
+standard deviation, and embedding and output logits scaling factors,
+and used the top-performing values as our tuned HPs
+(\cref{tab:mup_hps}).
+
+\section{Additional related work}\label{sec:related}
+\input{related.tex}
+
+\section{Scaling of $\tepoch$ and $\lambda$: additional details and results}
+
+%\input{figures/fig_more_tepoch_scaling.tex}
+
+%In TODO, we plot the optimal $\tepoch$ as a function of batch size for
+%all of the model scales and TPP levels where we did hyperparameter
+%sweeps.  The optimal $\tepoch$ is taken from a coarse grid (as
+%$\lambda$ is swept by powers of two), so when the true $\tepochopt$ is
+%between two grid points, the sampled optimum may oscillate, as we see
+%at smaller model scales.  The optimal $\tepoch$ stays around a common
+%value increasing when $B > \cbs$.  Note that the point of increase
+%tends to scale both with TPP and model scales, as expected if $\cbs$
+%is a power law in $D$ (as, at a fixed TPP, an increase in model scale
+%also requires an increase in $D$).
+
+\subsection{$\lambda$ scaling with $B$}
+
+\input{figures/fig_more_wd_scaling.tex}
+
+\cref{fig:more_wd_scaling} shows how optimal $\lambda$ changes across
+$B$, for all of the model scales and TPP levels where we did
+hyperparameter sweeps.
+%
+There is a strong linear relationship between $\lambda$ and $B$ over
+the smaller batch sizes $B < \bcrit$, with optimal $\lambda$
+eventually plateauing (or decreasing).
+%
+Note the standard use of
+$\lambda$=0.1~\citep{hoffmann2022empirical,brown2020language,almazrouei2023falcon,alephalpha2024introducing}
+is only optimal at specific $B$, and this $B$ changes with TPP\@.
+
+% This agrees with recent work showing that $\eta$ decreases when $B >
+%\cbs$, when using the Adam
+%optimizer~\citep{li2024surge,filatov2024time}.  Could the transition
+%between linear scaling and no-further-scaling really be what's
+%driving the square-root scaling rules discussed in related work?
+
+\subsection{Additional details on $\tepoch$ fitting}\label{sec:appendix_tepoch_fitting}
+
+\input{algs/alg_tepoch_fitting.tex}
+
+We now describe how we obtained the optimal $\tema$ values at specific
+model scales and TPP ratios.
+%
+Rather than taking the empirical minimum loss, we fit a parabola to
+the $\langle \mathit{L}, \tepoch \rangle$ points in log space and took
+the analytic minimum of the parabola.  If we have multiple loss values
+at the same $\tepoch$ (e.g., our data for a single scale and TPP
+comprises multiple different batch sizes), we only kept the lowest
+loss points at each $\tepoch$ prior to parabola fitting.
+%
+We used validation loss on the held-out validation set.
+%
+For our $\tepoch$ calculations, we input $B$ in units of \emph{tokens}
+(in contrast to the \emph{output} of our reported $\bopt$ and $\bcrit$
+scaling laws, which we report in units of sequences, of 2048 tokens).
+%
+\cref{alg:tepoch_fitting} sketches the full procedure for generating
+the $\tepoch$ power law (\cref{eq:tepoch_scaling}).
+%
+% Implied by taking the best ones?
+%Note we are collecting $\tepoch$ here for runs where $B < \cbs$.
+
+\subsection{Relationship to prior power laws}
+
+\subsubsection{Relationship to $\etaopt$ scaling laws in dataset size, $D$}\label{sec:eta_scaling}
+
+Both \citet{shen2024power} and \citet{bjorck2024scaling} propose
+scaling laws for the optimal learning rate, $\etaopt$, as a power law
+in the amount of data, $D$:
+\begin{equation*}
+  \etaopt = B \cdot \cetad \cdot D^{\metad}
+\end{equation*}
+We now discuss how this power law also follows from the power law of
+$\tepochopt$ in TPP\@.  By \cref{eq:tepoch_scaling}, we have:
+\begin{align*}
+  \tepochopt(\tpp) &= {\ctepoch} \cdot \tpp^{\mtepoch} \\
+  &= {\ctepoch} \cdot \left( \frac{D}{N} \right)^{\mtepoch}
+\end{align*}
+Substituting in the definition of $\tepoch$ (\cref{eq:tepoch}), and
+assuming $\lambda$, $B$, and $N$ are
+fixed,\footnote{\citet{bjorck2024scaling}\ use a fixed
+$\lambda$=$0.1$, a fixed batch size of 0.5M tokens (for most of their
+experiments), and fit scaling laws separately at different model sizes
+(except in their Section~4).  \citet{shen2024power}\ use $\mup$ to
+adjust the LR for different model scales, so the derivation applies at
+any particular $N$; they do not report which optimizer is used nor any
+of its settings.} this implies $\etaopt$ will scale as:
+\begin{align}\label{eq:etaopt_equivalence}
+  \frac{B}{\etaopt\lambda D} &= {\ctepoch} \cdot \frac{D^{\mtepoch}}{N^{\mtepoch}} \notag \\
+  \Rightarrow \etaopt &= B \left( \frac{N^{\mtepoch}}{\lambda \cdot \ctepoch} \right) D^{-(\mtepoch + 1)} \notag \\
+  &= B \cdot \cetad \cdot D^{\metad}
+\end{align}
+\begin{equation*}
+  \text{where} \quad 
+  \cetad = \frac{N^{\mtepoch}}{\lambda \cdot \ctepoch}
+  \quad \text{and} \quad
+  \metad = -(\mtepoch + 1)
+\end{equation*}
+\cref{eq:etaopt_equivalence} is exactly the form of the power law used
+in \citet{shen2024power}, and explains the results across batch sizes
+seen in \citet{bjorck2024scaling}, as discussed in
+\cref{sec:tema_results}.
+
+\paragraph{Comparison to fit in Power Scheduler~\citep{shen2024power}}\label{sec:appendix_power_scheduler}
+
+Given $\cetad = \frac{N^{\mtepoch}}{\lambda \cdot \ctepoch}$ and $\metad =
+-(\mtepoch + 1)$, we can use these formulas to compare our fit
+coefficients to those in \citet{shen2024power}.
+
+In \citet{shen2024power}, they find $\metad = -0.51$.
+%
+In our case, $\mtepoch = -0.520$, and therefore $\metad = -0.48$, which
+is quite similar.
+
+Comparing our $\cetad$ to their $\cetad$ ($= 4.6$) is a bit less
+straightforward.  First of all, \citet{shen2024power} inputs $B$
+in sequences (of length 4096).  We thus convert to the scale of our
+coefficient by dividing by their sequence length, obtaining $\cetad =
+0.0011$.
+%
+Secondly, the power law of \citet{shen2024power}\ is actually for
+the \emph{base} $\mup$ learning rate $\hateta$, while our derivation
+above assumes the adjusted (final) learning rate $\eta$
+(\cref{sec:mup}).
+
+Let us first compare $\cetad$ coefficients at the proxy-model scale,
+i.e., where $\eta = \hateta$.
+%
+If we were to use a 28M-parameter proxy model, and a default
+$\lambda$=0.1 (and using our fit values of $\ctepoch=1.084$ and
+$\mtepoch=-0.527$), then, by $\cetad = \frac{N^{\mtepoch}}{\lambda
+  \ctepoch}$, our $\cetad$ would also equal $0.0011$.
+
+Now we consider how our coefficient varies when $N$ scales.  To
+convert our $\eta$ scaling law into one for the base $\hateta$, we can
+instead use $\cetad = \frac{N^{\mtepoch}}{\lambda \cdot \rho \cdot \ctepoch}$, where $\rho = P/W$, $P$ is the width of the proxy model,
+and $W$ is the width of the target model.
+%
+The width also affects the number of parameters, $N$, and hence the
+term $N^{\mtepoch}$.  In Transformers, $N$ scales roughly as $N
+\propto L W^2$, where $L$ is the model depth and $W$ is the model
+width.  If we round the fitted exponent to $\mtepoch \approx -0.5$,
+and substitute the value $\rho \propto 1/W$ into the denominator, we
+therefore have:
+\begin{align*}
+  \cetad &= \frac{N^{\mtepoch}}{\lambda \rho \ctepoch} \\
+  &\propto \frac{N^{-0.5}}{\frac{1}{W}} \\
+  &\propto {(L W^2)}^{-0.5}W \\
+  &\propto {L}^{-0.5}{(W^2)}^{-0.5}W \\
+  &\propto {L}^{-0.5}
+\end{align*}
+which is invariant to changes in $W$---i.e., the $\mup$ adjustment
+cancels out the model scaling in width.
+%
+So, if we only scale $W$, $\tema$ scaling would stay in agreement with
+the Power Scheduler recipe, but if we increase depth, $\tema$ scaling
+would decrease $\eta$ proportional to $\nicefrac{1}{\sqrt{L}}$ in a
+manner that is not accounted for in \citet{shen2024power}.
+
+The key point is that the scaling law used by
+\citet{shen2024power}\ is valid, indeed, has similar fitted exponents,
+to what would be predicted by the $\tepochopt$ scaling law---but in a
+specific context only (small models, or models only scaling in width).
+%
+Moreover, we have shown it may be less effective to adjust $\eta$ in
+order to optimize $\tepoch$ (as these approaches implicitly do); we
+obtained superior results by instead adjusting $\lambda$.  By
+considering $\eta$, $\lambda$, and $B$ holistically, our scaling laws
+are a superset of these laws for $\etaopt$, as well as other laws that
+we discuss further presently.
+
+\subsubsection{Relationship to $\etaopt$ scaling laws in model size, $N$}\label{sec:appendix_etaopt}
+
+\cref{sec:tema_methods} gave our recipe for tuning hyperparameters,
+for an arbitrary $N$, $D$, and $B$ setting.  Here we advocated setting
+peak $\eta$ to the $\mup$-adjusted learning rate (where the base
+learning rate comes from proxy-tuning).
+%
+Rather than further adjusting this LR based on the dataset size or
+batch size, we argued for instead adjusting $\lambda$ so that
+$\tepoch$ is tuned to its optimal value.  Based on both theory, and
+our empirical findings comparing tuning $\eta$ to tuning $\lambda$, we
+believe that using $\mup$ to scale $\etaopt$ with model width is
+sufficient for well-tuned models.
+%
+That is, the \emph{theoretical} scaling law for $\etaopt$ (in model
+width), given by $\mup$, is sufficient for good performance.
+%
+We discuss this perspective further in this section, specifically how
+the $\mup$ scaling law can explain recent work in \emph{empirical}
+$\etaopt$ power laws.
+
+As noted in \cref{sec:mup}, when using $\mup$, a base $\eta$ is tuned
+on a small proxy model, and then scaled depending on the width of the
+target model.  Let $W$ be the width of the target model, and let $P$
+be the width of the proxy model.  $\mup$ prescribes scaling the
+optimal base learning rate, $\hatetaopt$, down to $\etaopt =
+\rho\hatetaopt$, where $\rho=P/W$.  That is, $\etaopt =
+P\hatetaopt/W$.
+%
+As models grow in size, $P$ and $\hatetaopt$ do not change, so
+$\etaopt$ will scale $\propto 1/W$.
+%
+\citet[Figure~2]{dey2024practitioner} show that, indeed, a range of
+LLMs from the GPT, Llama, and DeepMind series are roughly following a
+scaling law where their chosen learning rate, $\eta$ is following
+$\eta \propto {1}/{W}$.
+%
+In other words, if one were to build a scaling law for $\etaopt$ based
+on published LLM settings, it would roughly obey the $\mup$
+theoretical scaling law.
+
+Furthermore, we can develop a scaling law for $\etaopt$ in model size,
+$N$, using $\mup$, and show that it matches a recent empirical scaling
+law by \citet{porian2024resolving}.  The number of model parameters in
+any Transformer-based LLM scales roughly in the depth, $L$, and width,
+$W$, as $N \propto L W^2$.  If we assume that we maintain a fixed
+width-to-depth ratio, i.e., $R = W/L$, or $L = W/R$, then we have $N
+\propto W^3$, or $W \propto N^{1/3}$.
+%
+Now, since $\mup$ prescribe scaling $\etaopt \propto W^{-1}$, then for
+a fixed aspect ratio, $\etaopt \propto N^{-1/3}$.
+
+Taking a very different approach, \citet{porian2024resolving}
+developed an empirical scaling law for $\etaopt$ as a function of the
+number of model parameters.  At each model scale, they trained with a
+variety of batch sizes and learning rates, and found the optimal
+settings of these hyperparameters.  All models were trained to 20
+TPP\@.  They then fit a power law through the optimal LR settings, and
+found that $\etaopt \propto N^{-1/3}$, exactly as would be expected if
+one simply followed $\mup$.
+
+As it provides a principled approach to scaling hyperparameters,
+$\mup$ can adapt to scaling when aspect ratio is not fixed.  We
+therefore advocate using $\mup$ to set $\etaopt$, rather than fitting
+special $\etaopt$ power laws.
+%
+However, with regards to our overall approach, it does not actually
+matter whether one uses the $\mup$ theoretical scaling law \emph{or}
+an empirical one.  The key point is that these laws can be used to set
+$\eta$ at a particular model scale, while the $\tepoch$ law should
+further be used to set $\lambda$ depending on the $B$ or $D$ values.
+
+%Both \citet{porian2024resolving} and \citet{bi2024deepseek} utilize
+%joint scaling laws for $\eta$ and $B$.  The benefit of this approach
+%is that $\eta$ can be tuned for early-stage training dynamics
+%(maximizing movement from initial conditions, e.g., via $\mup$, the
+%\emph{maximal} update parameterization), while $B$ simultaneously
+%optimizes $\tepoch$.  The drawback, as mentioned in
+%Section~\ref{sec:related} when discussing power laws for $\bopt$, is
+%that if we rely on tuning $B$ to optimize $\tepoch$, we do not have
+%flexibility to pick a batch size that optimizes the tradeoff between
+%parallelism and compute efficiency.  We discuss batch size laws
+%further in the following section.
+
+\subsection{The EMA perspective and learning rate schedules}\label{sec:ema_lr}
+
+To understand how the EMA view applies with a dynamic LR schedule, we
+follow the discussion of \citet{bergsma2025straight}, who extended the
+formulation in \citet{wang2024how}.
+%
+\citet{bergsma2025straight} consider EMAs with time-varying smoothing,
+$\alpha_t \in [0, 1]$.  Letting $\alpha_1=1$ (i.e., $y_1=x_1$), they
+express $y_t$ in terms of all inputs $x_t$:
+\begin{eqnarray}\label{eqn:extended_ema}
+  y_1 &=& \alpha_1 x_1  \notag, \\
+  y_2 &=& (1 - \alpha_2) \alpha_1 x_1 + \alpha_2 x_2, \cdots  \notag \\
+%  y_3 &=& (1 - \alpha_3) (1 - \alpha_2) \alpha_1 x_1 + (1 - \alpha_3) \alpha_2 x_2 + \alpha_3 x_3, \cdots \notag \\
+%  &\cdots&  \notag \\
+  y_t &=& \sum_{i=1}^t \left( \prod_{j=i+1}^{t} (1 - \alpha_j) \right) \alpha_i x_i
+\end{eqnarray}
+
+The EMA coefficient on each input is denoted $c_{t,i}$, where
+%
+\mbox{$c_{t,i} = \left( \prod_{j=i+1}^{t} (1 - \alpha_j) \right)
+  \alpha_i$}.
+%
+In other words, $c_{t,i}$ reflects the contribution of input $x_i$ to
+output $y_t$ at time $t$, such that
+%
+$y_t = \sum_{i=1}^t c_{t,i} x_i$.
+%
+Unlike a standard EMA with a fixed smoothing parameter, in this
+extended EMA the coefficients need not decrease exponentially as $i$
+decreases.  Indeed, any set of coefficients can be generated by some
+particular smoothing schedule.
+
+\input{figures/fig_emas_tepoch.tex}
+
+In terms of learning rate schedules for AdamW training, $\alpha_t =
+\eta_t\lambda$ becomes the smoothing parameter at step $t$
+(cf. \cref{sec:ema}).  The EMA itself, $y_t$, is the model parameters.
+The EMA is over weight updates: a large coefficient $c_{t,i}$ means
+the $i$th weight update contributes a lot to the EMA at step $t$.  The
+EMA coefficients thus provide a more granular view of the contribution
+timescale than $\tema$ alone.
+
+We now study the question, how do the EMA coefficients change as the
+step count changes?
+%
+We generated the $c_{t,i}$ coefficients for the linear decay-to-zero
+LR schedule, and plot these coefficients at the final step (i.e.,
+showing the contribution of weight updates to the final parameters).
+%
+We use the $\mup$-tuned and adjusted peak $\eta$, for 111M models.
+%
+The learning rate increases linearly to the peak for the first 10\% of
+steps, then decreases from the peak to 0 for the remainder of steps.
+We simulated three cases: where we take 557 steps, where we take 5568
+steps, and where we take 55680 steps (5568 steps would be 20 TPP for a
+111M model using $B$=192).
+%
+From the perspective of batch sizing, these different steps could be
+achieved by decreasing the batch size twice by $10\times$.
+
+We adjusted $\lambda$ for each step count in order to obtain the same
+three specific $\tepoch$ values.  In \cref{fig:emas_tepoch}, we see
+that the same $\tepoch$ implies the same \emph{shape} of coefficients
+across the steps, and hence the same contribution over (normalized)
+time.  That is, weight updates from the same portion of the training
+data contribute equally to the final model parameters.\footnote{Note
+we do not plot the initial coefficients $c_{t,0}$ here, but they are
+equal across the scales for a given $\tepoch$, unlike the non-initial
+coefficients, which reduce by $10\times$ as the number of steps
+increases by $10\times$.  So a constant $\tepoch$ means both the same
+contribution across the data, \emph{and} the same \emph{bias}
+(dependence on initial weights).}
+
+The key takeaway is that since $\tepoch$ is independent of the number
+of steps, it theoretically provides a $B$-independent measure of the
+AdamW timescale over weight updates, regardless of learning rate
+schedule.
+%
+However, this equivalence for different $B$ breaks down when $B >
+\cbs$ and weight updates themselves no longer contain linearly
+$B\times$ the information of a single sample.
+
+%\subsection{And EMA view of how $\tepoch$ changes with TPP}\label{sec:ema_tpp}
+%
+%TODO: draw the x-axis in ``proportion of steps'' and plot our fit
+%values for TPP=5, TPP=10, TPP=20, TPP=80, TPP=320, TPP=1280.
+
+\section{Scaling of $\bopt$ and $\bcrit$: additional details and results}
+
+\subsection{Derivation of ``extra data'' \cref{eq:s_extra}}\label{sec:cbs_derivations}
+
+% TOO COMPLICATED!
+%It is worth noting that in \citet{mccandlish2018empirical}, the
+%tradeoff equation (our \cref{eq:tradeoff}) is derived by averaging
+%their Equation 2.7 over multiple optimization steps.  Their Equation
+%2.7 gives the reduction in loss given a finite batch size of $B$ as a
+%function of the maximum possible reduction in loss (with an infinite
+%$B$) as 
+
+%Something about how \cref{eq:tradeoff} itself arises from the
+%per-step loss equation in~\citet{mccandlish2018empirical} (their
+%equation 2.7).
+
+\cref{eq:tradeoff} can be written as:
+\begin{align*}
+  \frac{D - \dmin}{\dmin} &= \frac{\smin}{S - \smin} \\
+  \Rightarrow (D - \dmin)(S - \smin) &= \dmin \smin \\
+  \Rightarrow D S - D \smin - S \dmin &= 0
+\end{align*}
+Given $B = {D}/{S}$, we can substitute in
+$S={D}/{B}$ to get an equation in a single variable, from
+which we can solve for $D$.
+\begin{align*}
+  \frac{D^2}{B} - D \smin - \frac{D \dmin}{B} &= 0 \\
+  \Rightarrow D^2 - D B \smin - D \dmin &= 0 \\
+  \Rightarrow D (D - B \smin - \dmin) &= 0 \\
+  \Rightarrow D &= \dmin + B \smin
+\end{align*}
+Given $\cbs = {\dmin}/{\smin}$, we can substitute $\smin = {\dmin}/{\cbs}$ and obtain:
+\begin{align*}
+  \Rightarrow D &= \dmin + B \frac{\dmin}{\cbs} \\
+  \Rightarrow D &= \dmin \left( 1 + \frac{B}{\cbs} \right)
+\end{align*}
+
+\subsection{Estimating $\cbs$}\label{sec:appendix_estimating_cbs}
+
+We first provide some learnings from developing the $\cbs$ estimation
+procedure.
+
+First, regarding the functional form $L_{B}(D) = \irr + \dconst
+D^{-\beta}$, we found that including the irreducible loss term $\irr$
+was important for obtaining good fits.  $\irr$ conceptually represents
+the Bayes risk \emph{plus} the minimum loss obtainable for a model of
+size $N$ (i.e., the first two terms of \cref{eq:chinchilla}).
+%
+Second, only \emph{interpolated} points were reliable; we only compute
+$\cbs$ for loss values where all points are between, or very near to,
+curve fitting points.
+%
+Third, each power law should have at least $3$ points for fitting, in
+order to capture the concavity of the scaling in $D$.
+%
+Finally, we sample our $B$ values logarithmically and, as in
+\citet{mccandlish2018empirical}, perform our fits to
+\cref{eq:tradeoff} in log space.
+
+\input{figures/fig_quad_cbs_fitting.tex}
+
+\cref{fig:quad_cbs_fitting} illustrates all the fit scaling laws for
+the $\cbs$ experiments.  Notice that beyond the fitting points, the
+curves may not predict behavior well.
+%
+In particular, we would expect all curves to eventually converge as
+$D$ increases.  Because loss targets beyond the fitting points are
+unreliable, we only compute $\cbs$ at loss targets where all the data
+sizes can be estimated through interpolation.
+
+\input{figures/fig_quad_cbs_fits.tex}
+
+\cref{fig:quad_cbs_fits} shows the specific fits of \cref{eq:tradeoff}
+at particular loss targets.  While \cref{eq:tradeoff} reflects the
+data trend well over the given $B$ values, we consistently find that
+points with very small $B$ do not approach $\dmin$.  We discussed this
+observation further in \cref{sec:limitations}.
+
+\input{algs/alg_cbs_fitting.tex}
+
+Finally, for clarity, we provide \cref{alg:cbs_fitting}, which gives
+the detailed approach to generating the $\cbs$ power law in procedural
+form.
+
+\subsection{Estimating $\cbs$ for the 3.3B model}
+
+To obtain an estimate of $\bcrit$ for the 3.3B model (shown in
+\cref{fig:hook}, $\rightfig$), it was not feasible to apply our full
+$\cbs$ fitting procedure at this scale (i.e., fitting $B$-specific
+loss power-laws, etc.).
+%
+Instead, we estimated $\bcrit$ based on two $B$, $\dmin$ pairs.
+%
+That is, (based on an initial estimate of $\bcrit$) we trained a 3.3B
+model to 23TPP with $B$=2016 and got a loss of 2.1688, and a separate
+model to 30TPP with $B$=4032, obtaining a loss of 2.1695.
+%
+Given these losses are very close, these two models should have the
+same $\bcrit$ and thus same $\dmin$.
+
+We solve for this $\bcrit$ as follows.  Let $B_2 = 4032$ and $B_1 = 2016$.  By \cref{eq:s_extra}:
+\begin{align*}
+  D_2 &= \dmin(1 + B_2/\bcrit), \text{and} \\
+  D_1 &= \dmin(1 + B_1/\bcrit)
+\end{align*}
+Let $r = D_2/D_1$ (i.e., 30/23 in this case).  If we divide the above
+equations, and solve for $\bcrit$, we find:
+\begin{align*}
+  \bcrit &= \frac{B_2 - r B_1}{r - 1}
+\end{align*}
+Plugging in our values of $r$, $B_1$, and $B_2$, we obtain an
+estimated $\bcrit$ of 4610, corresponding to a $\dmin$ of
+approximately 16 TPP\@.
+
+\subsection{$\cbs$ scaling in loss}\label{sec:appendix_loss_scaling}
+
+\cref{fig:related} ($\middlefig$) shows that $\cbs$ is clearly not a
+power law in loss, as proposed in prior
+work~\citep{mccandlish2018empirical,kaplan2020scaling,li2024surge}.
+However, if we only consider points with the same TPP, there does
+appear to be somewhat of a power-law relationship.  In fact, this is
+implied by $\cbs$ being a power law in $D$, along with the (standard)
+assumption that loss scales similarly in $N$ and $D$.
+
+Specifically, let $\hatr = {D}/{N}$ be the fixed TPP ratio.
+Therefore, $N = {D}/{\hatr}$.  Assuming loss follows
+\cref{eq:chinchilla}, we have:
+\begin{align*}
+L(N,D) &= E + \nconst N^{-\alpha} + \dconst D^{-\beta} \\
+       &= E + \nconst \left( \frac{D}{\hatr} \right)^{-\alpha} + \dconst D^{-\beta} \\
+       &= E + \nconst \hatr^{\alpha} D^{-\alpha} + \dconst D^{-\beta}
+\end{align*}
+Now, if $\alpha \approx \beta$, as is commonly
+accepted~\citep{hoffmann2022empirical,besiroglu2024chinchilla,krajewski2024scaling,porian2024resolving,gadre2024language}, we have:
+\begin{align*}
+  L(D) &= E + (\nconst \hatr^{\alpha} + \dconst) D^{-\alpha} \\
+   &= E + \kconst D^{-\alpha}
+\end{align*}
+where $\kconst = \nconst \hatr^{\alpha} + \dconst$ is a constant.  In
+other words, at a fixed TPP, loss is a power law in data.  Given
+$\bcrit$ is also fundamentally a power law in data, then by the
+transitivity of power law relationships, $\cbs$ is also a power law in
+loss in this context.  This relationship can also be derived by
+expressing the $D$ in \cref{eq:cbs_scaling} as a power law in $\cbs$,
+and substituting into $E + K D^{-\alpha}$.
+
+\subsection{Weight decay affects $B$ scaling laws}\label{sec:app_wd_affects_b}
+
+\input{tables/tab_wd_bopt.tex}
+
+\paragraph{Weight decay affects scaling of $\bopt$.}
+
+\cref{tab:wd_bopt} illustrates how fixing $\lambda$ at different
+values alters the fitted $\bopt$ power law. Larger $\lambda$
+systematically yields larger $\bopt$ and poorer fit quality
+(lower~$\Rtwo$). When $\lambda$ is fixed, the batch size that
+minimizes loss is only a \emph{conditional optimum} (we denote it as
+$\boptcond$) because it compensates for suboptimal
+timescales~$\tema$ rather than representing the globally
+tuned $\bopt$ obtained when $\lambda$ is optimized jointly.
+
+The degraded $\Rtwo$ values arise because a fixed $\lambda$ forces $B$
+to balance two partially competing goals: (1)~maintaining a good
+$\tema$ value, and (2)~remaining below $\bcrit$ to avoid gradient
+redundancy. A simple power law cannot capture this coupled behavior.
+
+From the relation $\tema = B/(\eta\lambda D)$ and the empirical
+scaling $\temaopt \propto (\nicefrac{D}{N})^{m}$
+(\cref{eq:tepoch_scaling}), one can derive that, for constant $\eta$,
+$\lambda$, and $N$, the batch size preserving $\temaopt$ should scale
+as $B \propto D^{m+1}$ (with $m+1\!\approx\!0.47$ for our data). The
+exponents in \cref{tab:wd_bopt}, however, deviate from~0.47. For
+small~$D$ and large~$\lambda$, the $B$ that preserves $\temaopt$ lies
+near or above $\bcrit$, yielding worse loss due to gradient
+redundancy.  This means $\boptcond$ is artificially lower for small
+$D$ values. Since $\boptcond$ is affected differently for different
+$D$, the scaling law slope is distorted (in this case,
+increased). Analogous issues disrupt $\boptcond$ for small $\lambda$.
+These distortions reduce~$\Rtwo$ and impair generalization to
+large-scale training. When $\lambda$ is tuned, this confound is
+removed, and the resulting $\bopt$ law aligns cleanly with the
+expected~$D^{0.4}$ scaling.
+
+\paragraph{Weight decay affects scaling of $\bcrit$.}
+
+A similar confound arises for~$\bcrit$. Fixing $\lambda$ causes
+deviations from $\temaopt$ to mingle with true gradient-redundancy
+effects.
+%
+At 111M scale and a target loss of~3.03, e.g., larger batches perform
+worse solely because $\tema$ drifts from its optimal value, reducing
+the fitted $\bcrit$ from~867 (tuned~$\lambda$) to~707
+(fixed~$\lambda{=}0.1$).
+%
+At other loss targets, $\bcrit$ is less affected. Since
+the estimated $\bcrit$ is affected differently at different scales,
+the slope of the $\bcrit$ scaling law is again artificially
+distorted. $\bcrit$ will appear to increase faster than $D^{0.5}$, and
+projections to larger scales will be inaccurate.
+%
+In contrast, tuning~$\lambda$ isolates gradient-redundancy effects,
+yielding a stable~$D^{0.5}$ relation that generalizes across scales.

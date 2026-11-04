@@ -1,0 +1,66 @@
+
+
+Our objective is to \textit{find the GQA configuration that minimizes inference costs while attaining a given loss}. We approach this by framing the problem as balancing the time-variant and time-invariant costs. In order to unlock the ability to flexibly allocate different amounts of compute and memory to the time-variant and time-invariant components, we make two changes to existing GQA design procedures: (1) We decouple the number of attention heads from the model hidden dimension, and (2) we jointly optimize the model size and the GQA configuration. Figure~\ref{fig:schema} (left) shows the effect of these two changes, and Table~\ref{tab:notations-short} shows the adjustability of different hyperparameters in this work compared to vanilla GQA.
+
+\paragraph{Change 1: Decoupling the Head Number from the Hidden Dimension}
+
+Most existing GQA Transformers adopt $n_h \times d_h=d$, which is arbitrarily chosen in the original Transformer paper \citep{transformer}. This is an unnecessary restriction, rendering GQA unable to adjust the time-variant FLOPs. We decouple $n_h$ from $d$, unlocking a free hyperparameter $n_h$ that controls the number of FLOPs of attention blocks.
+
+\paragraph{Change 2: Joint Optimization of Model Size and GQA Configuration}
+
+In addition to the time-variant costs, we also want to control the time-invariant costs (FFNs, attention QKV/output projections, etc.). 
+Specifically, by reducing $N$, but increasing $n_h$, we can allocate more compute to time-variant components. Similarly, we can allocate more compute to time-invariant components by increasing $N$ and decreasing $n_h$. 
+This paper aims to identify the optimal allocation of memory and compute between the time-variant and time-invariant components, by jointly tweaking the GQA configuration $(n_h, n_{kv})$ and the model size $N$.
+
+
+\subsection{Cost-Optimal GQA Search}
+\label{sec:cost-optimal-gqa-search}
+
+% In brief, the goal of this study is to deduce the GQA configuration that minimizes the inference costs while ensuring model quality above a given threshold. 
+
+\paragraph{Objective Formulation}
+
+With the ability to freely adjust the time-variant and time-invariant costs, we formulate the optimization objective as follows,
+\begin{equation}
+\begin{aligned}
+\argmin_{n_h,n_{kv},N} \, & Z(T,N,n_h,n_{kv})\\
+\text{ s.t. }& \mathcal L(T, N, n_h,n_{kv}) \le \mathcal L^*\\
+\text{where }& Z=\lambda M_\text{infer}^{\alpha}  + (1- \lambda) C_\text{infer}^{\beta},
+\end{aligned}
+\end{equation}
+where $\mathcal L^*$ is the target LM loss, $\mathcal L$ is the model loss, $\lambda\in[0,1],\alpha,\beta \in\mathbb R$ control the trade-off between compute and memory based on deployment constraints\footnote{Although $M_\text{infer}$ and $C_\text{infer}$ have different measurement units, $(\lambda, \alpha, \beta)$ allow us to control the importance of compute and memory resources under a unified metric.}. Setting $\lambda = 1$ minimizes only $M_\text{infer}$, while $\lambda=0$ minimizes only $C_\text{infer}$. We refer to $Z$ as the \textit{hardware-aware cost}. By default, we set $\lambda = 0.9,\alpha=1/2, \beta=1/3$ based on hardware utilization tests in our environment. In other words, the inputs to the optimization objective are $(\mathcal L^*, T)$ and the outputs are $(N,n_h,n_{kv})$.
+
+\paragraph{Influence of Context Length}
+
+We empirically observe that the effect of context length $T$ on loss $\mathcal{L}$ is largely invariant to $N$, $n_h$, and $n_{kv}$ (verified in Section~\ref{sec:influence-of-ctx-len}). This means we can train with moderate context lengths (e.g., $T=8\text{K}$) and extrapolate the loss to longer contexts, saving precious computation resources. However, the influence of model size $N$ and GQA head configuration $H = (n_h, n_{kv})$ on loss is coupled and must be jointly modeled. To this end, we adopt a three-step procedure:
+
+\paragraph{Step 1: Candidate Selection}
+
+Define a candidate set of attention configurations:
+\begin{equation}
+\begin{aligned}
+H_{\text{cand}} &= \{ n_h = 1, 2, 4, \dots, \max(d)/d_h\} \\
+& \,\,\,\, \times \{ n_{kv} = 1, 2, 4, \dots, \max(d)/d_h\}\\
+& \text{s.t. } n_{kv}\le n_h,
+\end{aligned}
+\end{equation}
+where $\max(d)$ is the hidden size of the largest model used to fit scaling curves in step 2. We round $\max(d)/d_h$ to the nearest power of 2 if necessary.
+
+\paragraph{Step 2: Scaling Curves Fitting}
+
+For each $H \in H_{\text{cand}}$, we train a series of small-scale models with varying $N$ using a sufficiently long context length (we use $T=8\text{K}$), and fit the model loss using a power-law scaling function\footnote{We use the number of non-embedding parameters because it produces more predictable scaling laws in our experiments.} as 
+\begin{equation}
+\mathcal{L}(N; H) = \left( \frac{a}{N} \right)^b + E,
+\end{equation}
+where $a$, $b$ are configuration-dependent coefficients and $E$ is the ``natural entropy of language''.
+
+\paragraph{Step 3: Cost Minimization}
+
+For each GQA configuration $H$, we solve for the smallest model size $N^*(H)$ that satisfies the loss constraint as
+\begin{equation}
+N^*(H) = \frac{a}{\left( \mathcal{L}^* - E \right)^{1/b}}.
+\end{equation}
+Then, we calculate the inference cost for each configuration and select the one with the lowest cost
+\begin{equation}
+(N^*(H), H^*) = \argmin_{H} Z(T, N, n_{kv}, n_h).    
+\end{equation}

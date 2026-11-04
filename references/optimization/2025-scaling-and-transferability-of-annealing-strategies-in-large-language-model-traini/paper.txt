@@ -1,0 +1,696 @@
+                                                                  Scaling and Transferability of Annealing Strategies
+                                                                          in Large Language Model Training
+                                                   Siqi Wang1 , Zhengyu Chen2 , Teng Xiao3 , Zheqi Lv2 , Jinluan Yang2 , Xunliang Cai2 ,
+                                                                          Jingang Wang2 , Xiaomeng Li1, 4
+                                                                     1
+                                                                         The Hong Kong University of Science and Technology, Hong Kong SAR
+                                                                                                      2
+                                                                                                        Meituan Inc.
+                                                                                   3
+                                                                                     Allen Institute for Artificial Intelligence, USA
+                                                                                            4
+                                                                                              Shenzhen Loop Area Institute
+                                                                     swanggz@connect.ust.hk, chenzhengyu04@meituan.com, eexmli@ust.hk
+arXiv:2512.13705v1 [cs.LG] 5 Dec 2025
+
+
+
+
+                                                                    Abstract                                   Firstly, our work aims to address the first question: be-
+                                                                                                            yond training tokens and model sizes, what factors influence
+                                          Learning rate scheduling is crucial for training large language   the dynamics of the loss curve across different training set-
+                                          models, yet understanding the optimal annealing strategies
+                                          across different model configurations remains challenging. In
+                                                                                                            tings? In our work, we find that training steps and annealing
+                                          this work, we investigate the transferability of annealing dy-    strategies play a crucial role, and we also observe that dif-
+                                          namics in large language model training and refine a gener-       ferent batch sizes lead to distinct training loss curves (shown
+                                          alized predictive framework for optimizing annealing strate-      in Figure 1 (Left)). While large batch sizes are often rec-
+                                          gies under the Warmup-Steady-Decay (WSD) scheduler. Our           ommended for various tasks (You et al. 2017; You, Gitman,
+                                          improved framework incorporates training steps, maximum           and Ginsburg 2017; Smith, Kindermans, and Le 2017; Puri
+                                          learning rate, and annealing behavior, enabling more efficient    et al. 2018; Kaplan et al. 2020) to improve efficiency, we ob-
+                                          optimization of learning rate schedules. Our work provides a      serve in Figure 1 that once the batch size exceeds a certain
+                                          practical guidance for selecting optimal annealing strategies     threshold, the training loss curves with respect to training
+                                          without exhaustive hyperparameter searches, demonstrating         steps tend to converge. McCandlish et al. (2018) proposed
+                                          that smaller models can serve as reliable proxies for opti-
+                                          mizing the training dynamics of larger models. We validate
+                                                                                                            the concept of an optimal batch size, which is the small-
+                                          our findings on extensive experiments using both Dense and        est size that effectively approximates the true gradient. This
+                                          Mixture-of-Experts (MoE) models, demonstrating that opti-         suggests that when the batch size falls within a practical op-
+                                          mal annealing ratios follow consistent patterns and can be        timal range, the batch size can give a good estimation of true
+                                          transferred across different training configurations.             gradient and training steps can serve as a reliable metric for
+                                                                                                            tracking loss curves, allowing us to focus on other influential
+                                        Code — https://github.com/xmed-lab/fm-annealing                     factors. However, to save resources and ensure stable train-
+                                                                                                            ing, batch sizes should not be excessively large (Figure 1
+                                                                                                            (Right) when batch size is 2048).
+                                                                Introduction                                   Furthermore, our work addresses the second question:
+                                        Previous work (Kaplan et al. 2020; Hoffmann et al. 2022;            how do factors such as maximum learning rate, total training
+                                        Rae et al. 2021) on scaling laws has focused mainly on the          steps, and model size influence the annealing strategy? The
+                                        general relationship of model performance and model size,           optimal values of these factors are interdependent, with each
+                                        compute budget or tokens. However, recent studies (Tissue,          influencing the selection of the others. For instance, previ-
+                                        Wang, and Wang 2024; Hägele et al. 2024) have been fo-             ous studies (Goyal et al. 2017; Hoffer, Hubara, and Soudry
+                                        cused on the discrepancies introduced by training dynamics          2017; You et al. 2019b; Granziol, Zohren, and Roberts 2020)
+                                        with different hyperparameter settings.                             have primarily focused on the selection and scaling of max-
+                                           When training a model, even if the amount of total tokens        imum learning rates with respect to batch sizes, introducing
+                                        remains constant, different settings can lead to different loss     strategies such as square-root scaling and linear scaling for
+                                        trajectory over time (as shown in Figures 1). This suggests         the SGD optimizer. Li et al. (2024) observed that for the
+                                        that the path the model follows to reach its irreducible loss       Adam optimizer, the optimal learning rate initially increases
+                                        varies depending on multiple hyperparameters in the train-          and then decreases as the batch size grows. In this work, we
+                                        ing setup. Apart from batch sizes and maximum learning              go beyond individual factor selection and explore how these
+                                        rates, a learning rate scheduler with warmup and annealing          factors like the maximum learning rate influence the effec-
+                                        stages is crucial for achieving optimal performance and gen-        tiveness of annealing strategies. We further propose a prac-
+                                        eralization in language models (He et al. 2015; Goyal et al.        tical model-agnostic annealing strategy that adapts to differ-
+                                        2017; Popel and Bojar 2018; You et al. 2019a).                      ent factors like maximum learning rate and model sizes.
+                                        Copyright © 2026, Association for the Advancement of Artificial       Finally, we address the third question: what is the im-
+                                        Intelligence (www.aaai.org). All rights reserved.                   pact of the annealing strategy and LR scheduler on gener-
+Figure 1: (Left) Loss vs Training tokens across different batch sizes with sequence length as 8192. (Right) Loss vs Training
+steps across different batch sizes with sequence length as 8192. The standard deviation of the loss values for batch sizes 256,
+512, and 1024 is approximately 0.00847.
+
+
+alization? The key factors are the accumulated forward ef-           optimal annealing ratio can be transferred via specific prin-
+fect of learning rates and the annealing momentum, which             ciples. This suggests the existence of a consistent and pre-
+is a measure of the kinetic effect of learning rate decay. An-       dictable principle governing the annealing dynamics across
+nealing momentum captures both the rate and magnitude at             various settings.
+which the LR decreases during annealing, thus characteriz-
+ing the convergence dynamics in the decay phase. The an-                                   Related Work
+nealing ratio (R) is defined as the fraction of total training
+steps spent in the decay phase of the learning rate sched-           Large Language Models Recently, Large Language
+           T                                                         Models (LLMs) such as GPT-4 (Achiam et al. 2023),
+ule: R = Tdecay    . Tissue, Wang, and Wang (2024) proposed a
+             total                                                   LLaMA (Touvron et al. 2023), Mistral (Jiang et al. 2023),
+scaling law to fit the loss curve across different schedulers        DeepSeek (Bi et al. 2024; Guo et al. 2025), Longcat (Team
+throughout the training process, considering both forward            et al. 2025; Chen et al. 2025b,c) and Qwen (Yang et al.
+effect and annealing degree. However, this formula assumes           2025) have been significantly developed. Their performance
+fixed batch sizes, and their forward term is not robust to vari-     in natural language understanding have gained great atten-
+ations in batch size. Moreover, their annealing momentum             tion, with the number of training tokens, model sizes, and
+term relies on multiplicative accumulation, which can cause          compute budgets scaling up to huge levels. However, there
+instability during calculation. In contrast, our approach uses       remain numerous aspects of their training dynamics and
+integrals to compute both the forward and annealing mo-              intermediate training loss curve that require further explo-
+mentum terms, which are more robust to batch size varia-             ration, such as the impact of different annealing strategies
+tions and irregular step counts. Additionally, we replace the        on generalization scenarios.
+multiplicative accumulation in the momentum term with an
+Adam-style momentum, mitigating the risk of instability and          Scaling Laws for LLMs Scaling laws (Kaplan et al. 2020;
+improving robustness to unstable training dynamics and hy-           Hoffmann et al. 2022) have been extensively studied, which
+perparameter tuning. We tested on WSD scheduler to inves-            revealed the power-law relationship between pre-training
+tigate the relationship between optimal annealing ratio and          cross-entropy loss and factors such as the amount of train-
+factors such as total steps, then verified its transfer properties   ing tokens, model size, and compute budget. Additionally,
+across different datasets.                                           optimal hyperparameters (McCandlish et al. 2018; Hu et al.
+   Here are our key contributions:                                   2024; Li et al. 2024) have been shown to scale with training
+   1. Development of a Model-Agnostic Predictive Model:              loss according to specific patterns. Previous studies (Yang
+We developed a robust predictive model for training dynam-           et al. 2022, 2023; Chen et al. 2025a) indicate that certain
+ics, considering forward and annealing effects along with            hyperparameters, like batch size and sequence length, can
+model size. Validated on both Dense and MoE models, it               be scaled across model depth or width. However, there is a
+demonstrates an agnostic relationship and can accurately             lack of investigation into the whole training dynamics for a
+predict the impact of learning rate schedules.                       systematic analysis.
+   2. Analysis of Key Factors Influencing Annealing Dynam-           Learning Rate Schedulers for LLMs Rae et al. (2021);
+ics: We have investigated how factors such as batch size,            Hoffmann et al. (2022) recommend the cosine scheduler
+maximum learning rate, model architecture, and model size            (Loshchilov and Hutter 2017) for LLM pre-training. How-
+influence the annealing dynamics. We use training steps as a         ever, it is unsuitable for continued training because its pe-
+more reliable tracker for loss curves and explore the effects        riod depends on the training length. Zhai et al. (2021); Raffel
+of factors like maximum learning rates and model character-          et al. (2019); Hu et al. (2024) proposed WSD scheduler fea-
+istics on the annealing strategy.                                    turing a flexible warmup-stable-decay LR scheduling. Pre-
+   3. Transferability of Annealing Strategy: We find that the        vious works (Tissue, Wang, and Wang 2024; Hägele et al.
+2024) have shown that its performance is comparable to the       where T is the training steps required to reach a targeted loss
+cosine scheduler and that scaling laws can also describe its     with fixed a batch size. And λN , αN , λT , αT are all coeffi-
+final loss. Wen et al. (2024) introduced a variant of the WSD    cients, σ is the irreducible loss.
+scheduler for continual learning to avoid performance drops         Besides the forward effects brought by training steps, the
+after rewarming. Defazio et al. (2024); Schaipp et al. (2025)    annealing phase (cooldown phase or decay phase) also plays
+shows that the loss curves in large model training exhibit be-   a crucial role in loss reduction (Hägele et al. 2024; Granziol,
+havior similar to the performance bound derived from non-        Zohren, and Roberts 2020). Learning rate annealing mini-
+smooth convex optimization theory. In this work, we analyze      mizes the oscillation of the parameter updates and brings the
+the factors influencing the annealing strategy and explore its   model closer to the minimum point. This behavior cannot be
+generalization across different configurations.                  captured solely by the power-law term of training steps. Yet
+                                                                 previous work (Tissue, Wang, and Wang 2024) proposed an
+        Forward-Momentum Scaling Law                             annealing term to describe the behavior during the anneal-
+                                                                 ing stage. Inspired by the empirical observation and previ-
+Previous works (Kaplan et al. 2020; Hoffmann et al. 2022)        ous works, we decided to incorporate a momentum term M
+have proposed empirical scaling laws to predict the final loss   to describe the annealing behavior. The new formula is:
+for large language models:
+                                                                                L = λS · S −α + λM · M + L0                   (3)
+                          λN       λD
+                   L = αN + αD + σ                         (1)   where L0 , λS , λM are coefficients. S is the integral of learn-
+                         N        D                              ing rate η with respect to steps (Equation 23) and M is the
+where N is the model size, and D is the number of train-         integral of momentum with respect to steps (Equation 24).
+ing tokens. The parameters αN , αD , λN , and λD are coef-                                   Z T
+ficients, and σ is the irreducible loss. However, this scaling
+                                                                                       S=        η(t) dt                      (4)
+law cannot capture differences in training loss curves when                                    0
+the same model is trained with the same number of tokens         where η(t) represents the learning rate as a function of the
+but different batch sizes or learning rate schedulers.           training step t, and T is the total number of training steps.
+   To better capture the discrepancies between different
+                                                                                         Z T
+training settings, we tested training curves across various
+configurations with identical token counts and model sizes                         M=         momentum(t) dt                 (5)
+                                                                                          0
+(Figure 1). The training curves vary significantly when dif-
+ferent batch sizes are used, even with the same maximum          where momentum(t) represents the momentum as a func-
+learning rate and scheduler. Yet we found that when track-       tion of training step t, and T is the total number of training
+ing the loss curve using training steps, the curves tend to      steps. Based on this definition, we can calculate M using
+converge and become more alike.                                  the following steps. Firstly, the momentum mt and second
+                                                                 moment vt are updated at each step using the formulas:
+   This observation indicates that the trajectory of model op-
+timization is more stable with respect to steps than tokens,
+                                                                              mt = β1 · mt−1 + (1 − β1 ) · ∆ηt               (6)
+especially in a practical batch size range, where training ef-
+ficiency does not vary drastically. This aligns with the in-
+tuition that, under similar optimization dynamics (like the                 vt = β2 · vt−1 + (1 − β2 ) · (∆ηt )2             (7)
+same scheduler), the number of parameter updates is a more         Then bias correction is applied to both moments:
+direct indicator of training progress than the total number of
+                                                                                      mt              vt
+tokens processed. The steps-based normalization implicitly                      m̂t =       , v̂t =                          (8)
+captures the optimization view of training, treating each gra-                      1 − β1t         1 − β2t
+dient update as a unit of progress, in contrast to token-based     The cumulative momentum Mt is updated as:
+views which are more aligned with data consumption rather
+than model convergence.                                                                               m̂t
+                                                                                   Mt = Mt−1 + √                            (9)
+   Previous works (Kaplan et al. 2020; Fedus, Zoph, and                                              v̂t + ϵ
+Shazeer 2021) have shown that tracking loss with respect           This method adjusts the influence of the first and second
+to training steps is practical under the assumptions of in-      moments over time, providing a refined estimate of the mo-
+finite data and stable, Adam-optimized training. Their ex-       mentum, and stabilizing updates with small ϵ values. Thus,
+periments demonstrate that loss follows a power-law rela-        S captures the forward force to reduce the training loss, and
+tionship with training steps, providing a theoretical founda-    M captures the loss reduction brought by the learning rate
+tion for our choice of step-based modeling. Therefore, we        scheduler and annealing strategy.
+adopt training steps as the primary unit to analyze and com-       Finally, we incorporate the model size term:
+pare training dynamics, which contributes a forward effect
+on loss decreasing. Based on Equation 1, all training steps          L = λS · S −αS + λN · N −αN + λM · M + L0              (10)
+after the warm-up period are included:
+                                                                 where L is the training loss, M and S are the integrals of
+                          λN   λT                                momentum and learning rate with respect to steps. L0 , λS ,
+               L(N, T ) = αN + αT + σ                     (2)    λM , λN , αS , and αN are coefficients.
+                         N    T
+Figure 2: Fitting results across model sizes. (Left) Dense models (50M, 500M, 1B) with batch size 256 and learning rate 5e-5.
+(Right) MoE models (100M, 700M, 1.5B) with batch size 256 and learning rate 2e-4. All use cosine learning rate scheduler.
+
+
+
+
+Figure 3: Fitting results across different batch sizes using cosine scheduler. (Left) Dense 500M models with batch sizes 256,
+512, 1024 and max LR of 6e-4. (Right) MoE 700M models with batch sizes 512 and 1024 using max LR of 2e-4.
+
+
+            Training Loss Curve Fitting                           with a maximum learning rate of 5e-5. Our fitted loss curves
+Loss curves vary significantly depending on various hy-           achieve an average MAPE (Mean Absolute Percentage Er-
+perparameters. In this section, we investigate whether the        ror) below 2%. Similarly, for MoE models (100M, 700M,
+loss curve can be accurately modeled across different train-      and 1.5B), using the same batch size and a maximum learn-
+ing configurations within acceptable error margins, such          ing rate of 2e-4, the MAPE loss remains consistently below
+as model sizes, batch sizes, and learning rate schedulers.        2%. The sequence length is 8192. These results confirm that
+We compare our Adam-style momentum formulation with               Equation 22 effectively captures loss trends across model
+multiplicative accumulations (CMMT) (Tissue, Wang, and            sizes, reinforcing its generalizability.
+Wang 2024), indicating Adam-style updates achieve the best        Observation 1: Model Size Dependence The loss curves
+stability and generalizability in transfer scenarios (more de-    exhibit a power-law dependence on model size, as described
+tails shown in supplementary materials).                          in Equation 22, enabling consistent extrapolation across dif-
+                                                                  ferent model scales.
+Across Model Sizes Fitting
+Equation 1 can be used to model final loss across different       Across Batch Sizes Fitting
+model sizes. However, to capture the full training dynam-         Training the same model with different batch sizes results in
+ics, we propose a more comprehensive formulation: Equa-           different training curves when using token-based loss track-
+tion 22, and we apply it to both MoE and Dense models.            ing. However, our experiments show that when the batch
+   As shown in Figure 2, we first control for batch size, total   size exceeds a certain threshold, the step-based training loss
+training steps, maximum learning rate, and scheduler type         curves become close to each other.
+to ensure consistency. For Dense models (50M, 500M, and              The threshold corresponds to the optimal batch size
+1B), we use a fixed batch size of 256 and a cosine scheduler      (Bopt ). Bopt is the minimum size that can approximate the
+Figure 4: Fitting results for 100M Dense models using different learning rate schedulers (Cosine and WSD) with the same total
+training steps and max LR. (Left) Cosine scheduler loss curves used to predict those of WSD. (Right) Vice versa.
+
+
+true gradient, offering a good approximation while minimiz-            Model Size     Cos Scheduler       WSD Scheduler
+ing computational cost (McCandlish et al. 2018; Li et al.
+2024). We assume that a wide range of batch sizes (greater             50M             0.456 ± 0.061       0.720 ± 0.132
+than Bopt ) with the same learning rate schedule produce               100M            0.232 ± 0.020       0.410 ± 0.019
+similar loss v.s.steps curves. To verify our assumption, we            500M            0.453 ± 0.038       0.798 ± 0.014
+fit the training curves using the same model size, maximum
+learning rate, and schedulers, varying only the batch size val-   Table 1: MAPE (%) loss prediction. ”Cos Scheduler” refers
+ues (greater than Bopt ). To ensure its generalization, we test   to predicting the cosine scheduler’s loss curve using the
+this on both MoE and Dense models.                                WSD-fitted model, and vice versa. Results are reported as
+    Firstly, we estimate the scaling laws between loss val-       mean ± std over 3 random seeds.
+ues and the optimal batch sizes. By examining the training
+curves across different batch sizes, we select and estimate
+the batch sizes that allow the model to use the minimum           behavior for each. It is optimistically expected that Equa-
+number of training tokens to reach a specific loss value (Hu      tion 30 can be transferable across different schedulers.
+et al. 2024). We estimate that the optimal batch size for            In our work, we primarily focus on two types of sched-
+500M Dense Model is about 293 (with sequence length as            ulers: the cosine scheduler and the WSD scheduler. For the
+8192), while that for 700M MoE is about 366 (with sequence        cosine scheduler, the total number of steps is equal to the
+length as 8192). After determining the corresponding batch        period of the scheduler. In contrast, the WSD scheduler con-
+size interval, we fit the selected training curves. The results   sists of a warmup, constant, and linear decay phase. Its train-
+show that step-based loss tracking is more effective for both     ing loss curve typically ends with a sharp drop during the
+(More details are shown in Figure 3).                             annealing stage. The formula for the WSD scheduler is:
+
+Observation 2: Batch Size Dependence For a fixed                        
+                                                                          η · t ,                        0 ≤ t < Twarmup
+model, a wide range of batch sizes larger than Bopt , when               max Twarmup
+                                                                        
+                                                                        
+paired with the same learning-rate schedule, produce nearly       η(t) = ηmax ,                         Twarmup ≤ t < Tconstant
+identical training curves. The optimal batch size Bopt follows                                β
+                                                                        ηmax · 1 − t−Tconstant ,
+                                                                        
+                                                                                                         Tconstant ≤ t < Ttotal
+a power-law relationship with the training loss:                                      Tdecay
+
+                                 λB                                                                                           (12)
+                         Bopt = αB                         (11)   where β = 1 (Details shown in supplementary materials).
+                                 L                                   We verified that the fitting results for the cosine sched-
+where L is the training loss and Bopt is the optimal batch        uler’s loss curve can predict those of the WSD scheduler,
+size. The parameters λB and αB are coefficients.                  and vice versa ( Figure 4 and Table 1). More detailed com-
+   For MoE Models, αB ≈ 3.430 × 100 and λB ≈ 4.390 ×              parison is shown in supplementary materials.
+107 , while for Dense Models, αB ≈ 2.710 × 100 and λB ≈
+2.711 × 107 .                                                     Observation 3: Scheduler Dependence Different
+                                                                  learning-rate schedulers influence the loss curve in a
+Across Schedulers Fitting                                         predictable manner, as captured by Equation 30.
+Based on previous work (Tissue, Wang, and Wang 2024),
+Equation 30 focuses on capturing the impact of the learning             Transfer of Optimal Annealing Ratio
+rate schedule and annealing strategy. The power-law depen-        It is crucial for schedulers to balance the forward effect of
+dencies in S and N are consistent across different sched-         large learning rate with the convergence effect of annealing.
+ulers, while the momentum term M captures the specific            A larger initial learning rate helps prevent the model from
+Figure 5: Optimal annealing ratio across schedulers and maximum learning rates. (Left) ∆Loss vs. annealing ratio under differ-
+ent maximum learning rates for the 500M Dense model. (Middle) Optimal annealing ratio vs. maximum learning rate across
+model sizes for Dense models. (Right) Same plot for MoE models. All experiments use batch size 512, sequence length 8192,
+and 24k steps. ∆Loss is defined as gap between the final loss at each annealing ratio and the lowest final loss observed at Ropt .
+
+
+
+
+Figure 6: Transferability of optimal annealing ratio across model sizes. (Left) Dense models with batch size 512, sequence
+length 8192, 24k steps, and max LR of 4e-5. (Right) MoE models with the same batch size and steps, and max LR of 2e-4.
+
+
+getting stuck in local minima. As training progresses and           with the maximum learning rate:
+the model begins to converge, annealing stage allows model                                             αη
+to refine its understanding of the data and capture more sub-                             Ropt = λη · ηmax                    (13)
+tle, complex patterns. For the cosine scheduler, the optimal        where Ropt is the optimal annealing ratio and ηmax is the
+annealing strategy is to set the period of the scheduler equal      maximum learning rate. λη and αη are coefficients.
+to the total number of steps. However, for the WSD sched-              This power-law behavior is consistent across different
+uler, selecting the optimal annealing ratio is more complex,        model sizes, regardless of whether the models are Dense or
+which should consider the total steps, maximum learning             MoE (as shown in Figure 5 (Middle) and (Right)). For Dense
+rate, model sizes, model architectures and so on.                   Models, λη ≈ 5.996 × 103 and αη ≈ 7.09 × 10−1 . While
+   However, the annealing behavior across different config-         for MoE Models, λη ≈ 4.675 × 104 and αη ≈ 1.056.
+urations has not always been well understood yet. In this
+section, we will validate whether the optimal annealing ratio       Across Model Transferability
+(Ropt ) can be transferable across different training settings      Yang et al. (2022, 2023) propose that the optimal hyperpa-
+(maximum learning rates, model sizes, datasets, and training        rameters for smaller models can be scaled and transferred to
+steps) to enable efficient and robust training.                     their larger counterparts. Thus, smaller models can serve as
+                                                                    proxies for larger ones. Therefore, we assume that the opti-
+Across LRmax Transferability                                        mal annealing ratios Ropt between small and large models
+The maximum learning rate after warmup phase is crucial             can be transferred according to a certain principle.
+for training language models. Kaplan et al. (2020) suggests            We fit the coefficients across different model sizes with
+that smaller models can tolerate larger learning rates, while       fixed maximum learning rate, total steps and batch size.
+larger models require smaller learning rates to avoid diver-        Then the forward term and momentum term values are cal-
+gence. And its impact on training becomes more significant          culated to estimate the final losses at the end of training. We
+when model size becomes larger. In our work, we fit the             plot the gap (∆Loss ) between the final loss at each annealing
+training curves for different maximum learning rates across         ratio and the lowest final loss observed at Ropt , to quantify
+each model size (as shown in Figure 5 (Left)). We then es-          the sensitivity of convergence to annealing choices across
+timate the optimal annealing ratio for each corresponding           model sizes. As shown in Figure 6, the results show that
+maximum learning rate (Equation 13).                                Ropt can be transferred across different model sizes for both
+                                                                    Dense and MoE Models. This strengthens the assumption
+Observation 1: Ropt Scaling Across ηmax Empirically,                that certain aspects of training dynamics are stable across
+the optimal annealing ratio follows a power-law relationship        architectures and sizes when hyperparameters are matched.
+Figure 7: Optimal annealing ratio transferability for the 1B MoE model across different validation sets, under a fixed max
+learning rate of 2e-4 and batch size of 640. Each subplot shows ∆Loss vs. annealing ratio at different total training steps. (Left)
+28.9k steps, (Middle) 111k steps, (Right) 227k steps.
+
+
+Observation 2: Ropt Scaling Across Model Sizes Empir-                                                      50
+
+
+
+
+                                                                                 Optimal Annealing Ratio
+                                                                                                                                          1B MoE
+ically, the optimal annealing ratio remains stable and trans-
+ferable across different model sizes for Dense and MoE.
+   Noticeably, the performance gaps ∆Loss between dif-
+ferent annealing ratios become larger when increasing the                                                  10
+model size. Yet the optimal annealing ratio across different
+model sizes converges at the same value.
+                                                                                                            5
+                                                                                                                3e4            1e5             3e5
+                                                                                                                         Training Steps
+Across Dataset Transferability
+We further verify that the optimal annealing ratio (Ropt ) pre-      Figure 8: Optimal annealing ratio vs. training steps for 1B
+dicted from training loss also generalizes across validation         MoE models. Total steps are 30k, 100k, 300k, all with fixed
+datasets with minimal degradation, suggesting that training          batch size 640 and maximum learning rate 2e-4.
+dynamics capture generalization trends to a significant de-
+gree. We demonstrate the details and our findings using 1B
+MoE Models with WSD scheduler when maximum learning                  Observation 4: Ropt Scaling Across Steps T                                      Empirically,
+rate is 2e-4 and batch size is 640 with different steps. The         Ropt and T follows a power-law form:
+absolute final loss error is within 0.003.
+                                                                                                                      Ropt = λT · T αT                      (14)
+   Figure 7 shows that Ropt remains consistent across train-
+ing and validation sets. Yet it is shown that the loss gaps          where Ropt represents the optimal annealing ratio, and T de-
+(∆Loss ) can be more significant when we transfer the an-            notes the number of training steps. The parameters λT and
+nealing ratio to validation sets. Besides, it is indicated that      αT are data-dependent coefficients.
+with the increasing of the total training steps, the optimal            Specifically, for 1B MoE models, we estimate λT ≈
+annealing ratio is decreasing. If we enter the annealing stage       5.987 × 105 and αT ≈ −9.46 × 10−1 . This implies that
+too much early, we risk overfitting. Moreover, the perfor-           when using the WSD scheduler with a batch size within the
+mance discrepancies (∆Loss ) between different ratios be-            optimal range, the annealing strategy can be directly inferred
+comes smaller when increasing training steps. That means             from the total training steps or maximum learning rate.
+that longer training steps generally allow the model to ex-
+plore the parameter space more thoroughly, leading to better                                                           Conclusion
+generalization. It indicates a convergence when training a
+model for a large number of steps.                                   In this paper, we demonstrate that the training steps could be
+                                                                     a better tracker for loss curves than total training tokens, es-
+Observation 3: Ropt Scaling Across Datasets Empiri-                  pecially when the batch size is larger than the threshold (the
+cally, the optimal annealing ratio remains consistent across         optimal batch size). Then we investigate three key factors in-
+training and validation sets.                                        fluencing training loss curves: the cumulative forward effect,
+                                                                     the annealing momentum over training steps and model size.
+Across Steps Transferability                                         Then we validate the prediction accuracy across various sce-
+                                                                     narios. Finally, through estimating the accumulated momen-
+From previous section, we observed that the optimal anneal-          tum value, we examine its transferability across varying to-
+ing ratio (Ropt ) decreases as the number of total training          tal training steps, model sizes, maximum learning rates, and
+steps (T ) increases. To quantify this relationship , we com-        validation datasets. These results show that annealing poli-
+puted the optimal annealing ratio across different training          cies are transferable and predictable across configurations,
+steps and visualized the results (Equation 14) in Figure 8.          enabling efficient LLM training.
+                   Acknowledgments                                Guo, D.; Yang, D.; Zhang, H.; Song, J.; Zhang, R.; Xu, R.;
+This work was partially supported by research grants from         Zhu, Q.; Ma, S.; Wang, P.; Bi, X.; et al. 2025. Deepseek-r1:
+the Research Grants Council (RGC) of the Hong Kong Spe-           Incentivizing reasoning capability in llms via reinforcement
+cial Administrative Region, China (Project Nos. R6005-24          learning. arXiv preprint arXiv:2501.12948.
+and AoE/E-601/24-N), and the Hong Kong Joint Research             Hägele, A.; Bakouch, E.; Kosson, A.; Allal, L. B.;
+Scheme (JRS) of the National Natural Science Foundation           Von Werra, L.; and Jaggi, M. 2024. Scaling Laws and
+of China (NSFC)/RGC (Project No. N HKUST654/24). We               Compute-Optimal Training Beyond Fixed Training Dura-
+would like to thank Ziqing Xu for his insightful advice on        tions. arXiv preprint arXiv:2405.18392.
+the implementation details. This work was also supported          He, K.; Zhang, X.; Ren, S.; and Sun, J. 2015. Deep Residual
+by the Hong Kong University of Science and Technology             Learning for Image Recognition. 2016 IEEE Conference
+(HKUST) CSE PhD Fellowship.                                       on Computer Vision and Pattern Recognition (CVPR), 770–
+                                                                  778.
+                        References                                Hendrycks, D.; Burns, C.; Basart, S.; Zou, A.; Mazeika, M.;
+                                                                  Song, D. X.; and Steinhardt, J. 2020. Measuring Massive
+Achiam, J.; Adler, S.; Agarwal, S.; Ahmad, L.; Akkaya, I.;
+                                                                  Multitask Language Understanding. ArXiv, abs/2009.03300.
+Aleman, F. L.; Almeida, D.; Altenschmidt, J.; Altman, S.;
+Anadkat, S.; et al. 2023. Gpt-4 technical report. arXiv           Hoffer, E.; Hubara, I.; and Soudry, D. 2017. Train longer,
+preprint arXiv:2303.08774.                                        generalize better: closing the generalization gap in large
+                                                                  batch training of neural networks. ArXiv, abs/1705.08741.
+Bi, X.; Chen, D.; Chen, G.; Chen, S.; Dai, D.; Deng, C.;
+                                                                  Hoffmann, J.; Borgeaud, S.; Mensch, A.; Buchatskaya, E.;
+Ding, H.; Dong, K.; Du, Q.; Fu, Z.; et al. 2024. Deepseek
+                                                                  Cai, T.; Rutherford, E.; de Las Casas, D.; Hendricks, L. A.;
+llm: Scaling open-source language models with longter-
+                                                                  Welbl, J.; Clark, A.; Hennigan, T.; Noland, E.; Millican, K.;
+mism. arXiv preprint arXiv:2401.02954.
+                                                                  van den Driessche, G.; Damoc, B.; Guy, A.; Osindero, S.; Si-
+Chen, Z.; Wang, S.; Xiao, T.; Wang, Y.; Chen, S.; Cai, X.;        monyan, K.; Elsen, E.; Rae, J. W.; Vinyals, O.; and Sifre, L.
+He, J.; and Wang, J. 2025a. Revisiting scaling laws for lan-      2022. Training Compute-Optimal Large Language Models.
+guage models: The role of data quality and training strate-       ArXiv, abs/2203.15556.
+gies. In Proceedings of the 63rd Annual Meeting of the            Hu, S.; Tu, Y.; Han, X.; He, C.; Cui, G.; Long, X.; Zheng,
+Association for Computational Linguistics (Volume 1: Long         Z.; Fang, Y.; Huang, Y.; Zhao, W.; Zhang, X.; Thai, Z. L.;
+Papers), 23881–23899.                                             Zhang, K.; Wang, C.; Yao, Y.; Zhao, C.; Zhou, J.; Cai, J.;
+Chen, Z.; Wang, Y.; Xiao, T.; Zhou, R.; Yang, X.; Wang, W.;       Zhai, Z.; Ding, N.; Jia, C.; Zeng, G.; Li, D.; Liu, Z.; and
+Sui, Z.; and Wang, J. 2025b. From Mathematical Reasoning          Sun, M. 2024. MiniCPM: Unveiling the Potential of Small
+to Code: Generalization of Process Reward Models in Test-         Language Models with Scalable Training Strategies. ArXiv,
+Time Scaling. arXiv preprint arXiv:2506.00027.                    abs/2404.06395.
+Chen, Z.; Yang, J.; Xiao, T.; Zhou, R.; Zhang, L.; Xi, X.; Shi,   Jiang, A. Q.; Sablayrolles, A.; Mensch, A.; Bamford, C.;
+X.; Wang, W.; and Wang, J. 2025c. Can Tool-Integrated Re-         Chaplot, D. S.; Casas, D. d. l.; Bressand, F.; Lengyel, G.;
+inforcement Learning Generalize Across Diverse Domains?           Lample, G.; Saulnier, L.; et al. 2023. Mistral 7B. arXiv
+arXiv preprint arXiv:2510.11184.                                  preprint arXiv:2310.06825.
+Defazio, A.; Cutkosky, A.; Mehta, H.; and Mishchenko, K.          Kaplan, J.; McCandlish, S.; Henighan, T.; Brown, T. B.;
+2024. Optimal Linear Decay Learning Rate Schedules and            Chess, B.; Child, R.; Gray, S.; Radford, A.; Wu, J.; and
+Further Refinements. arXiv:2310.07831.                            Amodei, D. 2020. Scaling Laws for Neural Language Mod-
+                                                                  els. ArXiv, abs/2001.08361.
+Fedus, W.; Zoph, B.; and Shazeer, N. M. 2021. Switch
+Transformers: Scaling to Trillion Parameter Models with           Li, S.; Zhao, P.; Zhang, H.; Sun, X.; Wu, H.; Jiao, D.; Wang,
+Simple and Efficient Sparsity. ArXiv, abs/2101.03961.             W.; Liu, C.; Fang, Z.; Xue, J.; Tao, Y.; Cui, B.; and Wang,
+                                                                  D. 2024. Surge Phenomenon in Optimal Learning Rate and
+Gao, L.; Biderman, S.; Black, S.; Golding, L.; Hoppe, T.;         Batch Size Scaling. ArXiv, abs/2405.14578.
+Foster, C.; Phang, J.; He, H.; Thite, A.; Nabeshima, N.; et al.   Loshchilov, I.; and Hutter, F. 2017. SGDR: Stochastic Gra-
+2020. The pile: An 800gb dataset of diverse text for lan-         dient Descent with Warm Restarts. arXiv:1608.03983.
+guage modeling. arXiv preprint arXiv:2101.00027.
+                                                                  McCandlish, S.; Kaplan, J.; Amodei, D.; and Team, O. D.
+Gokaslan, A.; and Cohen, V. 2019. OpenWebText Corpus.             2018. An empirical model of large-batch training. arXiv
+http://Skylion007.github.io/OpenWebTextCorpus.                    preprint arXiv:1812.06162.
+Goyal, P.; Dollár, P.; Girshick, R. B.; Noordhuis, P.;           Popel, M.; and Bojar, O. 2018. Training Tips for the Trans-
+Wesolowski, L.; Kyrola, A.; Tulloch, A.; Jia, Y.; and He, K.      former Model. The Prague Bulletin of Mathematical Lin-
+2017. Accurate, Large Minibatch SGD: Training ImageNet            guistics, 110: 43 – 70.
+in 1 Hour. ArXiv, abs/1706.02677.                                 Puri, R.; Kirby, R.; Yakovenko, N.; and Catanzaro, B. 2018.
+Granziol, D.; Zohren, S.; and Roberts, S. J. 2020. Learning       Large Scale Language Modeling: Converging on 40GB of
+Rates as a Function of Batch Size: A Random Matrix Theory         Text in Four Hours. 2018 30th International Symposium on
+Approach to Neural Network Training. J. Mach. Learn. Res.,        Computer Architecture and High Performance Computing
+23: 173:1–173:65.                                                 (SBAC-PAD), 290–297.
+Rae, J. W.; Borgeaud, S.; Cai, T.; Millican, K.; Hoff-             2019b. Large Batch Optimization for Deep Learning: Train-
+mann, J.; Song, F.; Aslanides, J.; Henderson, S.; Ring, R.;        ing BERT in 76 minutes. arXiv: Learning.
+Young, S.; et al. 2021. Scaling language models: Methods,          You, Y.; Zhang, Z.; Hsieh, C.-J.; and Demmel, J. 2017.
+analysis & insights from training gopher. arXiv preprint           100-epoch ImageNet Training with AlexNet in 24 Minutes.
+arXiv:2112.11446.                                                  ArXiv, abs/1709.05011.
+Raffel, C.; Shazeer, N. M.; Roberts, A.; Lee, K.; Narang, S.;      Zamani, M.; and Glineur, F. 2023. Exact convergence rate of
+Matena, M.; Zhou, Y.; Li, W.; and Liu, P. J. 2019. Exploring       the last iterate in subgradient methods. arXiv:2307.11134.
+the Limits of Transfer Learning with a Unified Text-to-Text
+Transformer. J. Mach. Learn. Res., 21: 140:1–140:67.               Zhai, X.; Kolesnikov, A.; Houlsby, N.; and Beyer, L. 2021.
+                                                                   Scaling Vision Transformers. 2022 IEEE/CVF Confer-
+Schaipp, F.; Hägele, A.; Taylor, A.; Simsekli, U.; and Bach,      ence on Computer Vision and Pattern Recognition (CVPR),
+F. 2025. The Surprising Agreement Between Convex Op-               1204–1213.
+timization Theory and Learning-Rate Scheduling for Large
+Model Training. arXiv:2501.18965.                                  Zhu, Y.; Kiros, R.; Zemel, R. S.; Salakhutdinov, R.; Urtasun,
+                                                                   R.; Torralba, A.; and Fidler, S. 2015. Aligning Books and
+Smith, S. L.; Kindermans, P.-J.; and Le, Q. V. 2017. Don’t         Movies: Towards Story-Like Visual Explanations by Watch-
+Decay the Learning Rate, Increase the Batch Size. ArXiv,           ing Movies and Reading Books. 2015 IEEE International
+abs/1711.00489.                                                    Conference on Computer Vision (ICCV), 19–27.
+Team, M. L.; Li, B.; Lei, B.; Wang, B.; Rong, B.; Wang, C.;
+Zhang, C.; Gao, C.; Zhang, C.; Sun, C.; et al. 2025. Longcat-
+flash technical report. arXiv preprint arXiv:2509.01322.                           Experimental Settings
+Tissue, H.; Wang, V.; and Wang, L. 2024. Scaling Law with          Training Details
+Learning Rate Annealing. arXiv preprint arXiv:2408.11029.          The details about the number of layers, attention heads, hid-
+Touvron, H.; Martin, L.; Stone, K.; Albert, P.; Almahairi, A.;     den dimensions, and other relevant information for Dense
+Babaei, Y.; Bashlykov, N.; Batra, S.; Bhargava, P.; Bhosale,       Models and MoE Models are listed in Table 2 and Table 3.
+S.; et al. 2023. Llama 2: Open foundation and fine-tuned              During cosine scheduler (Loshchilov and Hutter 2017)
+chat models. arXiv preprint arXiv:2307.09288.                      training, AdamW adopts parameters β1 = 0.9 and β2 =
+Wen, K.; Li, Z.; Wang, J.; Hall, D.; Liang, P.; and Ma,            0.95. Following the previous work (Hoffmann et al. 2022),
+T. 2024. Understanding Warmup-Stable-Decay Learning                the maximum learning rate for the cosine scheduler is 1.5 ×
+Rates: A River Valley Loss Landscape Perspective. ArXiv,           10−3 for smaller models and 2 × 10−4 for larger ones. The
+abs/2410.05192.                                                    cosine scheduler with a 10x learning rate decay was imple-
+                                                                   mented throughout the training process. We adopt smooth-
+Yang, A.; Li, A.; Yang, B.; Zhang, B.; Hui, B.; Zheng, B.;
+                                                                   ing with a 50-step window length to smooth the training
+Yu, B.; Gao, C.; Huang, C.; Lv, C.; Zheng, C.; Liu, D.; Zhou,
+                                                                   curve. The WSD scheduler used in 1B MoE Model exper-
+F.; Huang, F.; Hu, F.; Ge, H.; Wei, H.; Lin, H.; Tang, J.;
+                                                                   iments has a maximum learning rate of 2 × 10−4 and 0.1
+Yang, J.; Tu, J.; Zhang, J.; Yang, J.; Yang, J.; Zhou, J.; Zhou,
+                                                                   annealing ratios. The total training steps vary from 29k to
+J.; Lin, J.; Dang, K.; Bao, K.; Yang, K.; Yu, L.; Deng, L.;
+                                                                   227k. The sequence length used in experiments is 8192.
+Li, M.; Xue, M.; Li, M.; Zhang, P.; Wang, P.; Zhu, Q.; Men,
+R.; Gao, R.; Liu, S.; Luo, S.; Li, T.; Tang, T.; Yin, W.; Ren,        Specifically, the training dataset for Dense and MoE Mod-
+X.; Wang, X.; Zhang, X.; Ren, X.; Fan, Y.; Su, Y.; Zhang,          els is The Pile (Gao et al. 2020). The validation datasets
+Y.; Zhang, Y.; Wan, Y.; Liu, Y.; Wang, Z.; Cui, Z.; Zhang,         include MMLU (Hendrycks et al. 2020), OpenWebtext2
+Z.; Zhou, Z.; and Qiu, Z. 2025. Qwen3 Technical Report.            (Gokaslan and Cohen 2019), CN Books, and EN Books (Zhu
+arXiv:2505.09388.                                                  et al. 2015).
+Yang, G.; Hu, J. E.; Babuschkin, I.; Sidor, S.; Liu, X.;
+Farhi, D.; Ryder, N.; Pachocki, J. W.; Chen, W.; and Gao,           Model Size Params Hid. Size Layers Heads FFN
+J. 2022. Tensor Programs V: Tuning Large Neural Net-                    50M      47.7M         512       14        4    1536
+works via Zero-Shot Hyperparameter Transfer. ArXiv,
+abs/2203.03466.                                                        100M      113.3M        768       16        6    2048
+Yang, G.; Yu, D.; Zhu, C.; and Hayou, S. 2023. Tensor Pro-             500M      487.6M       1280       24       10    3584
+grams VI: Feature Learning in Infinite-Depth Neural Net-                 1B      936.3M       1664       28       13    4480
+works. ArXiv, abs/2310.02244.                                            7B       7.03B       4096       32       32    11008
+You, K.; Long, M.; Jordan, M. I.; and Wang, J. 2019a. Learn-
+ing Stages: Phenomenon, Root Cause, Mechanism Hypoth-              Table 2: Architecture details of the Dense Models used in
+esis, and Implications. ArXiv, abs/1908.01878.                     our experiments.
+You, Y.; Gitman, I.; and Ginsburg, B. 2017. Large Batch
+Training of Convolutional Networks. arXiv: Computer Vi-
+sion and Pattern Recognition.                                      Fitting Procedure and Error Estimation
+You, Y.; Li, J.; Reddi, S. J.; Hseu, J.; Kumar, S.; Bhojana-       To estimate the parameters of our scaling laws, we use robust
+palli, S.; Song, X.; Demmel, J.; Keutzer, K.; and Hsieh, C.-J.     nonlinear regression with the L-BFGS-B optimizer from
+ Model Size Act. Params Hid. Layers Heads FFN                     Theorem 1 (Additive Reduction to Last Iterate). Let
+                                                                  z1 , . . . , zT be an arbitrary sequence of vectors and
+    200M           183M         640     12        8    1792       ω1 , . . . , ωT be non-negative weights. Define ∆t = zt+1 − zt
+    500M           485M         960     14       12    2688       and x1 = z1 , with update rule:
+    700M           692M        1280     16       16    3456                                         ωt+1:T
+                                                                                       xt+1 = xt +          ∆t ,
+     1B            987M        1440     20       18    4032                                           ω1:T
+    1.5B           1.45B       1600     24       20    4352       then for any comparator x∗ :
+     7B             6.8B       2240     30       28    6272
+                                                                                                   T
+                                                                                                 1 X
+                                                                      E[f (xT ) − f (x∗ )] ≤              E[ωt ⟨gt , zt − x∗ ⟩].
+Table 3: Architecture details of the MoE models used in our                                    ω1:T t=1
+experiments (all top-3 routing).
+
+                                                                  Implication for Linear Decay Schedule A direct corol-
+scipy.optimize.minimize. The objective is to min-                 lary of this theorem arises when we set ωt = 1 and assume
+                                                                                                                        √
+imize the Huber loss with threshold δ = 10−3 between pre-
+                                                                                              PT
+                                                                  the standard regret bound t=1 ⟨gt , zt − x∗ ⟩ ≤ DG T .
+dicted and observed losses, ensuring robustness to outliers       Then by choosing:
+in the presence of noisy training dynamics. The maximum                                                         
+iteration is 1000.                                                                                  D          t
+                                                                        xt+1 = xt − ηt gt , ηt = √        1−       ,    (15)
+   Each training loss curve is smoothed using a moving av-                                        G T         T
+erage with a 50-step window before fitting. All results are
+based on single-run trajectories unless stated otherwise. We      we obtain the last-iterate convergence bound:
+report the Mean Absolute Percentage Error (MAPE) to eval-                                                DG
+uate the prediction accuracy.                                                     E[f (xT ) − f (x⋆ )] ≤ √ .                       (16)
+                                                                                                          T
+   This procedure is used consistently in the fitting process
+across model sizes, batch sizes, or schedulers.                      This result demonstrates that a simple linearly decaying
+                                                                  learning rate achieves the same convergence rate as iterate
+       Additional Theoretical Background                          averaging but returns the final point xT rather than a mean
+                                                                  of past iterates.
+Linear Decay in Learning Rate Schedules
+Zamani and Glineur (2023); Defazio et al. (2024); Schaipp         Convex Last-Iterate Convergence for Cooldown
+et al. (2025) demonstrate that linear decay schedules achieve
+                                                                  Schaipp et al. (2025) provide a rigorous theoretical analysis
+the optimal convergence rate for the last iterate in stochas-
+                                                                  of last-iterate convergence rates for scheduled SGD under
+tic convex optimization problems with Lipschitz continu-
+                                                                  convex objectives. Consider the update rule:
+ity assumptions. This makes them particularly effective for
+non-stationary optimization problems, such as LLM train-                    xt+1 = xt − γηt gt ,    gt ∈ ∂f (xt , st ),            (17)
+ing. While LLM training is not strictly convex, empirical ev-
+idence suggests that LLMs exhibit behavior that closely mir-      with a base learning rate γ and schedule ηt .
+rors the convergence patterns observed in convex optimiza-           Under convexity and a uniform bound on gradient norms,
+tion problems, particularly regarding the effectiveness of lin-   they prove the following bound for the expected last-iterate
+ear decay schedules. Schaipp et al. (2025) notably show that      error:
+                                                                                                      T1
+linear decay schedules match the convergence behavior pre-                     E[f (xT ) − f (x⋆ )] ≤    + γ · T2 ,        (18)
+dicted by convex optimization theory, making them a robust                                             γ
+choice for training LLMs. These insights inspired the use of      where T1 and T2 are functions of the schedule {ηt }, the gra-
+linear decay in our work.                                         dient norm bound G, and the distance D := ∥x1 − x⋆ ∥.
+                                                                     The optimal base learning rate is given analytically as:
+Last-Iterate Bounds of SGD                                                                       r
+In this section, we introduce theoretical results from previ-                               ⋆       T1
+                                                                                          γ =          ,                   (19)
+ous work (Defazio et al. 2024) which provide a foundation                                           T2
+for understanding the benefits of linear decay schedules for      yielding the minimal last-iterate bound:
+stochastic gradient descent (SGD). Their analysis introduces                                            p
+a reduction from regret bounds to convergence of the last it-                   E[f (xT ) − f (x⋆ )] ≤ 2 T1 T2 .                   (20)
+erate, thereby enabling direct bounding of f (xT ) − f (x⋆ )
+without averaging.                                                Comparison Between Constant and WSD Schedules
+Additive Reduction to Last Iterate Loss Their main                They further compare constant schedules (ηt = 1) with the
+result (Theorem 1) shows that if a sequence z1 , . . . , zT       recently proposed Warmup-Stage Decay (WSD) schedule.
+achieves low regret with respect to gradient directions, then     For constant schedules, the suboptimality bound includes
+                                                                                                PT −1 1
+a linearly interpolated sequence xt constructed from it satis-    a logarithmic term HT −1 :=     k=1 k ≈ ln T (harmonic
+fies a last-iterate loss bound.                                   number), which grows slowly but unbounded with T . While
+       Equation                                       Interpretation
+                  −αN            −αD
+       L = λN N        + λD D   +σ                    Original Scaling Law (Kaplan et al. 2020; Hoffmann et al. 2022)
+       L = λN N −αN + λT T −αT + σ                    Step-based Scaling Law (fixed batch size) (Kaplan et al. 2020)
+       L = λS S −αS + λN N −αN + λM M + L0            Forward-Momentum Scaling Law (this work)
+       Bopt = λB · L−αB                               Scaling of Optimal Batch Size w.r.t. Training Loss
+                    αη
+       Ropt = λη · ηmax                               Annealing Ratio Scaling with ηmax (WSD Linear Decay)
+       Ropt = λT · T αT                               Annealing Ratio Scaling with Training Steps (WSD Linear Decay)
+
+                                 Table 4: Summary of key scaling laws and their interpretations.
+
+
+for WSD, the logarithmic growth disappears, and the bound          where momentum(t) represents the momentum as a function
+becomes:                                                           of training step t, and T is the total number of training steps.
+                                 DG p                                 To compute M , we follow an Adam-style momentum up-
+          E[f (xT ) − f (x⋆ )] ≲ √ · C(β),            (21)         date. The momentum mt and second moment vt are updated
+                                  T                                at each step using the formulas:
+where C(β) is independent of T and depends only on the
+cooldown ratio β.                                                                mt = β1 · mt−1 + (1 − β1 ) · ∆ηt             (25)
+   This provides theoretical support for empirical findings
+that WSD improves performance in later decay stage with-
+out harming training stability.                                                 vt = β2 · vt−1 + (1 − β2 ) · (∆ηt )2          (26)
+                                                                       Then bias correction is applied to both moments:
+ Comparative Analysis of Momentum Terms
+                                                                                             mt                  vt
+Preliminaries                                                                      m̂t =           ,   v̂t =                  (27)
+                                                                                           1 − β1t             1 − β2t
+Annealing ratio. We define the annealing ratio as the frac-
+tion of training spent in the decay phase of the learning-rate        The step-wise contribution to the cumulative momentum
+schedule:                                                          is then:
+          Tdecay                                                                                   m̂t
+   R =            ∈ (0, 1],     Ropt = arg min Lfinal (R).                           Mt = Mt−1 + √               (28)
+           Ttotal                             R
+                                                                                                  v̂t + ϵ
+Formal Definition                                                    Finally, we define the Adam-Style Momentum Term
+In our work, we propose a scaling law (Equation 22) that           (ASMT) as:
+characterizes the training loss L as a function of (i) the cu-                           MA = MT                 (29)
+mulative forward effect induced by training steps accumu-          where T is the final step.
+lation, (ii) the accumulated effect of annealing momentum
+                                                                      Specifically, when the model size is held constant, Equa-
+during cooldown (or decay), and (iii) model size:
+                                                                   tion 22 reduces to:
+
+    L = λS · S −αS + λN · N −αN + λM · M + L0            (22)                     L = λS · S −α + λM · M + L0                 (30)
+where L is the training loss, M and S are the integrals of         where L0 , λS , λM are coefficients.
+momentum and learning rate with respect to steps. L0 , λS ,           We compare the performance of our proposed Adam-
+λM , λN , αS , and αN are coefficients.                            Style Momentum Term (ASMT) with the Cumulative Mul-
+  S is the integral of learning rate η with respect to steps       tiplicative Momentum Term (CMMT) introduced in prior
+(Equation 23) and M is the integral of momentum with re-           work (Tissue, Wang, and Wang 2024). The CMMT is de-
+spect to steps (Equation 24).                                      fined as:
+                           Z T
+                                                                                        s X
+                                                                                          i
+                      S=        η(t) dt                 (23)
+                                                                                        X
+                             0
+                                                                                 MC =             (ηk−1 − ηk ) · λi−k         (31)
+                                                                                        i=1 k=1
+where η(t) represents the learning rate as a function of the
+training step t, and T is the total number of training steps.      where ηi is the learning rate at step i, and λ is a hyperparam-
+   To characterize the kinetic effect of annealing, we use an-     eter representing the decay factor for learning rate annealing
+nealing momentum to measure both the rate and magnitude            momentum, typically ranging from 0.99 to 0.999. MC repre-
+at which the LR decreases during annealing and serves as a         sents the learning rate annealing area, capturing the cumula-
+proxy for accumulated curvature exposure.                          tive effect of learning rate changes over time during training.
+                        Z T                                           We summarize all scaling equations and formulas intro-
+                                                                   duced or mentioned in this work in Table 4, along with their
+                  M=         momentum(t) dt               (24)     interpretations.
+                        0
+  In this section, we compare the performance of our pro-                                          CMMT        CMMT
+posed Adam-Style Momentum Term (ASMT) with the Cu-                Model Model Size ASMT
+                                                                                                 (λ = 0.999) (λ = 0.99)
+mulative Multiplicative Momentum Term (CMMT) intro-
+duced in prior work (Tissue, Wang, and Wang 2024), under                       50M      0.544       1.293        0.552
+momentum decay values of λ = 0.999 and λ = 0.99.                              100M      0.529       1.487        0.538
+                                                                  Dense
+                                                                              500M      0.646       1.966        0.660
+Fitting process across model sizes                                              1B      0.674       2.151        0.681
+During the fitting process across model sizes, we fit Equa-
+tion 22 across model sizes with fixed batch sizes, learning                   100M      1.223       1.467        1.342
+rate schedulers, and maximum learning rates for both Dense                    700M      1.561       1.896        1.752
+                                                                  MoE
+and MoE models.                                                               1.5B      0.607       1.079        0.736
+   For Dense models, the model sizes include 50M, 100M,
+500M, and 1B, while for MoE models, the model sizes in-         Table 6: Mean Absolute Percentage Error, MAPE (%), be-
+clude 100M, 700M, and 1.5B. In Table 5, for Dense models,       tween predicted loss and true loss across batch sizes.
+the batch sizes and maximum learning rates are shown (with
+a sequence length of 8192), and the scheduler is the Cosine
+Scheduler. For MoE models, the batch sizes and maximum          Momentum Model Size Cos Scheduler WSD Scheduler
+learning rates are shown (with a sequence length of 8192),
+and the scheduler is also the Cosine Scheduler. This table                       50M            1.886           0.838
+                                                                  CMMT
+evaluates robustness of ASMT and Equation 22 to model           (λ = 0.999)     100M            2.251           0.422
+size variation.                                                                 500M            0.417           0.784
+
+                                       CMMT        CMMT                          50M            0.539           0.777
+Model LRmax Batch Size ASMT                                       CMMT
+                                     (λ = 0.999) (λ = 0.99)                     100M            0.202           0.404
+                                                                (λ = 0.99)
+Dense 1.25e-4       512      0.402      0.413       0.403                       500M            0.379           0.657
+Dense 5e-5         512       0.579      0.943       0.887                        50M            0.456           0.720
+Dense 5e-5         1024      0.565      0.566       0.567       ASMT            100M            0.232           0.410
+MoE    2e-4        512       0.957      1.039       0.750
+                                                                                500M            0.453           0.798
+MoE    2e-3        512       0.574      0.487       0.525
+MoE    1e-4        512       0.341      0.373       0.356       Table 7: MAPE (%) for loss prediction. ”Cos Scheduler”
+                                                                refers to predicting the cosine scheduler’s loss curve using
+Table 5: Average Mean Absolute Percentage Error, MAPE           a model fitted on WSD scheduler data, and vice versa.
+(%), when fitting across model sizes for Dense and MoE
+models.
+                                                                   In Table 7, we compare the performance of ASMT with
+                                                                the Cumulative Multiplicative Momentum Term (CMMT)
+Fitting process across batch sizes                              under different λ values (0.99 and 0.999). The results show
+During the fitting procedure across batch sizes, we fit Equa-   that ASMT generally outperforms CMMT when λ = 0.999,
+tion 30 across batch sizes with fixed model sizes, learning     while in some cases performing slightly worse than CMMT
+rate schedulers, and maximum learning rates for both Dense      when λ = 0.99. Given that prior work does not offer clear
+and MoE models.                                                 guidance on how to fine-tune λ, ASMT demonstrates greater
+   We compare the results between Adam-Style Momentum           stability and robustness to hyperparameter selection. This
+Term (ASMT) and Cumulative Multiplicative Momentum              result supports its transferability across schedulers.
+Term (CMMT) with λ = 0.999 and λ = 0.99. In Table 6,               Overall, we compared different momentum formula-
+for Dense models, the batch sizes include 256, 512, and 1024    tions, including multiplicative accumulations (CMMT) and
+(with sequence length 8192); the maximum learning rate is       Adam-Style Momentum Term (ASMT), and found that
+5e-5, and the scheduler is the Cosine Scheduler. For MoE        Adam-style updates achieve the best stability and general-
+models, the batch sizes include 512 and 1024 (with sequence     izability in transfer scenarios.
+length 8192); the maximum learning rate is 2e-4, and the
+scheduler is also the Cosine Scheduler. This table evaluates                    Scope and Limitation
+robustness of ASMT and Equation 30 to batch size variation.     Our transferability claims hold within the same architec-
+                                                                ture (Dense or MoE). We do not claim direct transfer across
+Fitting process across schedulers                               Dense and MoE. Experiments span up to 7B parameters due
+During the fitting procedure across schedulers with fixed       to compute limits; extending to 10B+ and broader sched-
+model size, we fit the loss curve of one scheduler using        ulers is left for future work.
+Equation 30 and predict the loss curve of another.
+

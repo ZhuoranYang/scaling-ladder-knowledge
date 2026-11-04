@@ -1,0 +1,369 @@
+\section{Optimizer Definitions}
+\label{def:optimizerdesign}
+In this section, we present the algorithm for each optimizer we evaluated.
+
+Throughout this section, we use the following notation: $w_t$ for model parameters, $g_t$ for gradients at step $t$, $\eta$ for learning rate, $\lambda$ for weight decay, $\beta_1,\beta_2$ for moment decay rates, $\epsilon$ for numerical stability, $\gradnorm$ for gradient norm, and $m,v$ for first and second moments. All operations are element-wise unless specified.
+
+
+
+\begin{algorithm}[H]
+  \caption{AdamW}
+  \label{alg:adamw}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta_1,\;\beta_2,\;\epsilon,\;\eta,\;\lambda, \; \gradnorm$
+
+  \textbf{State:} $m,\;v$
+
+  \textbf{Update Rule:}
+  \begin{align*} 
+  \hat g_t &= g_t \max\{1, \frac{\gradnorm}{\|g_t\|_2}\} \\
+  m_t &= \beta_1\,m_{t-1} + (1-\beta_1)\, \hat g_t,\\
+  v_t &= \beta_2\,v_{t-1} + (1-\beta_2)\, \hat g_t^2,\\
+  \hat m_t &= \frac{m_t}{1-\beta_1^t},\quad
+  \hat v_t = \frac{v_t}{1-\beta_2^t},\\
+  w_{t+1} &= w_t - \eta\,\frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon}
+                \;-\;\eta\,\lambda\,w_t.
+  \end{align*}
+  \end{tcolorbox}
+\end{algorithm}
+\begin{algorithm}[H]
+  \caption{Nesterov AdamW}
+  \label{alg:nadamw}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta_1,\;\beta_2,\;\epsilon,\;\eta,\;\lambda,\;\gradnorm$
+
+  \textbf{State:} $m,\;v$
+
+  \textbf{Update Rule:}
+  \begin{align*}
+  \hat g_t &= g_t \max\{1, \frac{\gradnorm}{\|g_t\|_2}\} \\
+  m_t &= \beta_1\,m_{t-1} + (1-\beta_1)\,\hat g_t,\\
+  v_t &= \beta_2\,v_{t-1} + (1-\beta_2)\,\hat g_t^2,\\
+  \tilde m_t &= \beta_1\,m_t + (1-\beta_1)\,\hat g_t,\\
+  \hat m_t &= \frac{\tilde m_t}{1-\beta_1^t},\quad
+  \hat v_t = \frac{v_t}{1-\beta_2^t},\\
+  w_{t+1} &= w_t 
+    - \eta\,\frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon}
+    \;-\;\eta\,\lambda\,w_t.
+  \end{align*}
+  \end{tcolorbox}
+\end{algorithm}
+\begin{algorithm}[H]
+  \caption{Lion}
+  \label{alg:lion}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta_1, \beta_2,\;\eta,\;\epsilon,\;\lambda,\;\gradnorm$
+
+  \textbf{State:} $m$
+
+  \textbf{Update Rule:}
+  \begin{align*}
+  \hat g_t &= g_t \max\{1, \frac{\gradnorm}{\|g_t\|_2}\} \\
+  \hat m_t &= \beta_1 \,m_{t-1} + (1-\beta_1)\,\hat g_t,\\
+  m_{t + 1} &= \beta_2 \,m_{t - 1} + (1-\beta_2)\,\hat g_t,\\
+  w_{t+1} &= w_t - \eta\,\mathrm{sign}\bigl(\hat m_t\bigr) - \eta\,\lambda\,w_t.
+  \end{align*}
+  \end{tcolorbox}
+\end{algorithm}
+
+
+\begin{algorithm}[H]
+  \caption{Sophia-H}
+  \label{alg:sophia}
+  \begin{tcolorbox}
+    \textbf{Hyperparameters:}
+      $\{\eta_t\}_{t=1}^T,\; \lambda,\; k,\; \beta_1,\;\beta_2,\;\gamma,\;\epsilon$ \\[0.5ex]
+    \textbf{State:} $m_0 = 0,\; h_{1-k} = 0,\; \theta_1$ \\[0.5ex]
+    \textbf{For $t=1,\dots,T$:}
+    \begin{align*}
+      & g_t = \nabla_{\theta}L_t(\theta_t) \\[0.3em]
+      & m_t = \beta_1\,m_{t-1} + (1-\beta_1)\,g_t \\[0.6em]
+      &\text{If }t \bmod k = 1\text{:}\\
+      &\quad r\sim\{\pm1\}^d,\quad 
+            v = g_t \cdot r,\quad
+            u = \nabla_{\theta}v,\\
+      &\quad \hat h \;\;=\;\; r \odot u \\[0.3em]
+      &\quad
+            h_t = \beta_2\,h_{t-k} + (1-\beta_2)\,\hat h \\[0.6em]
+      &\text{Else:}\quad h_t = h_{t-1} \\[0.6em]
+      &\theta_t \;=\; \theta_t \;-\; \eta_t\,\lambda\,\theta_t \\[0.6em]
+      &\theta_{t+1} = \theta_t
+           \;-\; \eta_t\,\mathrm{clip}\!\Bigl(\tfrac{m_t}{\max(\gamma\,h_t,\epsilon)},\,1\Bigr)
+    \end{align*}
+  \end{tcolorbox}
+\end{algorithm}
+
+
+\begin{algorithm}[H]
+  \caption{MARS}
+  \label{alg:mars}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta_1,\;\beta_2,\;\gamma,\;\epsilon,\;\eta,\; \lambda,\;\gradnorm$
+
+  \textbf{State:} $m,\;v,\;g_{t-1}$
+
+  \textbf{Update Rule:}
+  \begin{align*}
+  c_t &= g_t + \gamma\,\frac{\beta_1}{1-\beta_1}\,(g_t - g_{t-1}),\\
+  \hat c_t &= c_t \max\{1, \frac{\gradnorm}{\|c_t\|_2}\}, \\
+  m_t &= \beta_1\,m_{t-1} + (1-\beta_1)\, \hat c_t,\\
+  v_t &= \beta_2\,v_{t-1} + (1-\beta_2)\, \hat c_t^2,\\
+  \hat m_t &= \frac{m_t}{1-\beta_1^t},\quad
+  \hat v_t = \frac{v_t}{1-\beta_2^t},\\
+  w_{t+1} &= w_t - \eta\,\frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon} - \eta\,\lambda\,w_t.
+  \end{align*}
+  \end{tcolorbox}
+\end{algorithm}
+\begin{algorithm}[H]
+  \caption{Adam-mini}
+  \label{alg:adammini}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta_1,\;\beta_2,\;\epsilon,\;\eta,\;\lambda,\;\gradnorm$
+
+  \textbf{State:} $m$ (with the same shape as $w$),  $v$ (one scalar for each block)
+
+  \textbf{Setup:}
+  \begin{enumerate}[left=1em]
+    \item Partition all parameters into \texttt{param\_blocks}: please refer to~\cite{zhang2025adamminiusefewerlearning} for the exact partition scheme.
+    \item We will use $w_{t,b}$ and $m_{t,b}$ to denote the parameters in block $b$ at step $t$
+  \end{enumerate}
+
+  \vspace{0.5ex}
+
+  \textbf{Update}
+    \begin{align*}
+      \hat g_{t} &= g_{t} \max\{1, \frac{\gradnorm}{\|g_{t}\|_2}\} \\
+      m_{t} &= \beta_1\,m_{t-1} + (1-\beta_1)\,\hat g_{t},\\
+      \hat m_{t} &= \frac{m_{t}}{1-\beta_1^t},\quad
+    \end{align*}
+    
+    \textbf{for each block} $b\in\texttt{param\_blocks}$ 
+    \begin{align*}
+            v_{t,b} &= \beta_2\,v_{t-1,b} + (1-\beta_2) \mathrm{mean}(\,g_{t,b}^2)\\
+             \hat v_{t,b} &= \frac{v_{t,b}}{1-\beta_2^t}.
+        \end{align*}
+
+
+    \[
+      w_{t,b}
+        = w_{t-1,b}
+          - \eta\,\hat m_{t,b} / (\sqrt{v_{t,b}} + \epsilon)
+          - \eta\,\lambda\,w_{t-1,b}.
+    \]
+  \end{tcolorbox}
+\end{algorithm}
+
+\begin{algorithm}[H]
+  \caption{Cautious}
+  \label{alg:cautious}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta_1,\;\beta_2,\;\epsilon,\;\eta,\;\lambda,\;\gradnorm$
+
+  \textbf{State:} $m,\;v$
+
+  \textbf{Update Rule:}
+  \begin{align*}
+  \hat g_t &= g_t \max\{1, \frac{\gradnorm}{\|g_t\|_2}\} \\
+  m_t &= \beta_1\,m_{t-1} + (1-\beta_1)\,\hat g_t,\\
+  v_t &= \beta_2\,v_{t-1} + (1-\beta_2)\,\hat g_t^2,\\
+  \hat m_t &= \frac{m_t}{1-\beta_1^t},\quad
+  \hat v_t = \frac{v_t}{1-\beta_2^t},\\
+  u_t &= \frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon},\quad
+  s_t = \mathbb{I}\bigl(u_t\cdot \hat g_t > 0\bigr),\\
+  \hat u_t &= \frac{u_t \cdot s_t}{\mathrm{mean}(s_t)},\quad
+  w_{t+1} = w_t - \eta\,\hat u_t - \eta\,\lambda\,w_t.
+  \end{align*}
+  \end{tcolorbox}
+\end{algorithm}
+
+
+
+
+
+\begin{algorithm}[H]
+  \caption{Muon}
+  \label{alg:muon}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta,\;\eta,\;\epsilon, \beta_1, \beta_2, \epsilon_{Adam}, \eta_{Adam}, \lambda, \gradnorm$ 
+
+  \textbf{State:} $m$
+
+  \textbf{Update Rule For Weights in LM Head, Embedding, and LayerNorm:} Same as AdamW
+
+  \textbf{Update Rule For Matrices in Transformer Layer :}
+  \begin{align*}
+  \hat g_t &= g_t \max\{1, \frac{\gradnorm}{\|g_t\|_2}\} \\
+  m_t &= \beta\,m_{t-1} + \hat g_t,\\
+  u   &= \beta\,m_t + \hat g_t,\\
+  u   &= \mathrm{NewtonSchulz}(u,\,\text{steps}=5),\\
+  s   &= \sqrt{\max\!\bigl(1,\tfrac{\mathrm{rows}(w)}{\mathrm{cols}(w)}\bigr)},\\
+  u   &= s\,u,\\
+  w_{t+1} &= w_t - \eta\,u - \eta\,\lambda\,w_t.
+  \end{align*}
+
+  \textbf{Newton–Schulz Orthogonalization (Operating on Matrices):}
+  \begin{align*}
+  &X \leftarrow \frac{X}{\lVert X\rVert + \epsilon},\quad
+    \text{transpose}\leftarrow (\mathrm{rows}(X)>\mathrm{cols}(X)),\\
+  &\text{if transpose: }X\leftarrow X^\top,\\
+  &\text{for }i=1\ldots5:\;
+    A=X\,X^\top,\;
+    B=3.4445\,A - 4.7750\,A^2 + 2.0315\,A^3,\\
+  &\quad X\leftarrow 3.4445\,X + B\,X,\\
+  &\text{if transpose: }X\leftarrow X^\top,\quad
+    \text{return }X.
+  \end{align*}
+  \end{tcolorbox}
+\end{algorithm}
+
+\begin{algorithm}[H]
+  \caption{Scion}
+  \label{alg:scion}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta,\;\eta,\;\epsilon, \beta_1, \beta_2, \eta_{\mathrm{SignGD}}, \gradnorm$ 
+
+  \textbf{State:} $m$
+
+  \textbf{Update Rule For Matrices in LM Head and Embedding:} 
+  \begin{align*}
+  \hat g_t &= g_t \max\{1, \frac{\gradnorm}{\|g_t\|_2}\} \\
+  m_t &= \beta_1\,m_{t-1} + (1-\beta_1)\,\hat g_t,\\
+  w_{t+1} &= w_t - \eta_{\mathrm{SignGD}}\,\mathrm{sign}\bigl(\hat m_t\bigr).
+  \end{align*}
+  
+  \textbf{Update Rule For Matrices in Transformer Layer :} Same as Muon
+
+  
+  \end{tcolorbox}
+\end{algorithm}
+
+
+
+\begin{algorithm}[H]
+  \caption{PSGD Kron}
+  \label{alg:kron}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:}
+  $\beta_{1}$, 
+  $\eta$,
+  $\lambda$,
+  $\epsilon$,
+  $\gradnorm$,
+  $\mathrm{normalize\_grads}$,
+  $\text{partition\_grads\_into\_blocks}$,
+  $\text{merge\_small\_dims}$,
+  $\text{block\_size}$,
+  $\text{target\_merged\_dim\_size}$,
+  $p_{\mathrm{upd}}(t)$,
+
+
+  \textbf{Setup:}
+
+  If $\text{merge\_small\_dims}$ is True, then try merging small dimensions into a single dimension with size $\text{target\_merged\_dim\_size}$ greedily.
+
+  If $\text{partition\_grads\_into\_blocks}$ is True, then partition all parameters into $\text{block\_size} \times \text{block\_size}$ blocks.
+
+  Define $\text{unfold}_i$ as the function that unfolds all dimensions except the $i$-th dimension into a single dimension and $\text{fold}_i$ as the inverse function.
+
+
+  \textbf{State (per block $\ell$):}
+  Denote $w^{(\ell)}$ as the parameters in block $\ell$ and assume it has shape $d_1 \times d_2 \times \cdots \times d_n$.
+
+  \begin{align*}
+    &\mu^{(\ell)}, \; \text{with the same shape as } w^{(\ell)}, \\
+    &Q_i^{(\ell)}\,(i=1,\dots,n), \; \text{ a lower-triangular matrix with shape } d_i \times d_i\\ 
+        &\text{if }\gradnorm > 0: 
+           \hat g_t = g_t \max\{1, \frac{\gradnorm}{\|g_t\|_2}\}, \text{else } \hat g_t = g_t\\
+        &\text{if }\mathrm{normalize\_grads}: 
+           \hat g_t = \frac{\hat g_t}{\|\hat g_t\|_2 + \epsilon}, \text{else } \hat g_t = \hat g_t
+        \mu_t \leftarrow \beta_{1}\,\mu_{t-1} + (1-\beta_{1})\,\hat g_t,\quad
+        \hat\mu_t \leftarrow \frac{\mu_t}{1-\beta_{1}^{\,t}}.
+      \end{align*}
+     \textbf{Balance check:}  $\mathrm{bal\_ctr}\leftarrow \mathrm{bal\_ctr}+1$.If $\mathrm{bal\_ctr}\ge100$, then 
+          $Q_i^{(\ell)}\leftarrow \mathrm{balance}(Q_i^{(\ell)})$, 
+          $\mathrm{bal\_ctr}\leftarrow0$.
+          \textbf{Balance function:} $\mathrm{balance}(Q_i^{(\ell)})$ performs the following steps:
+          \begin{enumerate}[left=1em]
+            \item Compute the maximum absolute value for each row/column of $Q_i^{(\ell)}$: $\text{norms}_i = \max_{j,k} |Q_i^{(\ell)}[j,k]|$
+            \item Calculate the geometric mean: $\text{gmean}_i = (\Pi_{j=1}^{n} \text{norms}_i[j])^{\frac{1}{d_i}}$
+            \item Scale each element: $Q_i^{(\ell)} \leftarrow Q_i^{(\ell)} \cdot \frac{\text{gmean}_i}{\text{norms}_i}$
+            \item Return the balanced $Q_i^{(\ell)}$
+          \end{enumerate}
+      \textbf{Preconditioner update:} with probability $p_{\mathrm{upd}}(t)$,
+      \begin{enumerate}[left=1em]
+        \item \textbf{Random probe:} 
+          $V^{(\ell)}\leftarrow \mathrm{tree\_random\_like}(g_t^{(\ell)})$.
+        \item \textbf{Dampen:}
+          $\hat\mu_t^{(\ell)} \leftarrow \hat\mu_t^{(\ell)} + \epsilon \cdot \mathrm{mean}(|\hat\mu_t^{(\ell)}|)\cdot V^{(\ell)}$
+        \item \textbf{Conjugate sketch ($B$):}
+          \[
+            X^{(0)}=V^{(\ell)},\quad
+            X^{(i)}=\text{fold}_i\left(\left(Q_i^{(\ell)}\right)^{-T}\,\text{unfold}_i(X^{(i-1)})\right) ,\quad
+            B=X^{(n)}.
+          \]
+        \item \textbf{Pre‐sketch ($A$):}
+          \[
+            Y^{(0)}=\hat\mu^{(\ell)},\quad
+            Y^{(i)}=\text{fold}_i\left(Q_i^{(\ell)}\,\text{unfold}_i(Y^{(i-1)})\right) ,\quad
+            A=Y^{(n)}.
+          \]
+        \item For each $i$ in $1,\dots,n$,
+          \[
+            M_i = \mathrm{unfold}_i(A),\quad
+            C_i = \mathrm{unfold}_i(B),
+          \]
+          \[
+            T_1 = M_i M_i^{T},\quad
+            T_2 = C_i C_i^{T},\quad
+            s = \max_{u,v}\lvert (T_1+T_2)_{u,v}\rvert,
+          \]
+          \[
+            Q_i^{(\ell)} \;\leftarrow\;
+            Q_i^{(\ell)} \;-\;\alpha
+            \,\frac{T_1 - T_2}{s}\;Q_i^{(\ell)}.
+          \]
+      \end{enumerate}
+      \[
+        G^{(0)} = \hat\mu^{(\ell)},\quad
+        G^{(i)} = \mathrm{fold}_i\bigl(Q_i^{(\ell)}\,\mathrm{unfold}_i(G^{(i-1)})\bigr),\quad
+        \tilde g_t^{(\ell)} = G^{(d)}.
+      \]
+    \textbf{(Weight‐decay \& update)}  
+      \[
+        \tilde g_t^{(\ell)} \leftarrow \tilde g_t^{(\ell)} + \lambda\,w_{t-1}^{(\ell)},\quad
+        w_t^{(\ell)} \leftarrow w_{t-1}^{(\ell)} - \eta\,\tilde g_t^{(\ell)}.
+      \]
+  \end{tcolorbox}
+\end{algorithm}
+
+
+\begin{algorithm}[H]
+  \caption{SOAP}
+  \label{alg:soap}
+  \begin{tcolorbox}
+  \textbf{Hyperparameters:} $\beta_1,\;\beta_2,\;\mu,\;k,\;\epsilon,\text{block\_size}, \gradnorm$
+  
+  \textbf{State:} $m,\;v,\;G_A,\;G_B,\;Q_A,\;Q_B$
+  
+  Partition all parameters into $\text{block\_size} \times \text{block\_size}$ block
+  
+  \textbf{Update Rule For Each Block:}
+  \begin{align*}
+  &\hat g_t = g_t \max\{1, \frac{\gradnorm}{\|g_t\|_2}\} \\
+  &\hat g_t = Q_A\,\hat g_t\,Q_B,\\
+  &m_t = \beta_1\,m_{t-1} + (1-\beta_1)\,\hat g_t,\quad
+   v_t = \beta_2\,v_{t-1} + (1-\beta_2)\,\hat g_t^2,\\
+  &\hat m_t = \frac{m_t}{1-\beta_1^{t}},\quad
+   \hat v_t = \frac{v_t}{1-\beta_2^{t}},\\
+  &w_{t+1} = w_t - \eta_t\;Q_A^\top\!
+     \Bigl(\frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon}\Bigr)\!Q_B^\top,\\
+  &G_A = \mu\,G_A + (1-\mu)\,\hat g_t\,\hat g_t^\top + \epsilon I,\quad
+  G_B = \mu\,G_B + (1-\mu)\,\hat g_t^\top\,\hat g_t + \epsilon I,\\
+  &\text{if }t \bmod k = 0: \quad Q_A = \mathrm{QR}(G_A\,Q_A),\quad
+     Q_B = \mathrm{QR}(G_B\,Q_B).
+  \end{align*}
+  \end{tcolorbox}
+\end{algorithm}
+
+
+

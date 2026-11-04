@@ -1,0 +1,73 @@
+
+\subsection{Optimizer}
+\label{sec:optimizer}
+
+\paragraph{Motivation.}
+\label{sec:optimizer-motivation}
+% Adam and AdamW~\citep{kingma2015adam,loshchilov2019adamw} treat a parameter tensor as a bag of independent scalars, so the update is invariant to how those scalars are arranged into a matrix.
+% Yet almost every parameter in a transformer is a linear map, and what matters is how the update acts on that map's singular directions.
+% Optimizers that exploit this structure generally take one of two routes: preconditioning the gradient with second-moment statistics of its rows and columns, as in Shampoo~\citep{gupta2018shampoo} and SOAP~\citep{vyas2024soap}, or viewing the optimizer as steepest descent under a chosen norm~\citep{bernstein2024oldoptimizer}.
+% Muon~\citep{jordan2024muon} follows the second route with the spectral norm: it replaces the momentum by the closest (semi-)orthogonal matrix via a Newton--Schulz (NS) iteration, so that all singular directions receive a comparable step. Muon has been shown to remain effective at scale~\citep{liu2025moonlight,kimi2025k2}.
+% We use Muon as the main optimizer and describe below the three choices that mattered most in practice.
+
+% (@ Zihan Please review:) 
+
+The matrix-based optimizer Muon~\citep{jordan2024muon} computes the update direction for a matrix parameter by orthogonalizing the momentum using Newton--Schulz (NS) iterations, and has been shown effective at scale~\citep{liu2025moonlight,kimi2025k2}. We use Muon as the main optimizer and find that several design choices influence its practical efficiency and stability, which we describe below.
+
+\paragraph{Orthogonalization.}
+\label{sec:optimizer-ns}
+% The NS iteration is applied to a Nesterov-accelerated momentum with $\mu = 0.95$, and the orthogonalized result is scaled by $\gamma(A,B) = 0.2\sqrt{\max(A,B)}$ for a parameter of shape $A\times B$, making the RMS of the update independent of the matrix shape~\citep{liu2025moonlight}.
+% For the iteration itself we adopt the per-step coefficient schedule of the Polar Express method~\citep{amsel2025polarexpress}, which is minimax-optimal for a given step budget, and we set the number of steps to $8$ to match the schedule length: every step uses its own coefficients and the last one lands on the schedule's fixed point.
+% We had expected the extra steps to be a pure cost. In stress-test configurations, however, a more accurate orthogonalization reduced both the size and the frequency of gradient-norm spikes. 
+% % This is consistent with the spectral-norm view: an under-converged iteration leaves the leading singular directions over-weighted exactly when the gradient is badly conditioned.
+% We also lower the constant guarding the Frobenius normalization preceding the iteration from $10^{-7}$ to $10^{-14}$. 
+% The splitting below produces many small matrices whose gradient norm becomes very small late in training, at which point the larger value dominates the denominator and silently shrinks their updates.
+
+% (@ Zihan Please review:) 
+
+The NS iteration is applied to a Nesterov-accelerated momentum~\citep{jordan2024muon} with $\mu = 0.95$, and the orthogonalized result is scaled by $\gamma(A,B) = 0.2\sqrt{\max(A,B)}$ for a parameter of shape $A\times B$, making the RMS of the update independent of the matrix shape~\citep{liu2025moonlight}.
+For the NS iteration, we adopt the per-step coefficient schedule of the Polar Express method~\citep{amsel2025polarexpress}, which is minimax-optimal for a given step budget. 
+We set the number of iteration steps to $8$, which provides more accurate orthogonalization than fewer steps and reduces both the magnitude and frequency of gradient-norm spikes in our stress test.
+We set the numerical stability constant in the Frobenius normalization preceding the NS iteration to $10^{-14}$.
+
+
+\paragraph{Which Parameters Use Muon.}
+\label{sec:optimizer-assignment}
+% We apply Muon to the two-dimensional weights that genuinely act as linear maps: the attention $qkv$ and output projections, the GDN~\citep{yang2024gated} input and output projections, the fc1/fc2 of both routed and shared experts, and the key projection in N-gram embedding layers.
+% The input embedding and the output head stay on AdamW~\citep{kingma2015adam,loshchilov2019adamw}. They are lookup tables rather than linear maps, and their vocabulary-sized dimension makes the NS iteration impractical.
+% The MoE router continues to use AdamW. 
+% We observed that Muon exacerbated early-training fluctuations while the router was still unstable. 
+% Although applying Muon to the router during the mid-to-late training stages did not cause instability, we found no significant performance gains.
+% One possible explanation is that each output dimension is the score of one expert, and the dimensions are largely independent, leaving no shared linear structure for orthogonalization to exploit.
+% The two low-rank projections of GR (\S\ref{sec:residual}) are likewise better under AdamW. 
+% We attribute this to their very elongated shape: with a rank far below the hidden size, the update is dominated by $\gamma(A,B)$ rather than by the geometry of the map.
+% Finally, the $n$-gram embedding table runs on AdamW with weight decay disabled.
+
+% (@ Zihan Please review:)
+
+We apply Muon to the two-dimensional weights that genuinely act as linear maps: the attention q/k/v and output projections, the GDN~\citep{yang2024gated} input and output projections, the fc1/fc2 of both routed and shared experts, and the key/value projection in N-gram embedding layers.
+The input embeddings and the output head stay on AdamW.
+For the MoE router, we observe that Muon exacerbates early-training fluctuations and destabilizes the router. Although applying Muon to the router during the mid-to-late training stages does not cause instability, we find no significant performance gains. Therefore, we use AdamW for the router.
+One possible explanation is that each output dimension of the router corresponds to the score of one expert, and the dimensions are largely independent, leaving no shared linear structure for orthogonalization to exploit.
+The two low-rank projections of GR (\S\ref{sec:residual}) likewise perform better with AdamW.
+We attribute this to their very elongated shape.
+Finally, the $n$-gram embedding table runs on Adam with weight decay disabled.
+
+\paragraph{Splitting Fused Parameters.}
+\label{sec:optimizer-split}
+In Megatron-LM~\citep{shoeybi2019megatron}, the attention $qkv$ projection, the SwiGLU~\citep{shazeer2020glu} fc1, and the GDN input projection are each stored as one fused matrix, but semantically they are concatenations of independent linear operators along the output dimension.
+Orthogonalizing the fused matrix is then wrong in two ways: the iteration mixes singular directions across unrelated sub-blocks, and $\gamma(A,B)$ is computed from the concatenated shape instead of the true operator shape.
+We therefore split the fused gradient before orthogonalization, run NS on each sub-matrix independently, and gather the results back into the original layout before applying the update.
+The $qkv$ and GDN input projections are split at per-head granularity, which improves both loss and downstream benchmarks. 
+The fc1 is split into its gate and up halves; the loss is essentially unchanged while benchmarks improve slightly.
+Splitting also provides a natural granularity for excluding individual sub-matrices from Muon.
+Specifically, the GDN decay and beta projections produce one scalar per head and are therefore vectors, on which orthogonalization is not meaningful. 
+For the output gates (the attention output gate~\citep{qiu2025gated} and the GDN $z$ projection), our ablations found AdamW on par with or slightly better than Muon.
+
+\paragraph{Implementation.}
+\label{sec:optimizer-impl}
+The NS iteration introduces two main implementation challenges for Muon:
+First, the iteration requires a holistic update over each full parameter matrix ($\approx 4K\max(A,B)\min(A,B)^2$ FLOPs for $K$ iteration steps), which clashes with Megatron's sharding in two ways: under TP, no rank owns the full weight matrix; under DP, the cost is cubic in the shorter dimension, so Megatron's equal-element partition leaves severe stragglers. We developed \textbf{Canzona}, which decouples logical optimizer assignment from physical parameter layout~\citep{wang2026canzonaunifiedasynchronousloadbalanced}: an $\alpha$-balanced static partitioner reassigns whole parameters (no cut inside a tensor) to equalize estimated NS FLOPs across DP ranks, and an asynchronous Micro-Group pipeline reconstructs each Muon-owned matrix via fused All-to-All across TP ranks. 
+Each owner then runs a step mathematically equivalent to single-device Muon, ZeRO-1's bucket geometry is preserved so Megatron's Reduce-Scatter/backward overlap is retained, and the abstraction extends to other matrix-based optimizers.
+Second, after splitting, one layer contributes on the order of a hundred sub-matrices, and the optimizer step becomes a long sequence of very small kernels bounded by launch overhead rather than arithmetic. 
+We capture the whole step in a CUDA graph to remove this overhead.

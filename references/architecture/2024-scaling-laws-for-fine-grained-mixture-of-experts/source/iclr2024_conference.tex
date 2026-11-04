@@ -1,0 +1,426 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage[svgnames]{xcolor}
+\usepackage{iclr2024_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{subcaption}
+\usepackage{booktabs} % for professional tables
+\usepackage{soul}
+
+% For theorems and such
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+
+% if you use cleveref..
+\usepackage[capitalize,noabbrev]{cleveref}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% THEOREMS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+% Todonotes is useful during development; simply uncomment the next line
+%    and comment out the line below the next line to turn off comments
+%\usepackage[disable,textsize=tiny]{todonotes}
+\usepackage[textsize=tiny]{todonotes}
+
+% Attempt to make hyperref and algorithmic work together better:
+\newcommand{\theHalgorithm}{\arabic{algorithm}}
+
+
+\newcommand{\ff}{feed-forward}
+\newcommand{\FF}{feed-forward}
+\newcommand{\nmoe}{N_\text{MoE}}
+\newcommand{\nff}{N_\text{ff}}
+\newcommand{\dff}{d_\text{ff}}
+\newcommand{\nact}{N_\text{act}}
+\newcommand{\dexp}{d_\text{expert}}
+\newcommand{\dffbase}{d_\text{ffbase}}
+\newcommand{\dexpert}{d_\text{expert}}
+\newcommand{\dmodel}{d_\text{model}}
+\newcommand{\nexpert}{N_\text{expert}}
+\newcommand{\ntokens}{n_\text{tokens}}
+\newcommand{\nblocks}{n_\text{blocks}}
+\newcommand{\nlayers}{n_\text{layers}}
+\newcommand{\nparams}{n_\text{params}}
+\newcommand{\nheads}{n_\text{heads}}
+
+
+\definecolor{purp}{RGB}{21,171,0}
+
+\newcommand{\marekc}[1]{\textcolor{cyan}{\small [mc: #1]}}
+\newcommand{\sj}[1]{\textcolor{blue}{\small [sj: #1]}}
+\newcommand{\janek}[1]{\textcolor{teal}{\small [jl: #1]}}
+\newcommand{\maciej}[1]{\textcolor{purple}{\small [mp: #1]}}
+\newcommand{\jk}[1]{\textcolor{purple}{\small [jk: #1]}}
+\newcommand{\ps}[1]{\textcolor{blue}{\small [ps: #1]}}
+
+\newcommand{\ka}[1]{{\color{purp}{ kamil : #1}}}
+\newcommand{\kk}[1]{{\color{purple}{ krystian : #1}}}
+\newcommand{\kc}[1]{{\color{green}{kc: #1}}}
+\newcommand{\mk}[1]{{\color{olive}{[michalk: #1]}}}
+
+
+\newcommand{\repl}[2]{\st{#1}\textcolor{red}{#2}}
+
+% \DeclareMathOperator*{\argmin}{arg\,min} % ALREADY DEFINED IN math_commands.tex
+
+
+
+\title{Scaling Laws for Fine-Grained\\ Mixture of Experts
+}
+
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+
+\author{Jakub Krajewski $^{\ast}$ \\ University of Warsaw \\ IDEAS NCBR \And Jan Ludziejewski $^{\ast}$ \\ University of Warsaw \\ IDEAS NCBR
+ \And Kamil Adamczewski \\ IDEAS NCBR  \And Maciej Pióro\hspace{1.1cm} \\ IPPT PAN \\ IDEAS NCBR \AND Michał Krutul \\ University of Warsaw \\ IDEAS NCBR \And Szymon Antoniak \\ University of Warsaw \\ IDEAS NCBR \And Kamil Ciebiera \\ University of Warsaw \\ IDEAS NCBR \And Krystian Król \\ University of Warsaw \\ IDEAS NCBR \AND Tomasz Odrzygóźdź \\ TradeLink \And Piotr Sankowski \\ University of Warsaw \\ IDEAS NCBR \And Marek Cygan \\ University of Warsaw \\ Nomagic \And Sebastian Jaszczur $^{\ast}$ \\ University of Warsaw \\ IDEAS NCBR
+}
+
+% \begin{icmlauthorlist}
+
+% %\icmlauthor{}{sch}
+% %\icmlauthor{}{sch}
+% \end{icmlauthorlist}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+
+\maketitle
+
+\input{abstract}
+
+% \input{introduction}
+\input{intro_long}
+
+\input{related_work}
+
+\input{background}
+
+\input{granularity}
+
+\input{scaling_laws}
+
+\input{practical}
+
+\input{ablations}
+
+\input{conclusions}
+
+
+
+\bibliography{iclr2024_conference}
+\bibliographystyle{iclr2024_conference}
+
+\appendix
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% APPENDIX
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\clearpage
+\appendix
+\onecolumn
+\section{Architecture and Training Setup}\label{app:setup}
+All of the models considered in this work are decoder-only Transformers trained on the C4 dataset \citep{raffel2023exploring}. We use GPT2 tokenizer \citep{radford2018improving}. Each batch consists of 0.5M tokens packed into 2048 sequences. Our optimizer is AdamW \citep{loshchilov2019decoupled}, with a weight decay of $0.1.$ In each training run, we use the maximum learning rate of $2\mathrm{e}{-4},$ with linear warmup for $1\%$ steps and cosine decay to $2\mathrm{e}{-5}.$ To improve stability, we initialize weights using the truncated normal distribution with reduced scale, as advised in \cite{fedus2022switch}. The models are trained using mixed precision; we always keep the attention mechanism and router in high precision. We assume the \textit{infinite data} regime, as the number of training tokens for any of the runs is less than the number of tokens in the corpus. We follow \cite{hoffmann2022training} and perform our analysis on the smoothed training loss.
+
+In MoE, we use the Expert Choice routing algorithm, as it guarantees a balanced expert load without tuning additional hyperparameters. To maintain compatibility with autoregressive language modeling, we apply the recipe described in \cite{zhou2022mixtureofexperts}: tokens are grouped by position across different sequences. The group size is always set to $256.$ We match the number of FLOPs for MoE and dense models with the same $\dmodel$ (meaning we activate an average of $8\dmodel^2$ parameters per token in each MoE layer). In the router, softmax is performed over the expert dimension, while we choose tokens over the token dimension, as this leads to the best performance (as opposed to performing softmax over the token dimension). We put an additional layer normalization before the output of MoE layer. This gives a small improvement for standard MoE, but is crucial for the performance of models with $G>1.$
+
+Table \ref{tab:moe} and Table \ref{tab:dense} list the considered architecture and training variants for dense and MoE models, respectively. 
+
+\begin{table}[h] 
+    \centering
+    \caption{Architecture and training variants (MoE models).}
+    \vspace{0.4cm}
+    \begin{tabular}{ccccccc}
+    \toprule
+        \#parameters (nonemb) & $\dmodel$ & $\nblocks$ & $\nheads$ & $D$ (in \#tokens) & $G$\\
+        \midrule
+        64x3M  & 256 & 4 & 4 & 16B, 33B, 66B & 1, 2, 4, 8, 16  \\
+        64x7M & 384 & 4 & 6 & 16B, 33B, 66B & 1, 2, 4, 8, 16 \\
+        64x13M & 512 & 4 & 8 & 16B, 33B, 66B & 1, 2, 4, 8, 16 \\
+        64x13M & 512 & 4 & 8 & 130B & 1, 2, 4 \\
+        64x25M & 512 & 8 & 8 & 16B, 33B, & 1, 2, 4, 8, 16 \\
+        64x25M & 512 & 8 & 8 & 66B & 1, 2, 4, 8 \\
+        64x49M & 640 & 10 & 10 & 16B, 33B & 1, 2, 4, 8, 16 \\
+        64x49M & 640 & 10 & 10 & 66B & 1, 2, 4 \\
+        64x85M & 768 & 12 & 12 & 33B & 1, 2, 4 \\ \bottomrule
+    \end{tabular}
+    \label{tab:moe}
+\end{table}
+
+
+\begin{table}[h] \label{table_dense}
+    \centering
+    \caption{Architecture and training variants (dense models).}
+    \vspace{0.4cm}
+    \begin{tabular}{ccccccc}
+    \toprule
+        \#parameters (nonemb) & $\dmodel$ & $\nblocks$ & $\nheads$ & $D$ (in \#tokens) \\
+        \midrule
+        3M  & 256 & 4 & 4 & 16B, 24B, 33B, 66B \\
+        6M & 256 & 8 & 4 & 16B, 24B, 33B, 66B \\
+        13M & 512 & 4 & 8 & 16B, 24B, 33B, 66B \\
+        25M & 512 & 8 & 8 & 16B, 24B, 33B, 66B \\
+        49M & 640 & 10 & 10 & 16B, 24B, 33B, 66B \\
+        85M & 768 & 12 & 12 & 16B, 33B \\
+        \bottomrule
+    \end{tabular}
+    \label{tab:dense}
+\end{table}
+
+\newpage
+\section{Validation of the Scaling Law}\label{app:coeffs_valid}
+% In this section we list the best fit of coefficients in Eq.~\ref{eq:chinchilla} for dense models and Eq.~\ref{eq:loss_moe} for MoE models (see Sec. \ref{sub:joint}).
+In this section, we provide coefficients of the scaling law fitted with 20$\%$ of datapoints with the lowest perplexity excluded for the purpose of validation.
+
+\begin{table}[h]
+    \centering
+    \caption{Values of the fitted coefficients.}
+    \vspace{0.4cm}
+    \begin{tabular}{c|c|c|c|c|c|c|c|c}
+        Model  & a & $\alpha$ & b & $\beta$ & g & $\gamma$ & c \\
+        \hline
+        MoE  & 17.6 & 0.114 & 26.7 & 0.140 & 2.07 & 0.570 & 0.472 \\ 
+    \end{tabular}
+    \label{tab:coeffs_valid}
+\end{table}
+
+\section{Reliability of Compute Optimal Formula}\label{app:reliabiliy}
+In this section, we assess the stability of our predictions presented in Section~\ref{sub:compute_optimal}. Similarly to \cite{hoffmann2022training} we calculate the 10$^\text{th}$ and 90$^\text{th}$ percentiles estimated via bootstrapping data ($80\%$ of the data is sampled $100$ times). See Table \ref{tab:bootstrap} for the details.
+
+\begin{table}[h]
+    \centering
+    \caption{10$^\text{th}$ and 90$^\text{th}$ percentiles estimated via bootstraping data.}
+    \vspace{0.4cm}
+    \begin{tabular}{ccc}
+        \toprule
+        N & D & G \\
+        \midrule
+        64 x 100M & (2.97B, 5.98B) & (8, 8) \\ 
+        64 x 1B & (21.17B, 40.73B)  & (16, 16)  \\
+        64 x 3B & (50.20B, 105.88B)  &  (16, 32)  \\
+        64 x 7B & (101.06B, 205.40B)   &  (32, 32)  \\
+        64 x 70B & (638.49B, 1.59T) & (32, 64) \\
+        64 x 300B & (1.99T, 5.62T)  &  (64, 64) \\
+        64 x 1T & (5.29T, 16.87T)   & (64, 64) \\
+        \bottomrule
+    \end{tabular}
+    \label{tab:bootstrap}
+\end{table}
+\section{Varying Expansion Rate} \label{app:exp_rate}
+In this section, we provide results for $E=16.$ The training procedure is the same as described in App. \ref{app:setup}. The models considered in this part are listed in Table \ref{tab:moe_16}. 
+
+\begin{table}[h] 
+    \centering
+    \caption{Architecture and training variants (MoE models).}
+    \vspace{0.4cm}
+    \begin{tabular}{ccccccc}
+        \toprule
+        \#parameters (nonemb) & $\dmodel$ & $\nblocks$ & $\nheads$ & $D$ (in \#tokens) & $G$\\
+        \midrule
+        64x3M  & 256 & 4 & 4 & 8B, 16B, 33B & 1, 2, 4, 8, 16  \\
+        64x7M & 256 & 8 & 4 & 8B, 16B, 33B & 1, 2, 4, 8, 16 \\
+        64x13M & 512 & 4 & 8 & 8B, 16B, 33B & 1, 2, 4, 8, 16 \\
+        64x13M & 512 & 4 & 8 & 66B & 1, 2, 4 \\
+        64x25M & 512 & 8 & 8 & 8B, 16B, 33B & 1, 2, 4, 8, 16 \\
+        64x49M & 640 & 10 & 10 & 8B & 1, 2, 4, 8, 16 \\
+        \bottomrule
+    \end{tabular}
+    \label{tab:moe_16}
+\end{table}
+
+We fit Eq.~\ref{eq:loss_moe} using the same procedure as described in Section~\ref{sub:parametric}. The results are detailed in Table \ref{tab:_different_e}.
+
+\begin{table}[ht!]
+    \centering
+        \caption{Values of the fitted coefficients.}
+    \vspace{0.4cm}
+    \begin{tabular}{ccccccccc}
+    
+    \toprule
+        Model  & a & $\alpha$ & b & $\beta$ & g & $\gamma$ & c \\
+        \midrule
+        MoE ($E=16$)  & 19.64 & 0.124 & 57.07 & 0.169 & 1.18 & 0.986 & 0.472 \\  \bottomrule
+    \end{tabular}
+    \label{tab:_different_e}
+\end{table}
+
+Using the coefficients and FLOPs calculation formulas, we can derive the compute optimal training parameters. The results are presented in Table \ref{tab:compute_opt_16}.
+
+\begin{table}[ht!]
+    \caption{10$^\text{th}$ and 90$^\text{th}$ percentiles estimated via bootstrapping data for $E=16$.}
+    \centering
+    \vspace{0.4cm}
+    \begin{tabular}{ccc}
+    \toprule
+        N & D & G \\
+        \midrule
+        16 x 100M & (10.29B, 17.73B)   & (8 , 16)  \\
+        16 x 1B   & (53.74B, 103.54B)  & (16, 32)  \\
+        16 x 3B   & (106.22B, 261.04B) & (16, 32)  \\
+        16 x 7B   & (177.65B, 511.43B) & (16, 32)  \\
+        16 x 70B  & (721.60B, 3.22T)   & (32, 64)  \\
+        16 x 300B & (1.73T, 10.69T)    & (32, 64)  \\
+        16 x 1T   & (3.60T, 28.22T)    & (32, 128)  \\ \bottomrule
+    \end{tabular}
+    \label{tab:compute_opt_16}
+\end{table}
+
+We can observe that similarly to the case when $E=64,$ larger compute budgets imply larger optimal values of $G.$ Note that the values for $10^\text{th}$ and $90^\text{th}$ percentiles form larger intervals in this case, as in this part we run a smaller number of experiments and keep shorter training durations. However, we believe that this preliminary study forms a valuable addition to the results in the main part.
+
+% \section{Compute Optimal Granularity for Overtrained Models}
+
+% \begin{table}[h]
+%     \centering
+%     \begin{tabular}{c|c|c|c|c|c}
+%         N & D_{opt} & G_{opt} \text{ for } D_{opt} &  G_{opt} \text{ for } 2D_{opt} & G_{opt} \text{ for } 10D_{opt} & G_{opt} \text{ for } 100D_{opt}  \\
+%         \hline
+%         64 x 100M & 4.37B  & 8  & TBD & TBD & TBD  \\ 
+%         64 x 1B & 28.94B  & 16  & TBD & TBD & TBD   \\
+%         64 x 3B & 72.90B  & 16  & TBD & TBD & TBD   \\
+%         64 x 7B & 137.60B  & 32  & TBD & TBD & TBD   \\
+%         64 x 70B & 941.07B  & 32  & TBD & TBD & TBD  \\
+%         64 x 300B & 2.96T & 64  & TBD & TBD & TBD   \\
+%         64 x 1T & 7.94T  & 64  & TBD & TBD & TBD  \\
+%     \end{tabular}
+%     \caption{Compute optimal Granularity for overtrained models}
+%     \label{tab:compute_opt_overtrained}
+% \end{table}
+
+% \janek{Moze dodac tabelke o tym jak dostosowywać granularity przy overtrained modelach, bo taka jest praktyka, zeby wyszlo taniej w inferencji? To brzmi jak dobry pomysl, zeby ludzie realnie tego uzywali.} 
+
+%\section{Optimal Training Tokens for Different %Granularities}\label{app:copt_for_grans}
+
+%\begin{table}[h]
+    %\centering
+    %\begin{tabular}{c|c|c|c|c|c|c|c}
+        %N & D_{opt} & G_{opt} & D_{opt} \text{ for } G=1 & D_{opt} \text{ for } G=2 & D_{opt} \text{ for } G=4 & D_{opt} \text{ for } G=8  & D_{opt} \text{ for } G=16 \\
+        %\hline
+        %64 x 200M & 8.33B & 4 & TBD & TBD & TBD & TBD & TBD  \\ 
+        %64 x 1B & 20.5B & 8 & TBD & TBD & TBD & TBD & TBD \\
+        %64 x 3B & 58.1B & 8 & TBD & TBD & TBD & TBD & TBD \\
+        %64 x 7B & 118B & 8 & TBD & TBD & TBD & TBD & TBD  \\
+        %64 x 70B & 802B & 16  & TBD & TBD & TBD & TBD & TBD  \\
+        %64 x 500B & 4.27T & 16 & TBD & TBD & TBD & TBD & TBD \\
+        %64 x 1T & 7.76T & 16 & TBD & TBD & TBD & TBD & TBD  \\
+    %\end{tabular}
+    %\caption{Compute optimal training time for %different Granularities}
+    %\label{tab:compute_opt_overtrained}
+%\end{table}
+
+%\janek{Dodatkowo można też dodać jakie są compute optimal dlugoscitreningu przy konkretnym granularity, jak to sie zmienia. Mysle, ze bedzie z tego wynikac, ze MoE sie trenuje dluzej dlatego, ze G=1, dla bardziej granularnych, w szcegolnosci takich z $G_{opt}$ trening zbiega do okolo chinchilli}
+% \newpage
+\section{FLOPs Constants}\label{app:constants}
+
+The number of FLOPs $F$ used in Transformer training, considering the routing operation overhead in MoE, can be described by the following formula:
+\begin{align}
+     F = (12{\dmodel}^2c_f + \dmodel EGc_r) \cdot \ntokens \cdot \nlayers
+    \label{eq:flops_overhead}
+\end{align}
+
+Following \cite{hoffmann2022training}, we assume $c_f$ to be $6$. This is interpreted as 6 FLOPs for each pair of an active parameter (in linear projection) and a processed token. The breakdown of operations is as follows:
+\begin{itemize}
+    \item During the forward pass, 2 operations (single multiplication and single addition) are used to compute the matrix multiplication of an input and linear projection.
+    \item During the backward pass, 2 operations are used to compute gradients wrt. the input.
+    \item During the backward pass, 2 operations are used to compute gradients wrt. the weights of linear projection.
+\end{itemize}
+
+In our work, we have assumed the routing constant, $c_r$, to be 14, with the breakdown presented below. The exact number of operations may depend on the implementation of routing, but it will be between 6 and 20. However, our main conclusions of the paper are resistant to different assumptions of this constant.
+\begin{itemize}
+    \item During the forward pass, 2 operations are used to compute the expert logits based on an input and ``routing linear projection''.
+    \item During the backward pass, 2 operations are used to compute gradients for ``routing linear projection'' wrt. the input.
+    \item During the backward pass, 2 operations are used to compute gradients for ``routing linear projection'' wrt. the weights of linear projection.
+    \item During the forward pass, 2 operations are used to route input tokens to chosen experts.
+    \item During the forward pass, 2 operations are used to route expert outputs to chosen tokens and multiply those outputs by the routing score.
+    \item During the backward pass, 2 operations are used to route gradients from output tokens to experts.
+    \item During the backward pass, 2 operations are used to route gradients from experts to input tokens.
+\end{itemize}
+
+Similarly to the calculation of FLOPs for $c_f$, FLOPs come in pairs as each multiplication is followed by an addition (used to accumulate outputs or gradients).
+
+%We are aware that values of constants $c_r$ and $c_f$, and especially their capability to model actual time, are highly dependent on implementation, hardware and training environment. Therefore we think, that exact values should be fitted for specific training setup. Following \cite{hoffmann2022training}, we assume $c_f$ to be $6$. \janek{TODO, argumentować wybór cr na 14 na podstawie faktycznych flopsów}
+% \newpage
+% \section{Measuring Wall-clock Time}\label{app:time}
+% In this section, we provide an example of training curves for models with different levels of granularity, measured in terms of wall-clock training time on NVIDIA A100 GPU. We can see that the model with $G=8$ achieves the best performance in this case.
+% \begin{figure}[ht!]
+% \centering
+% \includegraphics[width=0.6\textwidth]{figures/time.pdf}
+% \caption{Training loss curves for model with $N=64 \times 7M$, $D=66B$ tokens.}
+% \label{fig:time}
+% \end{figure}
+% \newpage
+\section{Additional Visualizations}
+\label{sec:app_add_viz}
+
+\begin{figure}[ht!]
+  \centering
+  \begin{tabular}{ c @{\hspace{30pt}} c }
+    \includegraphics[width=.3\textwidth]{figures/kaplan_1.pdf} &
+      \includegraphics[width=.3\textwidth]{figures/kaplan_2.pdf} \\
+    \small \textbf{(a)} &
+      \small \textbf{(b)} \\
+  \includegraphics[width=.3\textwidth]{figures/kaplan_8.pdf} &
+      \includegraphics[width=.3\textwidth]{figures/kaplan_16.pdf} \\
+    \small \textbf{(c)} &
+      \small \textbf{(d)}
+  \end{tabular}
+
+  \medskip
+
+  \caption{Illustration of scaling $N$ and $D$ for constant granularity value of: \textbf{(a)} $G=1$ \textbf{(b)} $G=2$ \textbf{(c)} $G=8$ \textbf{(d)} $G=16.$ }
+  \label{line_gran_plot}
+\end{figure}
+
+\begin{figure}[ht!]
+  \centering
+  \begin{tabular}{ c @{\hspace{30pt}} c }
+    \includegraphics[width=.3\textwidth]{figures/granularity_N_1082130432_D_31250.0.pdf} &
+      \includegraphics[width=.3\textwidth]{figures/granularity_N_2113536000_D_31250.0.pdf} \\
+    \small \textbf{(a)} &
+      \small \textbf{(b)} \\
+  \includegraphics[width=.3\textwidth]{figures/granularity_N_1082130432_D_62500.0.pdf} &
+      \includegraphics[width=.3\textwidth]{figures/granularity_N_2113536000_D_62500.0.pdf} \\
+    \small \textbf{(c)} &
+      \small \textbf{(d)}
+  \end{tabular}
+
+  \medskip
+
+  \caption{Illustration of scaling granularity when $N, D$ are fixed for: \textbf{(a)} $N=64 \times 25M$, $D=16B$, $const=3.12$ \textbf{(b)} $N=64 \times 49M $, $D=16B$, $const=3.02$ \textbf{(c)} $N=64 \times 25M$,  $D=32B$, $const=3.03$ \textbf{(d)} $N=64 \times 49M$, $D=32B$, $const=2.88$ }
+  \label{line_gran_plot_fixed}
+\end{figure}
+\end{document}

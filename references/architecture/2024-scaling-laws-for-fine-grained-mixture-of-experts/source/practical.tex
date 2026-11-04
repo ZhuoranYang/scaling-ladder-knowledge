@@ -1,0 +1,153 @@
+\section{Optimal Allocation of Computational Budget }\label{sec:scaling_app}
+%\subsection{Optimal Allocation of the Computational Budget}
+
+In Section \ref{sec:scaling_laws}, we show that higher granularity leads to lower loss for the same number of training steps. This is not always the case if we consider the wall-clock time. As depicted in Figure \ref{fig:valid_wall} (b), in practice for too high values of $G$ (relative to $\dmodel$), training can be bottlenecked by the routing cost. Practical modeling of this situation is possible by measuring FLOPs in routing.
+In this section we find optimal $N,D,G$ for a given computational budget $F$ 
+% As seen in Figure \ref{fig:valid_wall} (b), \jk{dodać odniesienie do wall-clock time} 
+% This can be done 
+by solving the following optimization problem,
+\begin{equation*}
+    \begin{aligned}
+        & \underset{N, D, G}{\text{minimize}}
+        & & \mathcal{L}(N, D, G) \\
+        & \text{subject to}
+        & & \text{FLOPs}(N, D, G) = F.
+    \end{aligned}
+\end{equation*}
+
+
+\subsection{Computational Cost of Granularity} \label{sub:compute_optimal}
+
+%As we consider granularity in MoE models, 
+
+It is important to acknowledge that increasing granularity can lead to some challenges in training the model, namely higher computational and communication costs and a larger memory footprint. The main component responsible for higher costs is the increase in routing operations due to a larger pool of granular experts. This increase is proportional to the value of $G.$ For standard, non-granular MoE models ($G=1$), the routing overhead still exists, although it has been considered negligible. 
+%Nonetheless, the routing cost increases linearly with granularity. 
+%for some smaller models it can become a bottleneck. 
+%Then the number of FLOPs is solely determined by the number of parameters, that is $F=6N$ \cite{hoffmann2022training}, and is independent on other transformer parameters such as $\dmodel$ and the number of blocks, $\nblocks$. 
+
+%In the case when $G > 1$, the computational budget should include both the cost of MoE layers and routing operations. 
+% We would like to emphasise that all of these factors are dependent on the infrastructural details of the training. However, in order to realistically model these difficulties, in this section we would like to model the practical cost of increasing granularity.
+ % Then 
+Taking into account the routing operation overhead, the number of used FLOPs $F$ is described by the following formula:
+\begin{align}
+    F = (12{\dmodel}^2c_f + \dmodel EGc_r) \cdot D \cdot \nblocks,
+    \label{eq:flops}
+\end{align}
+given expansion rate $E$, granularity $G$, and constants that denote FLOPs per active parameter ratio, respectively, within routing ($c_r$) and within the rest of the network ($c_f$). The term $12{d_{\text{model}}}^2$ is the number of active parameters within a transformer block, while $d_{\text{model}}EGc_r$ is the number of active parameters within a routing network. The in-depth analysis of constants $c_r$ and $c_f$ can be found in Appendix
+\ref{app:constants}. We exclude embedding and unembedding from the FLOPs calculations, following \cite{hoffmann2022training}.
+
+Observe that, in contrast to scenarios where routing operations are omitted, the FLOPs calculation that incorporates routing overhead relies on both $d_{\text{model}}$ and $\nblocks$. Consequently, an additional condition is required to determine the scaling of $d_{\text{model}}$ and $\nblocks$ in relation to an increase in $N$, the number of parameters. It is noted that minor variations in the depth-to-width ratio are not significant \citep{kaplan2020scaling}. Following this analysis, we opt to adopt the assumption that $\dmodel=64\nblocks$.
+
+The total number of parameters in the feed-forward layer, excluding the routing matrix, is $2E\dff d_{\text{model}} = 8E{\dmodel}^2$, and $4{\dmodel}^2$ in attention (key, query, value, and output projection). This results in the following formula for the total number of parameters, $N = {\dmodel}^2 \cdot (8E + 4) \cdot \nblocks$.
+
+
+
+%the same as in the standard transformer, the total number of non-embedding parameters in our feed-forward layer
+
+
+%\sj{what is E? this is not mentioned. Also what about attention? $c_f=4$ seems bullshit , we need also some const like $4/8$ for dff and two FF matrices. $FF=8*dmodel^2$ (*6 to get flops) params. $routing=dmodel*E*G params$ (*6 to get flops), and also $dmodel*E*G*2(or 4)$ for routing, attention $is dmodel^2*4$ params (*6 to get flops), and we discount attention mechanism itself, or we can assume $dmodel=seq_len$ or something and get s$eqlen*dmodel*2$ (or 4, idk)} 
+
+% In sum, given $N, D, G$, we infer the transformer model architecture parameters by solving the following system of equations,
+
+% \begin{align*}
+% F = (12{\dmodel}^2c_f + \dmodel EGc_r) \cdot \ntokens \cdot \nblocks\\
+%  N = d_{\text{model}}^2 \cdot (8E + 4) \cdot n_{\text{layers}}, \\
+%  d_{\text{model}} = 64 \cdot n_{\text{layers}}
+% \end{align*}
+
+% As a result, the optimization problem becomes, given a fixed number of floating-point operations (FLOPs) $F$,
+
+
+\subsection{Compute Optimal Formula} \label{optimi}
+
+Taking into consideration we need to solve the following optimization problem, given $F$,
+
+\begin{equation*}
+    \begin{aligned}
+        & \underset{N, D, G}{\text{minimize}}
+        & & \mathcal{L}(N, D, G) \\
+        & \text{subject to}
+        & & F = (12{\dmodel}^2c_f + \dmodel EGc_r) \cdot D \cdot \nblocks\\
+        & & & N = d_{\text{model}}^2 \cdot (8E + 4) \cdot n_{\text{layers}}, \\
+        & & & d_{\text{model}} = 64 \cdot n_{\text{layers}}.
+    \end{aligned}
+\end{equation*}
+
+All these constraints are reducible to a one-dimensional optimization problem, which is, however, hard to solve analytically. Therefore we approximate the solution using Brent's method \citep{Brent1971AnAW}. The results of this optimization for varying FLOPs budgets are plotted in Figure \ref{flag_plots} while the optimal configurations of parameters for selected model sizes are presented in Table \ref{compute_opt}. To validate the uncertainty of these predictions, we follow \cite{hoffmann2022training} and calculate the 10$\text{th}$ and 90$\text{th}$ percentiles estimated via bootstrapping data (see Appendix \ref{app:reliabiliy} for the detailed results).
+%\jk{continue here}
+%We validate reliability of these constants in Appendix \ref{app:reliabiliy}.
+
+\begin{table}[h]
+    \centering
+    \caption{Compute optimal training hyper-parameters for MoE models. Optimal $N$ and $D$ follow approximately similar relation to these of \cite{hoffmann2022training} for active parameters around the range of $1B$ to $10B$ parameters, requiring comparably longer training for smaller models and shorter for bigger ones. Higher granularity is optimal for larger compute budgets.
+    % Note that, this also considers optimal granularity and its FLOPs cost.  
+    }
+    \vspace{0.2cm}
+    \begin{tabular}{ccccc}
+    \toprule
+        N & D & G & FLOPs & Loss \\
+        \midrule
+        64 x 100M & 4.37B  & 8 & 2.95e+18 & 3.133 \\ 
+        64 x 1B & 28.94B  & 16 & 1.93e+20 & 2.491 \\
+        64 x 3B & 72.90B  & 16 & 1.41e+21 & 2.245\\
+        64 x 7B & 137.60B  & 32 & 6.46e+21 & 2.076 \\
+        64 x 70B & 941.07B  & 32 & 4.16e+23 & 1.694  \\
+        64 x 300B & 2.96T & 64 & 5.69e+24 & 1.503  \\
+        64 x 1T & 7.94T  & 64 & 4.97e+25 & 1.367 \\
+        \bottomrule
+    \end{tabular}
+    % and we can observe, that increased granularity results in shorter compute optimal training.
+    \label{compute_opt}
+\end{table}
+
+
+
+
+
+%\sj{I'd provide some examples of medium- and large-scale models that roughly follow this ratio (and if they don't, it's sus).} \janek{chinchilla ma 8.192/80=102.4, w kaplan scaling maja tam w "3 Empirical Results and Basic Power Laws" ablacje różnych depth to width ratio i mówią, że od nwm na oko 32 do 128 (to jest na wykresie) performance jest taki sam mniejwięcej i to mało zmienia, można jakoś dokładnie zaznaczyć to odwołanie. Poza tym nasze configi tak mają mniejwięcej też, co myśle, że dawałoby jakiś bias jakby założenie nie było zgodne z configami}.  
+
+
+% Thus, to find optimal $N,D,G$, we need to solve a given constrained parameterized optimization problem:
+
+%  {\it Given $F$, solve:}
+% \begin{align*}
+%     \argmin_{N,D,G} L_s(N,D,G)  
+% \end{align*}
+% {\it under constraints: }
+% \begin{align}
+%     \text{FLOPs}(n_{model}, E, \nblocks, G, D)=F  \\
+%      N = {\dmodel}^2 \cdot (8E + 4) \cdot \nblocks \\
+%      \dmodel=64 \cdot \nblocks 
+% \end{align}
+
+% \marekc{I suggest the following refomulation, which I consider more standard in terms of defining an optimization problem.}
+
+
+
+% TODO check that params formula
+%All these constraints are reducible, however the remaining optimization problem remains hard to solve analytically, therefore 
+
+
+
+% \begin{figure}[ht!]
+% \includegraphics[width=0.47\textwidth]{icml2024/figures/flops_compare.png}
+% \caption{
+% Relative number of FLOPS needed to train Transformer and Vanilla MoE (MoE with $G=1$) to achieve the performance of Granular MoE (MoE with compute optimal $G$). All curves assume selecting compute optimal $\nparams$ and $n_{tokens}$ for given FLOPS budget.}
+% \label{fig:flops_save}
+% \end{figure}
+
+
+
+
+\subsection{MoE is Always More Efficient} \label{moe_more_eff}
+Contrary to the results from \cite{clark2022unified}, in Figure \ref{flag_plots} we can see, that Mixture-of-Experts can be always considered more efficient than dense Transformers, regardless of the model size. According to our previous observations from Section~\ref{sub:scaling_properties}, MoE models scale better with optimal training. However, for short training schedules, they may under-perform dense models. This means that for constant training time and increasing model size, there exists a point where both models will become very under-trained, in which scenario dense models surpass MoE. This shows why in \cite{clark2022unified}, where varying the number of training tokens has not been considered, MoE was predicted to be under-performing for models bigger than $1T$. However, when all training hyper-parameters $N,D,G$ are properly selected to be compute-optimal for each model, the gap between dense and sparse models only increases as we scale.
+
+%, what can be represented using our scaling laws as $ \forall_{c_g>0} \exists_{N>0} c_gN^{-0.10} > 17.9N^{-0.14}$
+
+%\subsection{Optimal allocation of the compute budget}
+%\begin{figure}[ht!]
+%\centering
+%\includegraphics[width=0.5\textwidth]{icml2024/figures/optimal_compute.png}
+%\caption{Optimal allocation of the compute budget}
+%\label{fig:compute}
+%\end{figure}

@@ -1,0 +1,290 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{todonotes}
+
+\newcommand{\note}[4][]{\todo[author=#2,color=#3,size=\scriptsize,fancyline,caption={},#1]{#4}} % default note settings, used by macros below.
+\newcommand{\pw}[2][]{\note[#1]{Pete W}{green!40}{#2}}
+\newcommand{\wm}[2][]{\note[#1]{Will M}{blue!40}{#2}}
+
+\input{preamble}
+
+\title{OLMo stability and LR schedule notes}
+\author{William Merrill}
+\date{July 2023}
+
+\begin{document}
+
+\maketitle
+
+\begin{figure}[!ht]
+    \centering
+    \begin{tikzpicture}
+    \begin{axis}[
+        width = \textwidth,
+        height = 10cm,
+        axis lines = left,
+        xlabel = \(t\),
+        ylabel = {\(\eta_t\)},
+    ]
+
+    \addplot [
+        domain=2000:476837,
+        samples=100, 
+        color=blue,
+    ]
+    {.01/sqrt(max(10000, x))};
+    \addlegendentry{\(.01/\sqrt{\max \{10^4, t\} }\)}
+
+    \addplot [
+        domain=2000:476837, 
+        samples=100, 
+        color=red,
+        ]
+        {0.0001 * (cos(x/476837 * 180) + 1) / 2};
+    % \addlegendentry{\(10^{-4} \cdot \frac{\cos(\pi t/476837) + 1}{2}\)}
+    \addlegendentry{OLMo 7B (Aug 2)}
+
+    \addplot [
+        domain=2000:476837, 
+        samples=100, 
+        color=green,
+        ]
+        {0.00003 * (cos(x/476837 * 180) + 1) / 2};
+    \addlegendentry{Llama2 \(/ 10\)}
+
+    \addplot [
+        domain=2000:200000, 
+        samples=100, 
+        color=pink,
+        ]
+        {0.0001 * (cos(x/200000 * 180) + 1) / 2};
+    \addlegendentry{MosaicML}
+    % \addlegendentry{\(10^{-4} \cdot \frac{\cos(\pi t/200000) + 1}{2}\)}
+
+    \addplot [
+        domain=2000:476837, 
+        samples=100, 
+        color=magenta,
+        ]
+        {0.00005 * (cos(x/476837 * 180) + 1) / 2};
+    \addlegendentry{OLMo (Aug 2) \(\times 1/2\)}
+    % \addlegendentry{\(10^{-4} / 2 \cdot \frac{\cos(\pi t/476837) + 1}{2}\)}
+
+    % \addplot [
+    %     domain=2000:476837,
+    %     samples=100, 
+    %     color=green,
+    % ]
+    % {.5 * .01/sqrt(max(10000, x)) + .5 * 0.0001 * (cos(x/476837 * 180) + 1) / 2};
+    % \addlegendentry{Interpolation}
+    
+    % \addplot+[sharp plot, domain=0:476837] coordinates {(95000,0.0000999988) } node[below=1mm, pos=0] {};
+    \addplot[thick, samples=50, smooth,domain=0:476837,gray] coordinates {(95000,0)(95000,0.0001)};
+    \end{axis}
+    \end{tikzpicture}
+    \caption{
+        Summary of LR schedules. The Aug 2 OLMo failure starts at the vertical {\color{gray} gray} line.
+        The {\color{red} red} line is the cosine LR schedule and the {\color{blue} blue} line is an adaptation of the T5 schedule (with a decreased initial learning rate).
+        The {\color{pink} pink} line is roughly the LR schedule for MosaicML.
+        The {\color{magenta} magenta} line is the schedule we get by simply dividing the initial LR by 2.
+        The {\color{green} green} line is a rough port of the Llama2 schedule, if we divide by 10 to transfer an Adam LR to a Lion LR.
+    }
+    \label{fig:lr-schedules}
+\end{figure}
+
+\section{Background and Motivation}
+
+Earlier in the summer, there were some instability issues with the OLMo pretraining where the gradient norm would suddenly blow up late in training after looking fine for a while. This was concerning because it suggested that all the effort going into a long run could suddenly go to waste. It would therefore be useful to better understand the cause of the phenomenon and how to prevent it. In a series of informal discussions, I offered a theoretical perspective on this, largely based on \citet{merrill2021effects}. Concretely, I proposed metrics that could be used to debug exploding gradient norm, and suggested that a principled LR schedule of $1/\sqrt{t}$ decays at just the right rate to avoid gradient norm blow up. Here I will document the derivation of this learning rate (LR) schedule as a reference for future OLMo model development.
+
+\section{Setup}
+
+We can formally model training with a generic optimizer as follows. At each step $t$, the optimizer yields a vector $\delta_t$, which we scale by our current learning rate $\eta_t$. We use this scaled update vector to update the parameters:
+\begin{equation*}
+    \theta_{t+1} = \theta_t - \eta_t \delta_t .
+\end{equation*}
+
+So far, we have said nothing about how $\delta_t$ is computed. There are a couple basic properties of transformer training that are relevant here \citep{merrill2021effects}.
+
+\subsection{Approximate Homogeneity}
+
+Transformers with large enough parameter norm are very close to $2$-homogeneous in their parameters $\theta_t$. Since empirically the parameter norm grows over time, transformers after even a small amount of training enter a regime where they are very close to $2$-homogeneous. That is, for a transformer $f$,
+\begin{equation*}
+    f(x, \rho \theta_t) \approx \rho^2 f(x, \theta_t) .
+\end{equation*}
+It follows by Euler's homogeneity theorem that the gradient is $1$-homogeneous:
+\begin{equation*}
+    \nabla_{\theta_t} f(x, \theta_t) \approx \rho \nabla_{\theta_t} f(x, \theta_t) .
+\end{equation*}
+We take away from this that the gradient norm ($\delta_t$ under vanilla SGD) will be proportional to the norm of the parameters $\norm{\theta_t}$. Thus, the rate of $\norm{\theta_t}$ growth will effect the rate of gradient norm growth! If our goal is to prevent the gradient norm from exploding, we should pick a LR schedule where the parameter norm grows, but not exponentially fast.\footnote{Another more precise goal would be: where the parameter norm grows, but slow enough that we still achieve directional convergence in parameter space \citep{ji2020directional}.}
+
+\subsection{Gradient Alignment}
+
+Gradient alignment $\alpha_t = \cos(\theta_t, \delta_t)$ captures the angle between the parameters $\theta_t$ and their update $\delta_t$.
+
+The alignment is important because it effects the rate of parameter norm growth. If the parameter updates are aligned ($\alpha_t = 1$), then updates rapidly increase $\theta_t$ because they are moving away from the origin. If the parameter updates are misaligned ($\alpha_t = 0$), then the parameters are constantly moving orthogonal to origin, which does end up increasing $\theta_t$ over time, but at a more gradual rate.
+
+Theoretical work makes different predictions for feedforward networks for whether the gradients should be aligned or misaligned, depending on the details of the architecture and optimizer \citep{li2019exponential,ji2020directional}. We found for transformers that the dynamics are much closer to misaligned, i.e., $\alpha_t \approx 0$. We will therefore proceed with this assumption in our analysis, although it is possible to generalize it to the aligned case (the predicted LR schedule will change).
+
+\section{Gradient Descent/Adam}
+
+Before moving to the Lion optimizer, we will derive the LR schedule for standard gradient descent that avoid exponential blowup. We will leverage approximate homogeneity and gradient misalignment from the setup above.
+
+\begin{align*}
+    \norm{\theta_{t+1}}^2
+    &= (\theta_t - \eta_t \delta_t)^2 \\
+    &= \norm{\theta_t}^2 - 2 \eta_t \delta_t^\top \theta_t + \eta_t^2 \norm{\delta_t}^2 \\
+    &= \norm{\theta_t}^2 - 2 \eta_t \alpha_t \norm{\delta_t} \norm{\theta_t} + \eta_t^2 \norm{\delta_t}^2 .
+\end{align*}
+Using the fact that $\delta_t$ is misaligned ($\alpha_t = 0$), we get:
+\begin{equation*} \label{eq:norm2}
+    \norm{\theta_{t+1}}^2 = \norm{\theta_t}^2 + \eta_t^2 \norm{\delta_t}^2 .
+\end{equation*}
+By homogeneity, $\norm{\delta_t}$ is proportional to $\norm{\theta_t}$, so:
+\begin{equation*}
+    \norm{\theta_{t+1}}^2 = \norm{\theta_t}^2 + c\eta_t^2 \norm{\theta_t}^2 .
+\end{equation*}
+At this point, we wish to derive a non-recurrent form for $\norm{\theta_{t}}$ as a function of $t$.
+We can approximate the discrete sum with an integral to make this easier. Let $\rho = \norm{\theta}$.\footnote{We could solve this more rigorously with integration by parts.}
+\begin{align*}
+    \frac{\der}{\der t} \rho^2 = c\eta^2 \rho^2 \\
+    \frac{\der \rho^2}{\rho^2} = c \eta^2 \der t .
+\end{align*}
+Taking the integral of both sides yields:
+\begin{equation*}
+    \log \rho^2 = \int_1^t c \eta(\tau)^2 \der \tau .
+\end{equation*}
+Therefore, we conclude that parameter norm $\rho(t)$ can be expressed as a function of the LR schedule $\eta(t)$ according to:
+\begin{equation*}
+    \rho(t) = \sqrt{\exp \left( \int_1^t c \eta(\tau)^2 \der \tau \right)} .
+\end{equation*}
+Looking at this equation, one thing jumps out immediately: the $\exp$ will cause the parameter norm (and hence gradient norm) to explode unless we set the LR schedule to decay sufficiently fast to counteract it. We can accomplish this by solving for its argument to be $\sim \log t$. It turns out that this accomplished when $\eta(t) = 1/\sqrt{t}$:
+\begin{align*}
+    \int_0^t c \eta(\tau)^2 \der \tau
+    &= c \int_1^t \left(\frac{1}{\sqrt{\tau}}\right)^2 \der \tau \\
+    &= c \int_1^t \frac{\der \tau}{\tau} \\
+    &= c \log t .
+\end{align*}
+Thus, if we want to avoid exponential blow up in the parameter/gradient norm we should set the learning rate to decay proportional to $1/\sqrt{t}$.
+
+It is also potentially important that $c$ is not too large: with $c = 1$ we will get norm growth at a reasonable rate of $\sqrt{t}$, but with $c > 1$ we will get norm growth at a rate $t^{c/2}$, which is not exponential but still potentially fast.\footnote{I'm not sure whether we still get directional convergence with polynomial norm growth.} Empirically, at least for T5, it seems like this $c$ value must be near $1$ since we observe $\sqrt{t}$ growth with the $1/\sqrt{t}$ schedule \citep{merrill2021effects}. It's worth noting that T5 and PaLM used AdaFactor, not Adam.
+
+\paragraph{Sources of error} Should momentum impact this model much? Probably not. This is because momentum will be orthogonal to the parameters just like the gradient, so the overall dynamics should remain about the same. Weight decay might change things slightly, but intuitively it should likely slow down the rate of grad norm/parameter norm increase.\footnote{Although in certain cases it can do the opposite \citep{li2019exponential}.} Thus, it seems like the model derived here should account for Adam pretty well, and a $1/\sqrt{t}$ schedule is quite justified for Adam.
+
+\section{Lion Optimizer}
+
+Without momentum and weight decay, preliminary analysis suggests the Lion optimizer should not be susceptible to exploding parameter/gradient norm.
+
+% The above derivation holds for standard gradient descent, and is probably roughly valid for Adam as well. How, though, should we adapt it for Lion?
+
+% The key line of the Lion optimizer\footnote{\url{https://paperswithcode.com/method/lion}} update is:
+% \begin{equation*}
+%     \theta_{t+1} = \theta_t - \eta_t (g_t + \lambda \theta_t) .
+% \end{equation*}
+% In our notation, we are setting $\delta_t = g_t + \lambda \theta_t$. The details of $g_t$ are not important: crucially, it is kind of discrete approximation to the normalized gradient step. Crucially, it satisfies two properties. First, it points in roughly the same direction as the gradient, so we will assume that is is also misaligned with the parameters. Second, $\norm{g_t} \approx 1$.
+
+% The fact that $g_t$ and $\theta_t$ are misaligned suggests that there are really two competing optimization dynamics at play. On one hand, the constant-norm gradient update 
+
+The crucial feature of Lion that will change the results is that the step is normalized before taking an update (there are other weird discretization steps involved here, but we will ignore this for now for simplicity). Concretely, we will model Lion by saying that we take a step in the direction of the gradient, but with the magnitude of the learning rate:
+
+\begin{equation*}
+    \theta_{t+1} = \theta_t - \eta_t \frac{\delta_t}{\norm{\delta_t}} .
+\end{equation*}
+
+How does this effect the analysis? Because the gradient step is normalized, the norm growth evolution from \eqref{eq:norm2} becomes
+\begin{align*}
+    \norm{\theta_{t+1}}^2 &= \norm{\theta_t}^2 + \eta_t^2 \\
+    \frac{\der}{\der t} \rho^2 &= \eta^2 .
+\end{align*}
+Solving the differential equation now yields:
+% \begin{align*}
+%     \der \rho^2 &= \eta_t^2 \der t \\
+%     \rho^2 &= \int_1^T \eta_t^2 \der t
+% \end{align*}
+\begin{equation*}
+    \rho(t) = \sqrt{\int_1^t \eta(\tau)^2 \der \tau} .
+\end{equation*}
+
+\subsection{With Cosine Schedule}
+
+Now imagine we have a cosine LR schedule: $\eta(t) = \frac{\cos(\pi t/T) + 1}{2}$.\wm{Do I have this right?} We can calculate the rate of norm growth:
+\begin{align*}
+    \rho(t) 
+    &= \sqrt{\int_1^t \left( \frac{\cos(\pi t/T) + 1}{2} \right)^2 \der \tau} \\
+    &= \sqrt{\frac{8T\sin(\pi \tau/T) + T \sin(2\pi \tau/T) + 6\pi \tau}{16\pi} \bigg \rvert^t_1} \\
+    &\approx 4 \sqrt{\frac{8 T \sin(\pi t/T) + T \sin(2 \pi t/T) + 6 \pi t}{\pi}} .
+\end{align*}
+This grows from near $0$ at $t=1$ to $\sim \sqrt{t}$ at $t=T$.
+This suggests that we shouldn't have to worry about exponential blow up with a constant learning rate, because we will just get $\sqrt{t}$ in that case?
+
+Perhaps accounting for momentum and weight decay, or more carefully modeling the discretization of the normalized step, are essential for really understanding what's going on with Lion. It would definitely be interesting and useful to look more into the optimization dynamics of Lion, both from a theoretical and empirical perspective.
+
+\subsection{With Inverse Square Root Schedule}
+
+Let $\eta(t) = 1/\sqrt{t}$ (for simplicity let's omit the initial cosine phase and initial learning rate).
+
+\begin{align*}
+    \rho(t) 
+    &= \sqrt{\int_1^t \left( 1/\sqrt{\tau} \right)^2 \der \tau} = \sqrt{\log t} .
+\end{align*}
+
+\subsection{Issues at Large Scale (Aug 3)} \label{sec:lion-issues}
+
+Ananya and Will discussed a potential issue with the Lion signed update as the parameter norm increases (and crucially, some parameters grow faster than others). \citet{dettmers2022llmint8} show empirically how in large-scale models a small number of parameters seem to grow to much higher magnitudes than the other parameters, leading to a certain kind of sparsity. This will create issues for the signed update. Let $\delta_t$ be the update vector. Assume that $\delta_t$ is roughly proportional in magitude to $\theta_t$, justified by approximate 1-homogeneity (see above). For example, say:
+\begin{align*}
+    \theta_t &= (100, 1, 0, -1) \\
+    \delta_t &= (-10, .1, 0.00001, -.1) .
+\end{align*}
+When we take the signed update, we get:
+\begin{equation*}
+    \sgn(\delta_t) = (-1, 1, 1, -1) .
+\end{equation*}
+This is really weird! We are updating parameters at extremely different orders of magnitude all at the same magnitude. This will severely distort the direction of $\sgn(\delta_t)$ compared to $\delta_t$. That is, we expect $\cos(\sgn(\delta_t), \delta_t) \neq 1$. For example, in the case above we get a cosine similarity of $0.51$. This means we are taking steps in the wrong direction (not just at a different rate) compared to other optimizers.
+
+In summary, at large model scale or after a lot of training steps, we expect parameters to be on different order of magnitudes because some important parameters will grow in magnitude quite a bit. This creates a problem for the signed update of the Lion optimizer. This suggests we should be hesitant to use Lion at model scales/corpus sizes beyond which it has been tested, and \textbf{we should switch to Adam for larger model runs}.
+
+In the Aug 3 meeting, Mitchell reported his impression that, while Lion outperforms Adam at small scale, it seems to break down at larger scale and corpus sizes.\footnote{A potentially relevant GitHub iss: \url{https://github.com/mlfoundations/open_clip/pull/432}} He therefore suggested that using Adam for really large models is the way to go. This is consistent with the thought experiment/example posed above.
+
+\subsection{Other Points from Meeting with Mitchell}
+
+\begin{enumerate}
+    \item Mitchell prefers Adam to Lion for large number of tokens/models (already mentioned)
+    \item Mitchell agrees excessive norm growth is probably the issue, view changing LR schedule or increasing weight decay as potential fixes
+    \item Mitchell likes the max LR schedule idea
+    \item Llama2 LR is effectively lower than Lion LRs because it's Adam, explains why it doesn't explode (see \autoref{fig:lr-schedules}).
+\end{enumerate}
+
+\section{Concrete LR Schedule for Fixing 7B/Next Run (Aug 4)}
+
+How to fix the broken 7B model (Aug 4)? What to do differently for next iteration?
+
+\subsection{Fixing 7B}
+
+At a high level it seems we should keep using Lion but decrease the learning rate (and/or increase weight decay). Specifically, switching to the max learning rate schedule (max of working Mosaic ML schedule with something like 1/sqrt) seems like the best idea.
+
+\subsection{Starting Next Run}
+
+It seems we have consensus that switching to Adam is the right idea (worth looking into Adafactor?). There are some different options for choosing the learning rate schedule:
+\begin{enumerate}
+    \item Copy Llama2 cosine schedule (which uses smaller learning rate relative to a 1/sqrt schedule, see \autoref{fig:lr-schedules})
+    \item 1/sqrt: this is actually higher everywhere than Llama2 (see \autoref{fig:lr-schedules}), which could lead to more sample efficiency. However there is possibly some risk that our exact choice of schedule is untested, even though other 1/sqrt schedules have been used by T5/PaLM (trained with AdaFactor) and we have a theoretical argument that 1/sqrt should work for GD/Adam.
+    \item Same max schedule as for continued Lion run. This will be even more aggressive than the previous option.
+\end{enumerate}
+In each case, we should keep in mind the heuristic for converting between Lion/Adam learning rates.
+
+\section{Useful Metrics for Debugging Instability/LR Schedule}
+
+The LR schedule of $1/\sqrt{t}$ was used by T5 (11B) and PaLM (540B), providing some validation that it can be used successfully at large model scale. It would be interesting to validate the derived LR schedule within the OLMo setup and also test whether the Lion adaptation can work.
+
+The story outlined above can also be helpful for debugging failing OLMo training runs. In particular, a couple key metrics could help diagnose what is going on with the gradient norm or whether assumptions here need to be adjusted:
+\begin{enumerate}
+    \item \textbf{Parameter norm:} this should be proportional to the gradient norm, and we can predict the rate of growth as a function of the LR schedule. Worth validating that the empirical trend should track the prediction.
+    \item \textbf{Gradient alignment:} the cosine similarity of the gradient step $\delta_t$ and the parameter vector $\theta_t$. Above I'm assuming that this is near $0$ (that the gradients are largely misaligned), but the analysis could all be adjusted if we find that the gradients and parameters are actually aligned.
+    \item \textbf{Signed step vs.~normal step:} If we want to keep using Lion, we should track $\cos(\delta_t, \sgn(\delta_t))$. Based on \autoref{sec:lion-issues}, we expect this to decrease as training continues, speculatively explaining the anecdotal observation that Adam outperforms Lion for large number of tokens or model sizes.
+\end{enumerate}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

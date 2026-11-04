@@ -1,0 +1,45 @@
+\section{Preliminaries}
+In this section, we describe the fundamental experimental framework, introduce the notations and concepts used in model merging, and present multiple variants of model merging techniques.
+
+\textbf{Experimental setup.} In terms of model architecture, we independently trained a series of MoE and dense models. We employ a Warmup-Stable-Decay (WSD) learning rate scheduler~\cite{hu2024minicpm}, which begins with a short warmup period, followed by an extended period of stable training at a constant learning rate, and concludes with annealing to a relatively small learning rate. The learning rates are determined according to scaling law guidelines~\cite{bi2024deepseek, kaplan2020scaling}, employing optimal values for training on an internal pretraining corpus comprising trillions of tokens.
+Although specific model architectures and datasets have not yet been publicly released, we posit that our findings are not strongly tied to these particular choices, as subsequent experiments primarily focus on MoE structures. Related conclusions for dense models are provided in the Appendix~\ref{app-dense}.
+For evaluation, we primarily report results on open-source benchmarks in both few-shot and zero-shot settings, including: ARC-Challenge~\cite{clark2018think}, BBH~\cite{suzgun2022challenging}, DROP~\cite{dua2019drop}, WinoGrande~\cite{sakaguchi2021winogrande}, HellaSwag~\cite{zellers2019hellaswag}, MMLU~\cite{hendrycks2020measuring}, C-Eval~\cite{huang2023c}, TriviaQA~\cite{joshi2017triviaqa}, Ape210K~\cite{zhao2020ape210k}, GSM8K~\cite{cobbe2021training}, MATH~\cite{zhao2020ape210k}, MBPP~\cite{austin2021program}, HumanEval~\cite{chen2021evaluating}, AGIEval~\cite{zhong2023agieval}, GPQA~\cite{rein2024gpqa}, and MMLU-Pro~\cite{wang2024mmlu}. The weighted average score across these benchmarks serves as the model's comprehensive performance metric. Unless otherwise specified, we report this score as the model's performance metric to ensure evaluation reliability.
+
+\textbf{Notions and concepts.} 
+Our main focus is on model merging during pre-training, where the merged entities are sequential checkpoints along the training trajectory. Suppose we aim to merge \( N \) models, with each model's parameters denoted as \( M_i \) (where \( i \) ranges from \( 1 \) to \( N \)). Each model has an associated weighting coefficient \( w_i \), and the merged model \( M_{avg} \) is computed as:
+\begin{equation}
+M_{\text{avg}} = \sum_{i=1}^{N} w_{i} M_{i}.
+\end{equation}
+
+
+% We assume that any two consecutive models consume data tokens at equal intervals, denoted by \( V \). Specifically, this interval is defined as:
+We assume that the data consumption of these models form an arithmetic sequence with a common difference $V$, formulated as:
+\begin{equation}
+V = T_{i+1} - T_{i},
+\end{equation}
+where \( T_i \) represents the cumulative number of tokens consumed by the \( i \)-th model.
+
+\textbf{Model merging variants.}
+Model merging techniques vary primarily in how they assign weights (\( w_i \)) to individual models. This paper examines three popular approaches for weight assignment, namely the Simple Moving Average (SMA), Exponential Moving Average (EMA), and Weighted Moving Average (WMA).
+
+The first approach, \textit{Simple Moving Average (SMA)}, treats all models equally. For instance, when combining 10 models, each model is assigned a weight of \( w_i = 0.1 \). The SMA is formulated as:
+\begin{equation}
+M_{\text{avg}} = \frac{1}{N} \sum_{i=1}^{N} M_i.
+\end{equation}
+
+The second approach, \textit{Exponential Moving Average (EMA)}, emphasizes later models by assigning weights that decay exponentially, making EMA more sensitive to recent changes. The EMA is expressed recursively as:
+\begin{equation}
+M_{\text{avg}}^{(i)} = \alpha \cdot M_i + (1 - \alpha) \cdot M_{\text{avg}}^{(i-1)},\  i\in [2,N],
+\end{equation}
+% \[
+% M_{avg}^{1} = M_1
+% \]
+% need refine
+Here, \( \alpha \), the smoothing factor (typically between 0 and 1), controls the balance between the current model \( M_i \) and the previous EMA result \( M_{\text{avg}}^{(i-1)} \).
+
+The third approach, \textit{Weighted Moving Average (WMA)}, also prioritizes recent models but uses a distinct weighting scheme. In WMA, each model is assigned a specific weight, often increasing linearly for later models (e.g., \( w_i = i \)). The weighted sum is then normalized to compute the average, formulated as follows:
+\begin{equation}
+M_{\text{avg}} = {\sum_{i=1}^{N} \frac{w_i}{w_{\text{sum}}} M_i},\quad w_{\text{sum}} = \sum_{i=1}^{N} w_i.
+\end{equation}
+These methods offer flexible ways to combine models based on their recency and relevance. Choosing the right approach depends on the specific application and desired emphasis on newer data.
+%\subsection{Hello World}

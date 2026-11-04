@@ -1,0 +1,40 @@
+\section{Preliminary}
+\subsection{Scaling Laws}
+Cross-entropy loss of language models on the validation set is a reliable indicator of LLMs' performance on downstream tasks~\citep{caballero2022broken,du2024understanding}. \citet{kaplan2020scaling} empirically discovered a power-law relationship between validation loss $L$ and three factors: model size $N$, dataset size $D$, and training compute.
+As an application of scaling law, \citet{hoffmann2022training} developed Chinchilla, a compute-optimal LLM, by balancing model size and dataset size. They used a simplified and intuitive scaling law equation:
+\begin{equation}
+\begin{aligned}
+    L (D,N) = L_0 + A\cdot D^{-\alpha} + B\cdot N^{-\beta},
+\end{aligned}
+\label{eq:chinchilla}
+\end{equation}
+where $L_0$, $A$, $B$, $\alpha$, $\beta$ are positive constants. 
+Traditional scaling law formulations fit only the loss at the final training step, while ignoring losses from other steps. Note that collecting a new loss value of data size requires launching a another training run with the same LRS, which is resource-intensive.
+Previous works have conducted some preliminary studies on the impact of the learning rate on the scaling laws.
+For example, OpenAI and chinchilla scaling laws both report that the choice of learning
+rate schedule does not influence the power-law format~\citep{kaplan2020scaling,hoffmann2022training}. 
+Also, OpenAI's experiments suggest that the specific choice of learning rate schedule has minimal impact on the final validation loss, provided that the total summed learning rate is adequately large and the schedule incorporates both a warmup stage and a final annealing stage, reducing the learning rate to nearly zero at the end of training~\citep{kaplan2020scaling}.
+
+\subsection{Learning Rate Annealing}
+Learning rate annealing is a widely-used technique in training neural networks, where the learning rate is progressively reduced from a maximum to a minimum value following a pre-defined LRS. Various LRS schemes have been proposed to improve the performance and stability of model training. For example, the popular cosine LRS~\citep{loshchilov2016sgdr} reduces the LR in a cosine-like pattern over full training steps. WSD LRS~\citep{hu2024minicpm} keeps a constant LR for the majority of training, and applies annealing only in the final (e.g. $10\%\sim 20\%$) steps. During the training of LLMs, it has been widely observed
+that a more pronounced decrease in the learning rate often results in a more precipitous drop in the
+validation loss~\citep{loshchilov2016sgdr,simple-scalable-cpt2024,deepseek-ai2024deepseek,hu2024minicpm}. However, to the best of our knowledge, all previous studies end with providing a rough and
+qualitative description of how loss changes during LR annealing, while our work provides an accurate equation to
+quantitatively formulate the loss changes during LR annealing.
+
+%~\citep{loshchilov2016sgdr,hu2024minicpm}. 
+%However, to the best of our knowledge, all previous studies end with providing a rough and qualitative description of how loss changes during LR annealing, while we provide an equation to formulate the loss changes during LR annealing in this work.
+
+% \citet{hu2024minicpm} proposes a warmup-stable-decay (WSD) LRS including three learning rate stages, which could help get a lower validation loss compared to the typical cosine LRS. The format is like 
+% \begin{equation}
+% \label{eq:wsd}
+% \begin{aligned}
+% WSD(s)=\begin{cases}&
+% \frac{s}{T_{warmup}}\eta_{max},\quad s\leq T_{warmup}\\&
+% \eta_{max},\quad T_{warmup}<s\leq T_{stable}\\&
+% f(s-T_{stable})\eta_{max},\quad T_{stable}<s\leq T_{total}
+% \end{cases}
+% \end{aligned}
+% \end{equation}
+% Where $0 \leq f(s - T_{stable}) \leq 1$ is a decreasing function about step $s$, and $\eta_{max}$ is the maximal learning rate.~\citet{hägele2024scaling} consolidates the effectiveness of WSD scheduler by many empirical experiments. Moreover,~\citet{hägele2024scaling} also finds that using 1-sqrt annealing and a moderate
+% annealing ratio (e.g. 20\%) can further decrease the final loss.

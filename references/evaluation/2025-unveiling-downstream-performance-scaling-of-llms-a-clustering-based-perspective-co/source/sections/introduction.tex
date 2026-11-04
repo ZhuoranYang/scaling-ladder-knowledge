@@ -1,0 +1,87 @@
+\vspace{-7pt}
+\section{Introduction}
+\label{sec:intro}
+Large Language Models (LLMs) have emerged as transformative technologies in natural language understanding, generation, and reasoning~\citep{achiam2023gpt, guo2025deepseek, bubeck2023sparks}. Their impressive success heavily relies on scaling model parameters and pre-training data, with training loss empirically following a power-law relationship with compute~\citep{hoffmann2022training, kaplan2020scaling}. However, this reduction in training loss primarily reflects an in-domain compression effect and does not necessarily indicate improved out-of-domain generalization or downstream performance--the factor of primary concern in practice. Specifically, performance scaling of downstream tasks aims to predict the accuracy of the target LLM on downstream tasks using metrics from smaller models. Our objective is to develop a prediction method that works reliably on a diverse range of downstream tasks, optimizing the worst-case prediction error.
+
+Despite extensive efforts, a reliable \textit{scaling law for downstream tasks} remains elusive. One line of work attempts to extrapolate the performance of a large model by modeling the performance-loss relationship~\citep{chen2024scaling,gadre2024language,du2024understanding,xiao2024densing,owen2024predictable}, but this often fails to capture the emergent behaviors of LLMs and the mismatch between the in-domain loss and downstream metrics~\citep{zhang2021understanding}. Another line of research focuses on direct extrapolation of the performance-compute relationship~\citep{achiam2023gpt,hu2023predicting}, \anno{yet a single family of curves usually fails to capture the performance on evaluation benchmarks with complex difficulty distributions across samples.}
+
+\camera{A key limitation of existing methods is their unreasonable assumption that all evaluation samples follow a uniform performance scaling pattern.} We observe that different evaluation samples actually follow distinct performance scaling patterns, and thus applying a single extrapolation formula to the entire evaluation set is suboptimal. We give a detailed analysis in \cref{sec:pilot}.
+
+To address these challenges, we propose a new performance scaling law, derived from the existing loss scaling law \citep{kaplan2020scaling}, specifically applicable to evaluation subsets that exhibit consistent performance scaling patterns. Building on the performance scaling law, we develop a \textit{Clustering-On-Difficulty} (COD) multi-stage framework for predicting downstream performance. Specifically, we first create a predictable subset by filtering out clusters that lack scaling properties using an improved MeanShift clustering algorithm. Next, we fit the performance-compute relationships in the predictable subset under our performance scaling law, extrapolate the performance of large models within each clusters, and finally map the aggregated predictions to the complete task set.
+
+\revise{Crucially, the COD framework effectively resolves the challenges posed by emergent and heterogeneous behaviors. Regarding \textbf{non-emergent behaviors}, performance metrics for small models often fluctuate around random guessing or exhibit severe volatility, causing existing single-stage fitting methods to fail. Our method circumvents this by identifying a strong correlation between the {predictable subset} metrics and the full set metrics. This allows us to effectively estimate the full set performance using the predictable subset, where the relationship can be fitted with a smooth curve. Regarding \textbf{heterogeneous behaviors}, we observe that even within the predictable subset, different task clusters exhibit distinct scaling laws. \camera{By first performing cluster-wise extrapolation and then aggregating the results, COD can accurately capture the intrinsic heterogeneous scaling patterns within the evaluation set.}}
+
+% \camera{We exploit the similar difficulty scaling of samples within the same cluster. By averaging intra-cluster accuracies, we reduce evaluation fluctuations from individual samples, since single-sample inference cannot reliably reflect expected accuracy on small models. This allows more accurate estimation of the expected accuracy for the entire cluster. For unclusterable or non-extrapolatable samples, a smooth extrapolation curve is infeasible. We thus group all such samples into one cluster by mapping extrapolatable subsets to the full set, which minimizes prediction error.}
+
+We validate our COD approach on eight popular evaluation sets, including MATH~\citep{hendrycks2021measuring}, BBH~\citep{suzgun2023challenging}, and MMLU pro~\citep{wang2024mmlu} datasets. COD achieves an average prediction error of \camera{1.55\%} on an LLM with 70B parameters. Our results demonstrate that this difficulty-aware framework substantially outperforms existing methods, establishing a promising paradigm for accurate downstream performance scaling of LLMs.
+
+% In conclusion, we list following contributions.
+Our contributions can be summarized as follows.
+\vspace{-5pt}
+
+\begin{itemize}[leftmargin=1.5em]
+\item We propose the COD framework to address high variance and emergent phenomena in LLM performance scaling by effectively modeling the difficulty distribution within the evaluation sets.
+\item We introduce a downstream performance scaling law for cluster-wise performance prediction, with theoretical support and experimental validation.
+\item Extensive experiments conducted in eight different evaluation sets demonstrate that COD provides reliable predictions with an average prediction error of \camera{1.55\%} on an LLM with 70B parameters.
+\end{itemize}
+\vspace{-5pt}
+
+
+% \label{sec:intro}
+% Large Language Models (LLMs) have emerged as transformative technologies across multiple domains of artificial intelligence, demonstrating unprecedented capabilities in natural language understanding, generation, and complex reasoning tasks \citep{achiam2023gpt, guo2025deepseek}, generally recognized as one of the most promising ways towards Artificial General Intelligence (AGI) \citep{bubeck2023sparks}. The impressive success of these LLMs relies heavily on the scaling of model parameters and the pre-training data. It has been widely observed that the training loss of LLMs follows a power-law relationship with the compute, also known as the (loss) scaling law for LLMs~\citep{hoffmann2022training, kaplan2020scaling}. Scaling law provides guidance for the scientific scaling of LLMs, enabling developers to estimate the loss before training. However, the reduced training loss primarily reflects the in-domain performance of LLMs on the training corpus, which does not necessarily indicate improved downstream performance -- the metric of primary concern in the development of LLMs.
+% % The rapid advancement in parallel computing capabilities has dramatically increased the scale and cost of training Large Language Models (LLMs). 
+% % Training Large Language Models
+% %
+% % Scaling Law指出我们可以通过训练一次小模型来预测大模型的Final loss，从而预判规模增长带来的模型能力提升。
+% %
+% % 然而，Final loss更多表明模型对训练数据in-domain的拟合表现，与我们希望模型在下游任务中的能力表现具有Gap
+% %
+% % The loss scaling law indicates that we can predict the final loss of a large model by training a smaller model once, thereby forecasting the performance improvement brought by scaling up the model size~\citep{hoffmann2022training, kaplan2020scaling}.
+% %
+% % However, the final loss mainly reflects the model's in-domain fitting performance on the training corpus, which has a gap with the performance we expect the model to achieve on downstream tasks.
+
+
+% Unveiling the scaling law for downstream performance has become increasingly critical for informed resource allocation~\citep{achiam2023gpt}, which is more challenging due to the complex scaling behaviors and high variability in metrics.
+% %
+% First, unlike training loss, downstream task performance exhibits an ``emergence phenomenon'' where capabilities only manifest after substantial computational investment. This characteristic severely limits the utility of small-scale models for evaluation purposes. 
+% %
+% Second, the uneven distribution of task difficulty across evaluation samples, combined with inconsistent scaling patterns in certain tasks, leads to significant performance volatility during training.
+
+% % 已有研究采用了两类方法：1. End-to-end直接外推小模型到大模型Performance-Compute曲线，该方法为能考虑评估任务内不同题目难度分布的差异，同时预估结果准确性在不同评估任务之间不一致，可信度较低；2. 先预估大模型的Final Loss，然后利用不同规模模型的Performance-Loss曲线完成预估，该方法假设了Loss与下游任务表现之间的一致性，但实际上，Loss更侧重Indomain的压缩效果，下游任务表现更侧重Out-of-domain的泛化能力。并且如学习率、优化器参数、模型结构等诸多因素会对Loss产生干扰，导致相同Loss下，模型能力有可能具有明显差异。
+% Existing researches mainly adopt two categories:  
+% %
+% 1. End-to-end extrapolation of the Performance-Compute curve from small models to large models~\citep{achiam2023gpt,hu2023predicting}. These methods, while able to measure growth patterns of the overall performance of the evaluation sets, show inconsistent prediction accuracy across different evaluation tasks, resulting in low reliability.  
+% %
+% 2. First predicting the final loss of large models and then using the Performance-Loss curve across different model scales to make predictions~\citep{chen2024scaling,gadre2024language,du2024understanding,xiao2024densing,owen2024predictable}. These methods assume a consistency between training loss and downstream task performance, which does not generally hold. Loss primarily reflects the in-domain compression effect, while downstream task performance focuses more on out-of-domain generalization ability. Furthermore, factors such as learning rate, optimizer parameters, and model architecture may interfere with the loss, leading to significant differences in model performance even with the same loss~\citep{zhang2021understanding}.
+
+% % Downstream Task Performance外推公式的选择尚未形成共识，已有工作结合Task Answer Loss与Passrate之间的指数关系，以及Loss幂率Scaling Law给出Performance scaling公式。我们推导得到只有在Task Passrate接近的情况下，这一规律才能近似成立。而实际评估集的题目难度方差是极大的。这引导我们采用难度聚类的方式分组完成预估任务。
+% There is no consensus on the choice of extrapolation formulae for Downstream Task Performance. Previous studies have proposed Performance scaling formulae by combining the exponential relationship between Task Answer Loss and Pass Rate with the power Loss Scaling Law~\citep{hu2023predicting}. Our derivation reveals that this relationship holds approximately only when tasks within an evaluation set have similar difficulty features. However, practical evaluation sets exhibit substantial variance in task difficulty. This observation motivates our adoption of difficulty-based clustering to reduce inner-group passrate variance.
+
+% To address these challenges, we propose \textbf{C}lustering-\textbf{O}n-\textbf{D}ifficulty multi-stage downstream performance prediction framework comprising four key steps:
+
+% \begin{enumerate}
+%     \item \textbf{Clustering:} Geven an evaluation task set, We acquire the difficulty feature of each task with its passrates on a series of language models with different sizes and training tokens. We cluster tasks on difficulty features to acquire task subsets with similar performance scaling properties.
+    
+%     \item \textbf{Fitting:} For each task cluster, we fit its performance-compute curve based on evaluations of a group of small models with the same training tokens (D) / model parameters (N) ratio as the target large model. We remove both outliers and tasks where small models fail to demonstrate above-random performance.
+    
+%     \item \textbf{Extrapolation:} For clusters exhibiting consistent scaling patterns, we extrapolate large model performance using the fitted prediction curves. The aggregate predictions for extrapolatable samples are obtained through cluster-size-weighted averaging.
+    
+%     \item \textbf{Mapping:} We handle outlier samples and non-scaling clusters by establishing interpolation-based mapping relationships between extrapolatable subset metrics and full evaluation set performance. This approach enables us to predict performance for the complete evaluation task set.
+% \end{enumerate}
+
+% Empirical validation demonstrates the robust accuracy of our approach. Across multiple downstream freeform benchmarks, including MATH~\citep{hendrycks2021measuring}, BBH~\citep{suzgun2023challenging}, MMLU pro~\citep{wang2024mmlu}, etc. 
+% %
+% We also perform comprehensive ablation studies on usage performance scaling functions and the selection of clustering algorithms. 
+% % To the best of our knowledge, we are first work to provide robust performance scaling prediction on large language models.
+
+% The contributions of this work can be summarized as follows:
+% \begin{itemize}
+%     % 我们提出了一种Novel的基于聚类的大语言模型下游任务预估的方法，建模了评估集的难度分布以及能够有效应对具有能力涌现特点的评估集；
+%     % 我们给出了具有可解释性的Perfermance Scaling Law，并提供了理论支撑。
+%     % 我们在把所提方法应用在70B大模型的能力预估上，在8个语言模型的多维度核心评估取得了1.36的平均预测误差，显著优于已有方法。
+%     \item We propose a novel clustering-based method for predicting the downstream task performance of large language models. This method models the difficulty distribution of evaluation sets and effectively handles tasks requiring emergent capabilities.
+
+%     \item We present a Performance scaling Law characterized by interpretable hyperparameters, grounded in theoretical foundations, and validated through empirical demonstrations of predictive accuracy.
+    
+%     \item We achieve 1.36\% average prediction error on the target 70B-parameter large language model across popular multidimensional evaluations of 8 evaluation sets, significantly outperforming existing methods.
+% \end{itemize}

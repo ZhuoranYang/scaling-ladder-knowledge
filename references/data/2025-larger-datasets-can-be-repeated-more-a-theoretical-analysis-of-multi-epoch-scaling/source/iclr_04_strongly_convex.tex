@@ -1,0 +1,457 @@
+\section{Multi-Epoch Scaling in Strongly Convex Linear Regression}
+\label{sec:strongly_convex}
+In the study of linear regression problems, the strongly convex case is a classical and central theoretical framework, serving as the standard entry point before relaxing to weaker conditions in many analyses~\citep{hastie2009elements,ge2019step}.
+% \kaifengclaw{Grammar: 'before many relaxing' -> 'before relaxing to weaker conditions in many analyses' (or similar).} 
+In \Cref{sec: main results strongly convex}, we first give the problem setups and the main results of the effective reuse rate. In \Cref{sec:strongly-convex-tech}, we give a proof sketch for our theoretical results, and the detailed proof of this section can be found in Appendix~\ref{sec:proof-convex}. 
+% In this section, we first present our main results about multi-epoch (ME) scaling under the strongly convex condition. And in \Cref{sec:strongly-convex-tech}, we present the key technical challenges in the proof, including the excess risk approximation, and the optimal learning rate for OP and ME, and the derivation of $E(K,N)$. Also, we provide a population excess risk approximation theorem (\Cref{thm:convex-L-estimate}) as a byproduct. The detailed proof of the main results in this section can be found in \Cref{sec:proof-convex}. \haodong{rephrase this paragraph since we rewrote the proof sketch}
+
+\vspace{-0.07in}
+\subsection{Main Results}\label{sec: main results strongly convex}
+
+As we focus on the strongly convex case, we make the following assumption on the minimum eigenvalue of the Hessian matrix.
+\begin{assumption}[Strong Convexity]\label{asp:strongly-convex}
+    We assume that $\lambda_{d} \ge \mu\;$ for some constant $\mu > 0$.
+\end{assumption}
+% \haodong{$c \to \mu$}
+%\Cref{asp:4-th-moment} is the Assumption 3.2 in \citep{wu2022iterateriskboundssgd}.
+% \begin{assumption}[Hyper-Contractivity]\label{asp:4-th-moment}
+% We assume that there exists $\alpha \geq 1$ such that for every positive semi-definite matrix $\mP$, the following holds:
+% $$
+% \mathbb{E}\left[\vx \vx^\top \mP \vx \vx^\top \right] \leq \alpha \, \text{tr}(\mH \mP) \mH.
+% $$
+% \end{assumption}
+% \haodong{the above assumption can be derived from bounded data norm}
+
+\vspace{-0.05in}
+For simplicity, we make the following prior for the ground-truth weight $\vw^*$.
+\begin{assumption}[Parameter Prior] \label{asp:strongly-convex-parameter-prior}
+    The ground truth $\vw^*$ satisfies $w^*_i \ne 0$ for all $i\in[d]$.
+\end{assumption}
+% \haodong{explanation of the assumption. }
+
+\vspace{-0.05in}
+As the number of samples $N$ can be very large in practice, training on the entire dataset for a large amount of epochs can be computationally expensive.
+This motivates us to impose an upper bound on the number of epochs $K$. Technically, this ensures that the accumulated error terms remain manageable in our analysis.
+% Technically, this helps us to rule out cases with severe overfitting. \kaifeng{I remember that the last sentence is not true. How about this: Technically, this ensures that the accumulated error terms remain manageable in our analysis.}
+\begin{assumption}[Computationally feasible number of epochs]\label{asp:large-dataset}
+We assume that the training dataset size $N$ and number of epochs $K$ satisfy $K = O(N^{0.1})$.
+\end{assumption}
+
+\vspace{-0.05in}
+Here, the exponent $0.1$ is chosen for ease of calculation, though it may not be tight.
+
+
+%For ease of calculation, we make this assumption.
+%Though the exponent $0.1$ may not be tight, one can tighten it easily. Empirically, the limited reusing epochs also prevent over-fitting.
+
+% \haodong{specify the exponent of poly function; for ease of calculation, we make this assumption, though it may not be tight}
+% \begin{lemma}\label{thm:convex-opt-lr}
+%     Under \Cref{asp:strongly-convex}, \ref{asp:4-th-moment}, and \ref{asp:large-dataset}, we consider one-pass SGD with $T$ steps and learning rate $\eta$ satisfying $\eta = o(T^{-3/4})$ and $\eta = \Omega\left(\frac{1}{T}\right)$. Then the approximately optimal learning rate set contains $\frac{\log T}{2 \lambda_d T} + o\left(\frac{\log T}{T}\right) \in \Gamma_{T}$, where $\Gamma_{T}$ is the approximately optimal learning rate set defined in \Cref{def:A-opt-lr}. \kairong{For all $\widehat{\cR}$, this Lemma holds?}
+% \end{lemma}
+
+% \begin{remark}
+%     The derivation of the optimal learning rate is very hard, and this open problem is quite beyond the scope of this paper, which focuses on the scaling behaviour of deta reuse. As an alternative choice, we could get an asymptotically optimal learning rate as \Cref{thm:convex-opt-lr} stated.
+% \end{remark}
+% Obtaining the expression of $E(K, N)$ requires an accurate characterization of the optimal expected excess risk. Here we provide an expression of $\Bar{\cR}^*(K, N)$ when $K=o(\log N)$ and $K=\Omega(\log N)$ in the formulation of the main term plus a higher-order error term.
+
+To compute $E(K,N)$, we first precisely characterize the optimal expected excess risk. 
+In particular, we derive asymptotic expansions for $\Bar{\cR}^*(K,N)$ in the regimes $K=o(\log N)$ and $K=\omega(\log N)$, each expressed as a leading term accompanied by an explicitly controlled higher\mbox{-}order remainder.
+
+\begin{theorem}[Multi-Epoch Data  Scaling Law]\label{thm:strongly-convex-scaling-law}
+    Under \Cref{asp:strongly-convex,asp:strongly-convex-parameter-prior,asp:large-dataset}, for multi-epoch SGD with the number of epochs $K$, dataset size of $N$, it holds that
+\[
+\Bar{\cR}^*(K,N) = 
+\begin{cases}
+     \frac{\sigma^2\tr(\mH)}{8\lambda_d}(1+o_N(1)) \cdot \frac{\log(KN)}{KN} & \text{for } K = o(\log N), \\
+     \frac{\sigma^2d}{2}(1+o_N(1)) \cdot \frac{1}{N} & \text{for } K = \omega(\log N).
+\end{cases}
+\]
+\end{theorem}
+
+\vspace{-0.1in}
+\Cref{thm:strongly-convex-scaling-law} describes how expected excess risk decays with number of epochs $K$ and dataset size $N$ when choosing the optimal learning rate. When $K\ll \log N$, then $\Bar{\cR}^*(K,N) =\Theta\left(\frac{\log T}{T}\right)$ where $T = KN$; by contrast, when $K\gg \log N$, then $\Bar{\cR}^*(K,N) =\Theta\left(\frac{1}{N}\right)$ which does not depend on $K$, showing that endless data reuse turns out to be useless.
+% \kaifengclaw{Typo: 'turns to be' -> 'turns out to be'.}
+
+Next we propose the expression of $E(K,N)$ by applying \Cref{thm:strongly-convex-scaling-law}.
+\begin{theorem}\label{thm:convex-E_K}
+    Under \Cref{asp:strongly-convex,asp:strongly-convex-parameter-prior,asp:large-dataset}, for multi-epoch SGD with the number of epochs $K$, dataset size of $N$, it holds that
+\[
+E(K,N) = 
+\begin{cases}
+     (1 + o_N(1))\cdot K & \text{for } K = o(\log N), \\
+     \frac{\tr(\mH)}{4\lambda_d d}(1+o_N(1)) \cdot \log N & \text{for } K = \omega(\log N).
+\end{cases}
+\]
+\end{theorem}
+% \tingkai{I determined the constant here, and changed the comment below.}
+
+%\haodong{the following 4 paragraphs can be shortened}
+
+\vspace{-0.1in}
+\Cref{thm:convex-E_K} pinpoints two regimes for the effective reuse rate in the strongly convex case. 
+The first one is the \textbf{effective‐reuse regime}: when $K \ll \log N$, then $E(K,N)=K\,(1+ o(1))$. This suggests that each extra epoch is essentially as valuable as a fresh pass. 
+The second one is the \textbf{limited‐reuse regime}: when $K \gg \log N$, then $E(K,N)=\frac{\tr(\mH)\log N}{4\lambda_d d}(1+o_N(1))$, which means additional epochs yield only logarithmic gains. This further implies that the model has effectively “seen” the dataset enough times that additional repetition is redundant.
+% Thus, 
+% % there is a phase transition at $K = \Theta(\log N)$: below it, reuse is highly effective; above it, returns rapidly diminish. 
+% % Practically, one could allocate at most $O(\log N)$ epochs to maximize data efficiency.
+% \Cref{thm:convex-E_K} rigorously delineates two complementary scaling regimes for the effective reuse rate $E(K,N)$ in the strongly‐convex setting. When the number of passes $K$ is much smaller than the logarithm of the dataset size (i.e.\ $K \ll \log N$), the theorem guarantees $E(K,N)= K\bigl(1\pm o(1)\bigr)\,$, meaning that each additional epoch yields nearly the same benefit as a fresh pass over an entirely new batch of data.  Intuitively, in this \emph{effective‐reuse regime}, the gradient noise induced by stochastic sampling is still large enough that revisiting past examples continues to drive significant progress.
+
+% By contrast, once $K$ grows beyond the threshold $\log N$ (i.e.\ $K \gg \log N$), \Cref{thm:convex-E_K} shows $E(K,N)=\Theta\bigl(\log N\bigr)$, so that further epochs only increase the effective sample complexity by a logarithmic factor.  In this \emph{limited‐reuse regime}, the model has effectively “seen” the dataset enough times that additional repetition is redundant: the variance has been driven so low that further tuning behaves like running fresh SGD on a tiny virtual dataset of size $\Theta(N \log N)$.
+% %\kairong{Very confusing. I guess here is a dataset of size $N\log N$.}
+
+Together, these two asymptotic descriptions expose a phase transition when the quantity $\lim_{N \to \infty} \frac{K}{\log N}$ changes from $0$ to $\infty$.  For the former case ($\lim_{N \to \infty} \frac{K}{\log N} = 0$), multi‐epoch training behaves like unlimited data augmentation; for the latter ($\lim_{N \to \infty} \frac{K}{\log N} = \infty$),
+% \kaifengclaw{Typo: 'fo the latter' -> 'for the latter'. Also this sentence is long; consider splitting at the semicolon for smoother logic transition.} 
+the benefits of reusing data all but vanish, capping $E(K,N)$ at $\Theta(\log N)$.
+%This insight provides a precise guideline for practitioners: one should allocate epochs up to order $\log N$ to maximize effective data utilization, but pushing $K$ significantly beyond that yields rapidly diminishing returns.
+
+\paragraph{Larger Datasets Can Be Repeated More.} 
+Our theorem provides the following insight.
+Fixing the data distribution, as we collect more data, the largest possible epoch number $K$ to stay in the effective-reuse regime also increases.
+%for larger datasets (as $N$ increases), the permissible $K$ value in the effective-reuse regime also increases.
+Consequently, larger datasets can sustain more epochs while maintaining linear gains from data reuse.
+%This means that for larger datasets, multi-epoch training is able to reuse every data point more effectively.
+Specifically, for the setup we study in this section, if we have collected $N$ data points in total, then with multi-epoch training, we can get a performance comparable to one-pass training on $\Theta(N \log N)$ data points, which is superlinear in the number of data points we collected.
+This finding highlights a neglected factor in the data-constrained scaling laws proposed in \citet{muennighoff2023scaling}, which assumed a uniform effective number of epochs across different fresh data sizes.
+In~\Cref{sec:experiment-llm}, we validate this insight by showing that the effective reuse rate indeed increases with the dataset size in LLM pretraining.
+
+\paragraph{Discussion: Effect of Learning Rate Decay.} The factor $\log N$ is in fact associated with the use of constant learning rate in our setting, where $\eta$ may depend on the total number of steps but remains fixed throughout training.
+While our main focus is on the constant learning rate setting, introducing learning rate decay may lead to different scaling behaviors and warrants further theoretical investigation.
+Under learning rate decay, for example using $\eta_t = \frac{\eta_0}{1 + b t^\alpha}$ with $b > 0$ and $0.5 < \alpha \le 1$ at step $t$, by a direct calculation based on the setup of Theorem 1 in \citet{ge2019step}, it is not hard to show that one-pass training yields $\Bar{\cR}^*(1,N) = O(\kappa_{\mH} \cdot \frac{\sigma^2 d}{N})$ for sufficiently large $N$ when $\alpha=1$, where $\kappa_{\mH} := \frac{\lambda_1}{\lambda_d}$ is the condition number of $\mH$. 
+% (e.g., by following a similar calculation in~\citet{???}\kaifeng{cite something}). 
+This bound loses only by a constant factor compared to the statistical minimax rate $\frac{\sigma^2 d}{2N}$ implied by the Cramér--Rao lower bound~\citep{jain2017markov}.
+Therefore, under learning rate decay, the effective reuse rate of multi-epoch training is at most $O(\kappa_{\mH})$.
+In~\Cref{app:discussion}, we provide a preliminary analysis comparing one-pass and multi-epoch training in the limit of infinitely many epochs, showing that multi-epoch training can almost attain the statistical minimax rate and achieve $E(\infty, N) = \Omega(\kappa_{\mH})$.
+It remains an interesting direction to understand how $E(K, N)$ saturates to this value and how it depends on the dataset size $N$.
+
+%A precise characterization for finite $K$ to understand 
+
+%remains an interesting direction for future work.
+
+
+%one-pass training yields $\Bar{\cR}^*(1,N) \le \frac{C D^2}{\lambda_d} \cdot \frac{\sigma^2 d}{N}$ for sufficiently large $N$ for some $C > 0$~\kaifeng{@Tingkai, is this bound correct? also cite something here}. 
+
+%This bound loses only by a constant factor compared to the statistical minimax rate $\frac{\sigma^2 d}{2N}$ implied by the Cramér--Rao lower bound.\kaifeng{cite something}
+%Therefore, under learning rate decay, the effective reuse rate of multi-epoch training is at most $O(1)$ rather than $O(\log N)$.
+%While our main focus is on the constant learning rate setting, this different scaling behavior warrants further theoretical investigation.
+%In~\Cref{app:discussion}, we provide a preliminary analysis comparing one-pass and multi-epoch training in the limit of infinitely many epochs, showing that multi-epoch training can almost attain the statistical minimax rate and achieve $E(\infty, N) > 1$.
+%A precise characterization for finite $K$ remains an interesting direction for future work.
+
+
+%observation is further validated in our experiments with large language models in \Cref{sec:experiment-llm}.
+%As a byproduct, our results also provide theoretical counterexamples to the formula for $E(K,N)$ proposed in \citet{muennighoff2023scaling}, namely $E(K,N) = \left(1 + R^* (1 - e^{-(K-1)/R^*})\right)$, which suggests that $E(K,N)$ is independent of $N$.
+
+
+% \haodong{the following 4 paragraphs can be shortened}
+
+% \Cref{thm:convex-E_K} pinpoints two regimes for the effective reuse rate in the strongly convex case. 
+% If $K \ll \log N$, then $E(K,N)=K\,(1+ o(1))$: each extra epoch is essentially as valuable as a fresh pass. 
+% If $K \gg \log N$, then $E(K,N)=\frac{\tr(\mH)\log N}{4\lambda_d d}(1+o_N(1))$: additional epochs yield only logarithmic gains. 
+% Thus, there is a phase transition at $K = \Theta(\log N)$: below it, reuse is highly effective; above it, returns rapidly diminish. 
+% Practically, one could allocate at most $O(\log N)$ epochs to maximize data efficiency.
+
+% \Cref{thm:convex-E_K} rigorously delineates two complementary scaling regimes for the effective reuse rate $E(K,N)$ in the strongly‐convex setting. When the number of passes $K$ is much smaller than the logarithm of the dataset size (i.e.\ $K \ll \log N$), the theorem guarantees $E(K,N)= K\bigl(1\pm o(1)\bigr)\,$, meaning that each additional epoch yields nearly the same benefit as a fresh pass over an entirely new batch of data.  Intuitively, in this \emph{effective‐reuse regime}, the gradient noise induced by stochastic sampling is still large enough that revisiting past examples continues to drive significant progress.
+
+% By contrast, once $K$ grows beyond the threshold $\log N$ (i.e.\ $K \gg \log N$), \Cref{thm:convex-E_K} shows $E(K,N)=\Theta\bigl(\log N\bigr)$, so that further epochs only increase the effective sample complexity by a logarithmic factor.  In this \emph{limited‐reuse regime}, the model has effectively “seen” the dataset enough times that additional repetition is redundant: the variance has been driven so low that further tuning behaves like running fresh SGD on a tiny virtual dataset of size $\Theta(N \log N)$.
+% %\kairong{Very confusing. I guess here is a dataset of size $N\log N$.}
+
+% Together, these two asymptotic descriptions expose a phase transition around $K \approx \log N$.  Below this threshold, multi‐epoch training behaves like unlimited data augmentation; above it, the benefits of reusing data all but vanish, capping $E(K,N)$ at $\Theta(\log N)$.  This insight provides a precise guideline for practitioners: one should allocate epochs up to order $\log N$ to maximize effective data utilization, but pushing $K$ significantly beyond that yields rapidly diminishing returns.
+
+% \paragraph{Larger Datasets Can Be Repeated More.} Also, we have provided a new insight in the calculation in the above theorem. Specifically, for larger datasets (as $N$ increases), the permissible $K$ value in the effective-reuse regime also increases. This means that for larger datasets, a higher degree of data reuse is allowed. This observation is further validated in our experiments with large language models in \Cref{sec:experiment-llm}.
+
+% As a side product, our results also theoretically provide counterexamples for the proposed formula for $E(K,N)$ in \citet{muennighoff2023scaling}, as shown in \Cref{equ:data-constrained-EK}, which inferred that $E(K,N)$ is independent of $N$.
+
+\vspace{-0.07in}
+\subsection{Proof Sketch}\label{sec:strongly-convex-tech}
+
+\vspace{-0.03in}
+We now provide a proof sketch of our main results. 
+First, we need to compute the optimal expected excess risk $\bar{\cR}^*(K,N)$. This requires us to compute $\bar{\cR}(K,N;\eta)$ and then select the optimal learning rate $\eta^*$ that minimizes $\bar{\cR}(K,N;\eta)$. However, due to the random shuffling and multi-pass processing of the training data, directly analyzing $\bar{\cR}(K,N;\eta)$ is intractable. To overcome this, we seek an analytic approximation of $\bar{\cR}(K,N;\eta)$, which is derived through the following steps.
+
+\paragraph{Step 1: Bias-Variance Decomposition for Training Dynamics.} \label{step:bias-var-decomposition} 
+Following the widely-applied bias-variance decomposition approach to analyzing the dynamics of SGD training~\citep{neu2018iterate, ge2019step, zou2021benign, wu2022iterateriskboundssgd}, we define $\vtheta_t = \vw_t - \vw^*$ and examine the following two processes of bias and variance: $\vtheta_{t+1}^{\bias} = \vtheta_t^{\bias} - \eta \inp{\vtheta_t^{\bias}}{\vx_{j_t}}\vx_{j_t}, \vtheta_{t+1}^{\var} = \vtheta_t^{\var} - \eta \inp{\vtheta_t^{\var}}{\vx_{j_t}}\vx_{j_t} + \eta \xi_{j_t}\vx_{j_t}$,
+% \begin{equation}
+%     \vtheta_{t+1}^{\bias} = \vtheta_t^{\bias} - \eta \inp{\vtheta_t^{\bias}}{\vx_{j_t}}\vx_{j_t}, \quad \vtheta_{t+1}^{\var} = \vtheta_t^{\var} - \eta \inp{\vtheta_t^{\var}}{\vx_{j_t}}\vx_{j_t} + \eta \xi_{j_t}\vx_{j_t} , \nonumber
+% \end{equation}
+where the two processes are initialized as $\vtheta_0^{\bias} = \vw_0 - \vw^*$ and $\vtheta_0^{\var} = \boldsymbol{0}$.
+% \kaifengclaw{Grammar: add article -> 'where the two processes are initialized as ...'.} 
+It follows that $\vtheta_t = \vtheta_t^{\bias} + \vtheta_t^{\var}$, with $\E[\vtheta_t^{\text{var}}] = \boldsymbol{0}$. We can then decompose the excess risk $\cR(\vw_t)$ into two components: the \textit{bias term} and the \textit{variance term}, which we formalize as follows $\cR(\vw_t) = \frac{1}{2}\left\|\vtheta_{t}\right\|_{\mH}^2 =  \frac{1}{2}\left\|\vtheta_t^{\bias}\right\|_{\mH}^2 + \frac{1}{2}\left\|\vtheta_t^{\var}\right\|_{\mH}^2.$
+% \begin{align}
+%     \cR(\vw_t) = \frac{1}{2}\left\|\vtheta_{t}\right\|_{\mH}^2 =  \frac{1}{2}\left\|\vtheta_t^{\bias}\right\|_{\mH}^2 + \frac{1}{2}\left\|\vtheta_t^{\var}\right\|_{\mH}^2.\label{equ:bias-var-decomposition} 
+% \end{align}
+
+\paragraph{Step 2: Analytic Risk Approximation by Matrix Concentration.} A key challenge in tracking the dynamics of multi-epoch SGD training arises from the non-commutative nature of the matrices in the weight updates, which depend on randomly shuffled and multi-pass data. 
+For example, the bias weight evolves as
+$\vtheta_{KN}^{\bias} = \left(\prod_{k=1}^{K} \left(\prod_{l=1}^{N} \left(\mI-\eta \vx_{\pi_k(l)}\vx_{\pi_k(l)}^{\top}\right)\right)\right) \vtheta_{0}^{\bias},$
+%\haodong{in multi epoch one data point appears more than once across different epochs -> the data is correlated in a long matrix multipulication -> thus calculating the expectation is intractable} 
+where we can see that one data point appears more than once across different epochs. Thus, the above matrix multiplication involves massive correlated data, which makes calculating the bias term $\E\left[\left\|\vtheta_{KN}^{\bias}\right\|_{\mH}^2\right]$ intractable.
+% Due to the non-commutativity of matrix multiplication, computing the expectation of the bias term $\E\left[\left\|\vtheta_{KN}^{\bias}\right\|_{\mH}^2\right]$ is intractable. 
+To resolve this issue, we borrow tools from concentration inequalities for matrix products~\citet{huang2022matrix}. Specifically, we use the following result:
+\begin{lemma}[Corollary of Theorem 7.1 in \citet{huang2022matrix}]
+\label{lem:un-shuffle-A-EA-expectation-main}
+    Given $n$ data points such that $\vz_0, \cdots \vz_{n-1} \overset{i.i.d}{\sim} \cN(0, \mH)$, and defining $\mA = \prod_{j=0}^{n-1}\left(\mI-\eta \vz_{j}\vz_{j}^{\top}\right)$, we have
+    $\E\|\mA-\E\mA\|^l \leq \left(\sqrt{\deltaA\eta^2nl}\right)^l,$
+    where $\deltaA:= \Tilde{C}8eD^4\log d$ for some absolute constant $\Tilde{C} > 0$.
+\end{lemma}
+% \haodong{how to apply Lemma 4.1 to get the error bound analysis.}
+However, several obstacles prevent us from directly applying \Cref{lem:un-shuffle-A-EA-expectation-main} to our problem. For example, we actually need to control error terms like $\E\left\|\prod_{i=K}^{k+1}\mA^{(i)} - (\mathbb{E}\mA)^l \right\|$, where $\mA^{(i)}$ represents the product of sequential updates through all samples in epoch $i$ (see the formal definition in \Cref{app:A_def}, Appendix~\ref{app:notation}). To address this, our main idea is to derive a tight upper bound for the original term, and decompose this upper bound into the sum of a series of sub-terms for which we can apply \Cref{lem:un-shuffle-A-EA-expectation-main}. (see the detailed derivation in Appendix~\ref{app:var-term-proof} and Appendix~\ref{app:bias-proof})
+% such that any two $\mA^{(i)}$ are correlated with each other, thus we cannot directly apply \Cref{lem:un-shuffle-A-EA-expectation-main} to our problem. Our method to deal with this issue is summarized as follows: (1) we represent each $\mA^{(i)}$ as the sum of the main term and the error term, and (2) we rewrite the error term into a sum of matrix products, then (3) we apply Cauchy-Schwarz inequality to split each product into independent terms. 
+
+Finally, we derive an error bound on matrix deviations based on our calculations, which is a higher-order infinitesimal of the main term when $\eta \in \left[\Omega\left(T^{-1}\right), o(T^{-\frac{3}{4}})\right]$ and $K = o\left(\eta^{-1} T^{-\frac{3}{4}}\right)$, with $T:=KN$ denoting the total number of training steps. This provides a theoretical guarantee for us to approximate the risk function with a tractable expression. For the bias term, we have
+\begin{align*}
+    \E\left[\left\|\vtheta_{KN}^{\bias}\right\|_{\mH}^2\right]
+    &= \E\left[\left\|\left(\prod_{k=1}^{K} \left(\prod_{l=0}^{N-1} \left(\mI-\eta \vx_{\pi_k(l)}\vx_{\pi_k(l)}^{\top}\right)\right)\right)\vtheta_0\right\|_{\mH}^2\right] \\
+    &\approx \left\|\left(\prod_{k=1}^{K} \E\left[\prod_{l=0}^{N-1} \left(\mI-\eta \vx_{\pi_k(l)}\vx_{\pi_k(l)}^{\top}\right)\right]\right)\vtheta_0\right\|_{\mH}^2 \\
+    &=\left\|\left((\mI-\eta\mH)^{KN}\right)\vtheta_0\right\|_{\mH}^2,
+\end{align*}
+where the approximation step follows from \Cref{lem:un-shuffle-A-EA-expectation-main}, and the last equation follows the facts that $\E\left[\vx_{\pi_k(l)}\vx_{\pi_k(l)}^{\top}\right] = \mH$ and $\vx_i$ is uncorrelated with $\vx_j$ for $i \neq j$.
+% \kaifengclaw{Readability breakpoint: this proof-sketch step compresses the passage from products of random matrices to products of expectations. A short pointer to the exact decoupling identity used in Appendix (or one intermediate displayed line) would help readers see why the approximation error remains controlled under shuffling.}
+%%%\kaifengclaw{Math-check: this step effectively exchanges expectation and non-commutative matrix products; 'uncorrelated' may be insufficient for product-factorization under random shuffling. Suggest explicitly stating the exact lemma/independence argument used for this equality to avoid a potential derivation gap.} \kaifeng{no, this is just a proof sketch}
+For the variance term, the data correlation issue is similar to what we met in the bias term case. Again, leveraging \Cref{lem:un-shuffle-A-EA-expectation-main} and following a similar analysis, we can get an approximation formula for the variance term as shown:
+\begin{align*}
+        \E\left[\left\|\vtheta_{KN}^{\var}\right\|_{\mH}^2\right]&\approx\frac{2\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right)\\
+    &~~~~+{\eta\sigma^2}\inp{\mH}{(\mI - (\mI - \eta \mH)^{2KN})(2\mI-\eta\mH)^{-1}}.
+\end{align*}
+
+\paragraph{Step 3: Narrowing the Range for Optimal Learning Rate.}
+However, although we have an analytic approximation for risk, it is important to note that this approximation holds only for a specific range of parameters.
+% \kaifengclaw{Grammar: 'despite we have' -> 'although we have' or 'despite having'.} 
+For a detailed discussion, refer to Lemma~\ref{thm:convex-L-estimate}.
+% Lemma~\ref{lem:bias-estimate} and Lemma~\ref{lem:variance-estimate}.
+%Once we have an approximate expression for the excess risk, the next challenge is identifying the optimal learning rate. 
+To mitigate this, we first determine a reasonable range for the optimal learning rate in two steps: First, we choose $\Tilde{\eta} = \frac{\log KN}{2\lambda_d KN}$ as a reference learning rate; Then, by comparing the losses for the reference learning rate and other candidate learning rates, we can eliminate a large range of values. 
+This analysis helps narrow down the potential range of learning rates (Lemma~\ref{lem:convex-opt-lr-range-small-K} for small $K$ and Lemma~\ref{lem:convex-opt-lr-range-large-K} for large $K$). Within this range, we further simplify the risk approximation to make it more tractable for optimization, as shown in the following lemmas:
+% substituting candidate values into the expression of risk approximation. This allows us to narrow down the potential range. Within this range, we further simplify the risk approximation to make it more tractable for optimization, as shown in the following lemmas:
+\begin{lemma}[Small $K$]
+\label{lem:convex-L-approx-small-K-new}
+    Let $\mH = \mP\mD\mP^{\top}$ be the canonical form of $\mH$ under similarity, and let $\Tilde{\theta}_{d}^2 := \sum_{l=d-n_d+1}^d(\mP\vtheta_0)_{l}^2$.
+    Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, for learning rate $\eta \in \left[\frac{\log KN}{3\lambda_d KN}, \frac{D^2 \tr(\mH)\log KN}{\lambda_d \tr(\mH^2)KN} \right]$, $K = o(\log N)$, we have $\Bar{\cR}(K, N;\eta) = M(K, N;\eta)(1+ o(1))$ with $M(K, N;\eta) := \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta KN)+\frac{\eta\tr(\mH)\sigma^2}{4}.$
+    % \begin{equation*}
+    %     M(K, N;\eta) := \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta KN)+\frac{\eta\tr(\mH)\sigma^2}{4}.
+    % \end{equation*}
+    % \begin{align*}
+    %     \Bar{\cR}(K, N;\eta) &= M(K, N;\eta)(1+ o(1)),\\
+    %     M(K, N;\eta) &:= \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta KN)+\frac{\eta\tr(\mH)\sigma^2}{4}.
+    % \end{align*}
+\end{lemma}
+\begin{lemma}[Large $K$]
+    \label{lem:convex-L-approx-large-K-new}
+    We define $\Tilde{\theta}_{d}^2$ as the same as \Cref{lem:convex-L-approx-small-K-new}. Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, for learning rate $\eta \in [\frac{\log KN}{3\lambda_d KN}, o\left(\frac{1}{N}\right)]$ and $K = \omega(\log N)$, we have $\Bar{\cR}(K, N;\eta) = M(K, N;\eta)(1+ o(1))$ with $M(K, N;\eta) = \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta KN) + \frac{\eta\tr(\mH)\sigma^2}{4}+\frac{\sigma^2d}{2N}.$
+    % \begin{equation*}
+    %     M(K, N;\eta) = \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta KN) + \frac{\eta\tr(\mH)\sigma^2}{4}+\frac{\sigma^2d}{2N}.
+    % \end{equation*}
+    % \begin{align*}
+    %     \Bar{\cR}(K, N;\eta) &= M(K, N;\eta)(1+ o(1)),\\
+    %     M(K, N;\eta) &= \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta KN) + \frac{\eta\tr(\mH)\sigma^2}{4}+\frac{\sigma^2d}{2N}.
+    % \end{align*}
+\end{lemma}
+
+\paragraph{Step 4: Deriving the Approximately Optimal Learning Rate.}
+At this point, we have narrowed down the range for the optimal learning rate and simplified the risk approximation. The next step is to approximate the optimal expected excess risk. To achieve this, we differentiate the simplified risk function $M(K, N;\eta)$ in Lemma~\ref{lem:convex-L-approx-small-K-new} and Lemma~\ref{lem:convex-L-approx-large-K-new} with respect to the learning rate $\eta$ and give the critical point $\eta=\eta'(K,N)$, which are presented as follows:
+\begin{lemma}[Approximately Optimal Learning Rate]
+\label{thm:convex-opt-lr}
+    Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we consider $K$-epoch SGD with $N$ fresh data and learning rate $\eta = \eta'(K,N) = \frac{\log \rho KN}{2 \lambda_d KN}$, where $\rho := \frac{4\Tilde{\theta}_d^2\lambda_d}{\tr(\mH)\sigma^2}$. Then it holds for $K =o(\log N)$ or $K =\omega(\log N)$ that $\Bar{\cR}(K,N;\eta'(K,N)) = \Bar{\cR}^*(K,N)\left(1 + o(1)\right).$
+    % Specifically, when we set $K =1$ and $N = T'$, the above equation is reduced to:
+    % $$\Bar{\cR}(1,T';\eta'(1,T')) = \Bar{\cR}^*(1,T')\left(1 + o(1)\right).$$
+\end{lemma}
+Using Lemma~\ref{thm:convex-opt-lr}, we complete the proof as follows. By evaluating the risk at the approximately optimal learning rate $\eta'(K,N) = \frac{\log \rho KN}{2 \lambda_d KN}$, we obtain an approximation of the optimal risk (Theorem~\ref{thm:strongly-convex-scaling-law}), based on which we derive the effective reuse rate (Theorem~\ref{thm:convex-E_K}).
+
+%$\cR(\vw_t) = \frac{1}{2}\|\vtheta_{t}\|_{\mH}^2 =  \frac{1}{2}\|\vtheta_t^{\bias}\|_{\mH}^2 + \frac{1}{2}\|\vtheta_t^{\var}\|_{\mH}^2$.
+
+% \begin{align}
+%     \cR(\vw_t) = \underbrace{\frac{1}{2}\inp{\mH}{\vtheta_t^{\bias}(\vtheta_t^{\bias})^{\top}}}_{\cR_{\bias}(\vw_t)} + \underbrace{\frac{1}{2}\inp{\mH}{\vtheta_t^{\var}(\vtheta_t^{\var})^{\top}}}_{\cR_{\var}(\vw_t)}.\label{equ:bias-var-decomposition} \nonumber
+% \end{align}
+
+% $$\vtheta_{KN}^{\bias} = \left(\prod_{k=1}^{K} \prod_{l=1}^{N} \left(\mI-\eta \vx_{\pi_k(l)}\vx_{\pi_k(l)}^{\top}\right)\right) \vtheta_{0}^{\bias},$$
+
+
+
+
+% Here, the bias term is the part of the excess risk formed by iterating $\vtheta$ without noise but with an initial value unequal to the true parameter value, and the variance term is the part of the excess risk formed by iterating $\vtheta$ with noise but an initial value equal to the true parameter value.
+
+% \binghui{
+% \begin{itemize}
+%     % \item Step1: loss approximation -> non-commutable matrices; complex shuffling -> key lemma de huang thm 7.1 -> concentration -> commutable and simplified formula which is possible to decouple the impact of shuffling.
+%     % \item Step2: optimal learning rate -> (w/o the results in step1) we first argue the range of optimal learning rate is actually quite narrow -> use the loss approximization, take derivative
+%     \item step 1: large range approximation
+%     De Huang
+%     \item step 2: take a LR to prove small range for optimal LR
+%     \item  step 3: solve the approximately optimal LR by using derivative
+%     \item step 4: derive E(K,N) by the loss at optimal LR
+% \end{itemize}
+% }
+
+% In this section, we provide a proof sketch for our main results. A key challenge is determining the optimal learning rate, which depends on both $K$ and $N$ and significantly impacts the convergence of the risk function. We proceed with the proof in four steps.
+
+% \paragraph{Step 1: }
+
+% The first challenge in analyzing the behavior of multi-epoch SGD is the non-commutative nature of the matrices involved in the SGD updates, i.e., $$\vw_{KN} = \left(\prod_{k=1}^{K} \prod_{l=1}^{N} \left(\mI-\eta \vx_{\pi_k(l)}\vx_{\pi_k(l)}^{\top}\right)\right) \vw_{0},$$
+% where notation $\prod$ denotes the product of matrices, multiplied in order from the index being large to small. 
+
+% To address this challenge, we use concentration inequalities for random matrices, specifically leveraging results from \citet{huang2022matrix}. These concentration inequalities provide bounds on the deviations of random matrices, which allows us to approximate the risk function with a tractable expression. 
+% \begin{align*}
+%     \bar{\cR}^{\bias}(K,N;\eta) &= \frac{1}{2}\inp{\mH}{\E\vtheta_{KN}^2} \\
+%     &= \E\frac{1}{2}\vtheta_{KN}^{\top}\mH\vtheta_{KN} \\
+%     &= \E\frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \mA^{(l)}\right)^{\top}\mH\left(\prod_{l=K}^1 \mA^{(l)}\right)\vtheta_0 \\
+%     &\approx \frac{1}{2}\vtheta_0^{\top}\left(\prod_{l=K}^1 \E\mA^{(l)}\right)^{\top}\mH\left(\prod_{l=K}^1 \E\mA^{(l)}\right)\vtheta_0 \\
+%     &=\underbrace{\frac{1}{2}\vtheta_0^{\top}\left((\mI-\eta\mH)^{KN}\right)\mH\left((\mI-\eta\mH)^{KN}\right)\vtheta_0}_{=:\Tilde{\cR}^{\var}(K,N;\eta)}.
+%     %&\leq \frac{1}{2}\|\vtheta_0\|^2\|\mH\|\E\|\mM\|^{2k}
+% \end{align*}
+
+% \begin{lemma}\label{thm:convex-L-estimate}
+%     Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we further assume that for every $\vx$ in the training set, $\|\vx\| \leq D$ for some constant $D>0$. Consider a $K$-epoch SGD with learning rate $\eta \in \left[\Omega\left(\frac{1}{T}\right), o(T^{-\frac{3}{4}})\right]$, $K = o\left(\eta^{-1} T^{-\frac{3}{4}}\right)$ and data shuffling. Then, after $T = KN$ steps, the estimator of the expected excess risk satisfies:
+%     \begin{align*}
+%         \Bar{\cR}(K,N;\eta) = \widehat{\cR}(K,N; \eta)\left(1+o(1)\right).
+%     \end{align*}
+% \end{lemma}
+
+% This approximation holds for a wide range of learning rates, facilitating the analysis of convergence over multiple epochs.
+
+% \paragraph{Step2: Narrowing the Range for the Optimal Learning Rate.} Once we have an approximate expression for the loss, the next challenge is identifying the optimal learning rate. To tackle this, we first identify a reasonable range for the optimal learning rate by substituting candidate values into the loss expression. This helps us narrow down the possible range for the optimal learning rate. Within this range, we simplify the loss expression further to make it more tractable for optimization.
+
+% \begin{lemma} \label{lem:convex-L-approx-large-K}
+%      Let $\Tilde{\theta}_{d}^2 = \sum_{l=d-n_d+1}^d(\mP\vtheta_0)_{l}^2$, $\mH = \mP\mD\mP^{\top}$ to be the canonical form under similarity of $\mH$. Under the conditions in \Cref{thm:convex-opt-lr}, for learning rate $\eta \in \left[\frac{\log KN}{3\lambda_d KN}, \frac{\alpha\log KN}{KN}\right]$ for some constant $\alpha$ and $K = o(\log N)$, then we have the approximation of $\Bar{\cR}(K, N;\eta)$ as
+%     \begin{align*}
+%         \Bar{\cR}(K, N;\eta) &= M(K, N;\eta)(1+ o(1)),\\
+%         M(K, N;\eta) &:= \frac{1}{2}\Tilde{\theta}_d^2 \lambda_d \exp(-2\lambda_d \eta T)+\frac{\eta\tr(\mH)\sigma^2}{4},
+%     \end{align*}
+%     where steps $T=KN$.
+% \end{lemma}
+
+% \paragraph{Step 3: Optimizing the Approximate Risk to Find the Optimal Learning Rate.} At this point, we have narrowed down the possible range for the learning rate and simplified the loss function. The next step is to find the optimal learning rate that minimizes the loss. To do this, we differentiate the simplified loss function with respect to the learning rate and solve for the critical points.
+
+% \begin{lemma}\label{thm:convex-opt-lr}
+%     Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we consider $K$-epoch SGD with $N$ fresh data and learning rate $\eta = \eta'(K,N) := \frac{\log KN}{2 \lambda_d KN} + O\left(\frac{1}{KN}\right)$. It holds for $K =o(\log N)$ or $K =\omega(\log N)$ that $\Bar{\cR}(K,N;\eta'(K,N)) = \Bar{\cR}^*(K,N)\left(1 + o(1)\right).$
+%     % Specifically, when we set $K =1$ and $N = T'$, the above equation is reduced to:
+%     % $$\Bar{\cR}(1,T';\eta'(1,T')) = \Bar{\cR}^*(1,T')\left(1 + o(1)\right).$$
+% \end{lemma}
+
+% %Notice that the above learning rate function $\eta'(K,N)$ only depends on the total steps $KN$, which gives an obvious corollary for OP SGD.
+
+% % \begin{corollary}
+% %     Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we consider one-pass SGD with steps $T$ and learning rate $\eta = \Tilde{\eta}(T) := \frac{\log T}{2 \lambda_d T} + O\left(\frac{1}{T}\right)$. It holds that $\Bar{\cR}(1,T;\Tilde{\eta}(T)) = \Bar{\cR}^*(1,T)\left(1 + o(1)\right).$
+% % \end{corollary}
+
+
+% % \haodong{rewrite the proof sketch}
+\begin{comment}
+
+\iffalse
+\subsection{Technical Challenges and Key Proof Insights}\label{sec:strongly-convex-tech}
+% As noted above, deriving an explicit formula for $E(K,N)$ involves several nontrivial layers of difficulty.  The first arises from the intrinsic complexity of multi‐epoch training: providing a unified, reasonably concise expression for the population excess risk after $K$ passes is challenging because it depends sensitively on the data‐shuffling protocol, the chosen learning‐rate size, and the non‐exchangeability of sequential updates. Taking all of these factors into consideration already represents a highly non-trivial analytical undertaking.
+
+% The second layer of difficulty concerns, given such a excess risk expression, how to solve for an approximately optimal learning rate so that the comparison between multi‐epoch (ME) and one‐pass (OP) SGD is meaningful.  One must carefully optimize the step‐size to balance bias and variance, then substitute this near‐optimal rate back into the excess risk formula and extract the effective reuse rate $E(K,N)$.  This process entails many tedious—but fortunately doable—steps in classical asymptotic analysis.
+
+Deriving an explicit formula for $E(K,N)$ is challenging for two reasons. First, the expected excess risk after $K$ passes depends intricately on the data‐shuffling protocol, learning‐rate choice, and the non‐exchangeability of sequential updates, so no simple closed‐form exists. Second, one must optimize the step‐size to trade off bias and variance, plug this near‐optimal rate into the risk expression, and then extract $E(K,N)$—a careful but tedious asymptotic analysis.
+
+\subsubsection{An Accurate Excess Risk Approximation} 
+
+To resolve the first difficulty, we present some key proof insights to give a tight approximation of the excess risk.
+% \paragraph{Bias term Variance Term Decomposition.} We apply a bias-variance decomposition trick in \citep{wu2022iterateriskboundssgd}. Recall that the t-th iteration formula in \Cref{sec:setup} is given by
+% \begin{align*}
+%     \vw_{t+1} &= \vw_{t} - \eta \nabla_{\vw}\ell_{\vw_{t}}(\vx_{\pi_k(i)}, y_{\pi_k(i)}) \\
+%     &=\left(\mI-\eta\vx_{\pi_k(i)}\vx_{\pi_k(i)}^{\top}\right)\vw_t+\eta\xi_{\pi_k(i)}\vx_{\pi_k(i)}
+% \end{align*}
+\paragraph{Bias-Variance Decomposition.} We conduct this well-known operation over the excess risk~\citep{neu2018iterate,ge2019step,zou2021benign,wu2022iterateriskboundssgd}. Specifically, recall that the $t+1$-th iteration formula in \Cref{sec:setup} is given by
+\begin{align*}
+    \vw_{t+1}=\left(\mI-\eta\vx_{j_t}\vx_{j_t}^{\top}\right)\vw_t+\eta\xi_{j_t}\vx_{j_t}.
+\end{align*}
+We define $\vtheta_t = \vw_t-\vw^*$, and consider two different processes
+\begin{align*}
+    \vtheta_{t+1}^{\bias} &= \vtheta_t^{\bias} - \eta \inp{\vtheta_t^{\bias}}{\vx_{j_t}}\vx_{j_t},\quad \vtheta_0^{\bias} = \vw_0 - \vw^*,\\
+    \vtheta_{t+1}^{\var} &= \vtheta_t^{\var} - \eta \inp{\vtheta_t^{\var}}{\vx_{j_t}}\vx_{j_t} + \eta \xi_{j_t}\vx_{j_t},\quad \vtheta_0^{\var} = \boldsymbol{0}.
+\end{align*}
+We can further verify that $\vtheta_t = \vtheta_t^{\bias} + \vtheta_t^{\var}$, and $\E\vtheta_t^{\text{var}} = \boldsymbol{0}$. Then we can decompose $\cR(\vw_t)$ into two terms: \textit{bias term} $\cR(\vw_t)^{\bias}$ and \textit{variance term} $\cR(\vw_t)^{\var}$, which contribute to the following excess risk, and leads to the expression of $E(K,N)$.
+\begin{align}
+    \cR(\vw_t) &= \frac{1}{2} \E[(\langle \vw_t,\;\vx \rangle - y^*)^2]-\frac{1}{2}\sigma^2=\frac{1}{2}\E_{\vx, \xi}[(\inp{\vtheta_t}{\vx}- \xi)^2] -\frac{1}{2}\sigma^2\notag\\
+    &= \frac{1}{2} \E[\langle \vtheta_t,\;\vx \rangle^2]=\frac{1}{2}\langle \vtheta_t\vtheta_t^{\top},\;\mH \rangle \notag\\
+    &= \underbrace{\frac{1}{2}\inp{\mH}{\vtheta_t^{\bias}(\vtheta_t^{\bias})^{\top}}}_{\cR(\vw_t)^{\bias}} + \underbrace{\frac{1}{2}\inp{\mH}{\vtheta_t^{\var}(\vtheta_t^{\var})^{\top}}}_{\cR(\vw_t)^{\var}}.\label{equ:bias-var-decomposition}
+\end{align}
+Here, the bias term is the part of the excess risk formed by iterating $\vtheta$ without noise but with an initial value unequal to the true parameter value, and the variance term is the part of the excess risk formed by iterating $\vtheta$ with noise but an initial value equal to the true parameter value.
+
+\paragraph{Shuffling.} 
+In the existing literature on multi-epoch SGD, data shuffling has long been a central focus. Early works established that multi-epoch SGD with random reshuffling achieves minimax‐optimal convergence rates~\citep{ahn2020sgd}, and some studies even showed that shuffling without replacement yields faster convergence than one‐pass SGD~\citep{haochen2019random,mishchenko2020random,gurbuzbalaban2021random}. However, these convergence analyses are too loose for an accurate excess risk characterization and remain far from characterizing the data reuse rate. \citet{pillaudvivien2018statisticaloptimalitystochasticgradient} analyzed a variety of regression problems and demonstrated that multi‐epoch SGD with shuffling leads to statistically optimal prediction error compared to one‐pass SGD. Unfortunately, their analysis assumes sampling with replacement—i.e.\ each example is drawn uniformly at random from the dataset in each update, so that one epoch can revisit the same data point multiple times, while practical deep learning training uses without‐replacement shuffling.
+
+In our work, leveraging the bias-variance decomposition, the effect of shuffling to the expected excess risk can be reduced to the variance term only. We then provide a fine‐grained analysis of how without‐replacement shuffling affects the variance term in the expected excess risk. We show that the variance reduction induced by shuffling naturally decomposes into two components—one arising within each epoch and another across different epochs—and this decomposition is explicitly reflected in our final excess risk expression, and we conduct rigorous calculations to capture these two effects.
+
+\paragraph{Matrix Concentration.} 
+The expected excess risk can be written as a contraction of a product of non‐commuting matrices.  Because these matrices are non-commutable, taking the expectation over all data orders becomes formally intractable: one cannot simply represent the repeated appearance of the same data point as a single power of a fixed matrix, and direct computation of the loss is therefore infeasible.  To address this challenge, we draw on tools from the theory of random matrix products~\citep{baghal2020matrix,henriksen2020concentration,huang2022matrix}. In particular, by exploiting concentration inequalities for products of independent random matrices, we show that the expected risk admits a tight approximation by a much simpler closed‐form formula.  
+
+\haodong{should we present De Huang's thm 7.1 here? my concern is the capacity limit.}
+% \paragraph{Shuffling.} 
+% Prior work established that shuffled SGD achieves minimax-optimal rates~\citep{ahn2020sgd}, with without-replacement variants outperforming one-pass SGD~\citep{haochen2019random,mishchenko2020random,gurbuzbalaban2021random}. However, these analyses are too loose for precise excess risk characterization. While \citet{pillaudvivien2018statisticaloptimalitystochasticgradient} showed statistical optimality, their analysis assumes with-replacement sampling. 
+
+% We prove that shuffling's effect reduces to the variance term via bias-variance decomposition. Our fine-grained analysis reveals two distinct variance reduction components (intra-epoch and inter-epoch), rigorously captured in our final risk expression.
+
+% \paragraph{Matrix Concentration.} 
+% The risk $\cR_{\vw}\propto \E[\inp{\mA\cdot\mB\cdots\mC}{\mX}]$ involves non-commuting matrices from shuffled data. We leverage random matrix product theory~\citep{baghal2020matrix,henriksen2020concentration,huang2022matrix} to derive a tight closed-form approximation via concentration inequalities.
+
+
+% When deriving the formula of population excess risk, we need to deal with the non-commutativity of matrices, to be specific, $\mI-\eta\vx_i\vx_i^{\top}$ and $\mI-\eta\vx_j\vx_j^{\top}$ when $i\neq j$. To simplify our calculations, we approximate the expectation of the matrix product by the product of the expectations of the corresponding matrices, and apply Theorem 7.1 from \citet{huang2022matrix} to control the norm of the matrices.  
+% \paragraph{Learning rate.} We omit the higher order infinitesimal terms of population excess risk, 
+
+Then we present the following approximations, which formulates the above insights into one single formula. We define a $\widehat{\cR}(K,N, \eta)$ as the estimator of $\Bar{\cR}(K,N;\eta)$ 
+\begin{align*}
+    \widehat{\cR}(K,N;\eta)&:= \underbrace{\widehat{\cR}_1(K,N; \eta)}_{\textit{bias term}} + \underbrace{ \widehat{\cR}_2(K,N; \eta)}_{\textit{var term across epochs}} + \underbrace{ \widehat{\cR}_3(K,N;\eta)}_{\textit{var term within epoch}},
+\end{align*}
+where
+\begin{align*}
+    \widehat{\cR}_1(K,N;\eta) := \frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2KN}\mH (\vw_0 - \vw^*),
+\end{align*}
+\begin{align*}
+    \widehat{\cR}_2(K,N;\eta) := \frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right),
+\end{align*}
+\begin{align*}
+    \widehat{\cR}_3(K,N;\eta) :=  \frac{\eta\sigma^2}{2}\inp{\mH}{(\mI - (\mI - \eta \mH)^{2KN})(2\mI-\eta\mH)^{-1}}.
+\end{align*}
+% \begin{lemma}\label{thm:convex-L-estimate}
+% Under \Cref{asp:strongly-convex}, \ref{asp:4-th-moment}, and \ref{asp:large-dataset}, we further assume that for every $\vx$ in the training set, $\|\vx\| \leq D$ for some constant $D>0$. Consider a $K$-epoch SGD with learning rate $\eta = o(T^{-\frac{3}{4}})$, $K = o(\eta^{-1} T^{-\frac{3}{4}})$, and data shuffling. Then, after $T = KN$ steps, the estimator of the expected population excess risk satisfies
+% \begin{align}
+%     \widehat{\cR}(T, \eta)&=\underbrace{ \frac{1}{2}(\vw_0 - \vw^*)^{\top} (\mI-\eta\mH)^{2KN}\mH (\vw_0 - \vw^*)}_{\textit{bias term}}\nonumber \\ \label{equ:l-estimate}
+%     &~~~~+\underbrace{\frac{\sigma^2}{N} tr\left(\frac{\left(\mI -(\mI -\eta\mH)^{KN}\right)\left((\mI -\eta\mH)^{N} -(\mI -\eta\mH)^{KN}\right)}{\mI + (\mI -\eta\mH)^N}\right)}_{\textit{variance term across epochs}}\nonumber\\ 
+%     &~~~~+\underbrace{\frac{\eta\sigma^2}{2}\inp{\mH}{(\mI - (\mI - \eta \mH)^{2KN})(2\mI-\eta\mH)^{-1}}}_{\textit{variance term within one epoch}}, \nonumber
+% \end{align}
+% where the expectation is taken on the training set and shuffling. The error bound can be given as follows:
+% \begin{align*}
+%     \E[\cR(\vw_T)] = \widehat{\mathcal{L}}(T, \eta)\left(1+o(1)\right).
+% \end{align*}
+% \end{lemma}
+\begin{lemma}\label{thm:convex-L-estimate}
+    Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we further assume that for every $\vx$ in the training set, $\|\vx\| \leq D$ for some constant $D>0$. Consider a $K$-epoch SGD with learning rate $\eta \in \left[\Omega\left(\frac{1}{T}\right), o(T^{-\frac{3}{4}})\right]$, $K = o\left(\eta^{-1} T^{-\frac{3}{4}}\right)$ and data shuffling. Then, after $T = KN$ steps, the estimator of the expected excess risk satisfies:
+    \begin{align*}
+        \Bar{\cR}(K,N;\eta) = \widehat{\cR}(K,N; \eta)\left(1+o(1)\right).
+    \end{align*}
+\end{lemma}
+\Cref{thm:convex-L-estimate} states that the expected excess risk can be expressed as the sum of three approximation terms and a higher-order residual term. We further decompose the expected excess risk estimate into three components: a bias term, a variance term across epochs, and a variance term within each epoch.
+
+\haodong{explain why here we assume $o(\frac{1}{T^{3/4]}})$ instead of $\frac{1}{\sqrt{T}}$, a gap}
+\subsubsection{Derivation of the Optimal Learning Rate}
+% The estimator of the expected population excess risk remains computationally intractable in its complete form. To derive an analytically manageable expression, we first neglect the higher-order infinitesimal terms in the expansion. This simplification is necessary to obtain a closed minimizer of itself, which would be a ``near'' optimal learning rate for the original excess risk as stated in \Cref{thm:convex-opt-lr}. Subsequently, we compute the derivative of the simplified expression to arrive at an approximately optimal learning rate. 
+
+For both OP and ME SGD, it is extremely difficult to determine the precise closed-form optimal learning rate expression that minimizes excess risk. To provide a detailed characterization of the effective reuse rate from \Cref{def:E_K}, we present a sufficiently precise description of the optimal learning rate. More specifically, we provide a range of learning rates that approximately achieve the optimal excess risk of ME SGD. The difference between the learning rates within this range and the optimal learning rate can be incorporated into the error bound.
+% We next provide a range of learning rates, which approximately achieve the optimal excess risk of ME SGD.
+\begin{lemma}\label{thm:convex-opt-lr}
+    Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we consider $K$-epoch SGD with $N$ fresh data and learning rate $\eta = \eta'(K,N) := \frac{\log KN}{2 \lambda_d KN} + O\left(\frac{1}{KN}\right)$. It holds for $K =o(\log N)$ or $K =\omega(\log N)$ that $\Bar{\cR}(K,N;\eta'(K,N)) = \Bar{\cR}^*(K,N)\left(1 + o(1)\right).$
+    % Specifically, when we set $K =1$ and $N = T'$, the above equation is reduced to:
+    % $$\Bar{\cR}(1,T';\eta'(1,T')) = \Bar{\cR}^*(1,T')\left(1 + o(1)\right).$$
+\end{lemma}
+Notice that the above learning rate function $\eta'(K,N)$ only depends on the total steps $KN$, which gives an obvious corollary for OP SGD.
+\begin{corollary}
+    Under \Cref{asp:strongly-convex} and \ref{asp:large-dataset}, we consider one-pass SGD with steps $T$ and learning rate $\eta = \Tilde{\eta}(T) := \frac{\log T}{2 \lambda_d T} + O\left(\frac{1}{T}\right)$. It holds that $\Bar{\cR}(1,T;\Tilde{\eta}(T)) = \Bar{\cR}^*(1,T)\left(1 + o(1)\right).$
+\end{corollary}
+
+\textit{Proof Sketch of \Cref{thm:convex-opt-lr}.} 
+\haodong{rewrite this after we finish the proof.}
+% The estimator of the expected population excess risk remains computationally intractable in its complete form. To derive an analytically manageable expression, we first neglect the higher-order infinitesimal terms in the expansion. This simplification is necessary to obtain a closed minimizer of itself, which would be a ``near'' optimal learning rate for the original excess risk as stated in \Cref{thm:convex-opt-lr}. Subsequently, we compute the derivative of the simplified expression to arrive at an approximately optimal learning rate. 
+
+% To do a fair comparison with the baseline (optimal excess risk of OP SGD), we set the learning rate of ME SGD to the same function as $\eta = \eta(KN) = \eta = \frac{\log KN}{2\lambda_d KN} + O\left(\frac{1}{KN}\right).$
+
+\subsubsection{Derivation of $E(K,N)$}
+
+% \haodong{rewrite this part or delete}
+
+As for the computation of $E(K,N)$, we divide it into two cases: $K=o(\log N)$ and $K=\omega(\log N)$. When $K=o(\log N)$, we derive that $\Bar{\cR}(K,N;\eta)=c_1\frac{\log KN}{KN}(1+o(1))$ for some absolute constant $c_1$. Then we have $E(K,N)\approx K$ due to the convexity and motonocity of the function $f(T)=\frac{\log T}{T}$. When $K=\omega(\log N)$, $\Bar{\cR}(K,N;\eta)=\frac{c_2}{N}$ for some absolute constant $c_2$. Solving $\Bar{\cR}(K,N;\eta)=\Bar{\cR}(1,E(K,N)\cdot N;\eta')$ and we derive the result. The proof of \Cref{thm:convex-L-estimate} is in \Cref{sec:proof-thm-convex-L-estimate}.
+
+% To address the complexity of the excess risk calculation, we first decompose the variance term into two parts: one arising from the interaction of matrices within a single epoch, and another from the interaction between different epochs. We then approximate the expectation of the matrix product by the product of the expectations of the corresponding matrices, allowing for a straightforward calculation. For the error analysis, we bound the inner product using \Cref{lem:dot-product} and apply Theorem 7.1 from \citet{huang2022matrix} to control the norm of the matrices.
+\fi
+    
+\end{comment}

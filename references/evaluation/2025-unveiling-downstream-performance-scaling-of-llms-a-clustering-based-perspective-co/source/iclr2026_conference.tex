@@ -1,0 +1,181 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2026_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+\usepackage{etoc}
+\usepackage{colortbl}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+
+
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+\usepackage{graphicx}
+\usepackage{amsmath} 
+\usepackage{amssymb}
+% \usepackage{arydshln}
+\usepackage[capitalize]{cleveref}
+\usepackage{multirow} 
+\usepackage{subcaption}  
+\usepackage{makecell}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{enumitem} 
+\usepackage{xcolor}
+\usepackage{wrapfig}
+\usepackage{framed}
+\usepackage{fancyhdr}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+
+\newtheorem{remark}{Remark}
+
+\usepackage{soul}
+\usepackage{xcolor}
+
+\usepackage{graphicx}    
+% \usepackage{titling} 
+
+\usepackage{soul}
+\usepackage{xcolor}
+
+% 更清爽的荧光绿
+\definecolor{freshgreen}{RGB}{190, 255, 190}
+\newcommand{\greenhl}[1]{\sethlcolor{freshgreen}\hl{#1}}
+
+% 更舒服的浅红（不刺眼）
+\definecolor{freshred}{RGB}{255, 210, 210}
+\newcommand{\redhl}[1]{\sethlcolor{freshred}\hl{#1}}
+
+% \usepackage[ruled,linesnumbered]{algorithm2e}
+
+\usepackage{xspace}
+
+% \DeclareMathOperator*{\argmax}{arg\,max}
+% \DeclareMathOperator*{\argmin}{arg\,min}
+% \def\eg{\textit{e.g.}}
+% \def\Eg{\textit{E.g.}}
+% \def\ie{\textit{i.e.}}
+\makeatletter
+\DeclareRobustCommand\onedot{\futurelet\@let@token\@onedot}
+\def\@onedot{\ifx\@let@token.\else.\null\fi\xspace}
+
+\def\eg{\textit{e.g}\onedot} \def\Eg{\textit{E.g}\onedot}
+\def\ie{\textit{i.e}\onedot} \def\Ie{\textit{I.e}\onedot}
+\def\cf{\textit{cf}\onedot} \def\Cf{\textit{Cf}\onedot}
+\def\etc{\textit{etc}\onedot} \def\vs{\textit{vs}\onedot}
+\def\wrt{w.r.t\onedot} \def\dof{d.o.f\onedot}
+\def\iid{i.i.d\onedot} \def\wolog{w.l.o.g\onedot}
+\def\etal{\textit{et al}\onedot}
+\def\bbE{\mathbb{E}}
+\makeatother
+
+\crefname{section}{Sec.}{Secs.}
+\Crefname{section}{Section}{Sections}
+\crefname{table}{Tab.}{Tabs.}
+\Crefname{table}{Table}{Tables}
+\crefname{equation}{Eq.}{Eqs.}
+\Crefname{equation}{Equation}{Equations}
+
+% \newcommand{\xiao}[1]{{\color{red}{\bf\sf [lx: #1]}}}
+
+% \newcommand{\anno}[1]{{\color{black}{#1}}}
+\newcommand{\labubu}[1]{{\color{black}{#1}}}
+
+\newcommand{\anno}{}
+
+\newcommand{\revise}[1]{{\color{black}{#1}}}
+\newcommand{\camera}[1]{{\color{black}{#1}}}
+
+\title{Unveiling Downstream Performance Scaling of LLMs: A Clustering-Based Perspective}
+
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+
+\author{Chengyin Xu\thanks{Equal contribution.}, Kaiyuan Chen\footnotemark[1], Xiao Li, Ke Shen, Chenggang Li \\
+Bytedance Seed\\
+\texttt{\{xuchengyin.98, chenkaiyuan.99, lixiao.20\}@bytedance.com} \\
+\texttt{\{shenke, lichenggang\}@bytedance.com}
+}
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The escalating scale and cost of Large Language Models (LLMs) training necessitate accurate pre-training prediction of downstream task performance for comprehensive understanding of scaling properties. This is challenged by: 1) the emergence phenomenon, where \revise{unpredictable capabilities appearing suddenly at critical model scales}; and 2) uneven task difficulty and inconsistent performance scaling patterns, leading to high metric variability. Current prediction methods lack accuracy and reliability. We propose a Clustering-On-Difficulty (COD) framework for downstream performance prediction. The COD framework clusters tasks by their difficulty scaling features, \camera{thereby constructing a more stable and predictable task subset that exhibits well-behaved scaling characteristics with the increase of compute budget}. We adopt a performance scaling law to predict cluster-wise performance with theoretical support. Predictable subset performance acts as an intermediate predictor for the full evaluation set. We further derive a mapping function to accurately extrapolate the performance of the subset to the full set. Applied to an LLM with 70B parameters, COD achieved a \camera{1.55\%} average prediction error across eight key LLM benchmarks, \camera{thus providing actionable insights for scaling properties and training monitoring during LLM pre-training}.
+\end{abstract}
+    
+
+\input{sections/introduction}
+
+\input{sections/related_work}
+
+
+\input{sections/pilot_study}
+
+\input{sections/method}
+
+\input{sections/experiments}
+
+
+
+\input{sections/conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{main}
+% }
+
+% \clearpage
+
+\newpage
+
+% \appendix
+
+\appendix
+
+{\small\tableofcontents}  % 现在只显示 appendix
+
+% \tableofcontents
+\setcounter{table}{0} 
+\setcounter{figure}{0}
+\setcounter{proposition}{0}
+\setcounter{theorem}{0}
+
+\renewcommand{\thefigure}{A\arabic{figure}}
+\renewcommand{\thetable}{A\arabic{table}}
+\renewcommand{\thetheorem}{A\arabic{theorem}}
+
+
+
+% \renewcommand{\thefigure}{A\arabic{figure}}
+% \renewcommand{\thetable}{A\arabic{table}}
+% \renewcommand{\theproposition}{A.\arabic{proposition}}
+% \renewcommand{\thesection}{Appendix \Alph{section}}
+% \crefname{section}{Appendix}{Appendices}
+% \Crefname{section}{Appendix}{Appendices}
+
+\input{sections/appendix}
+\end{document}

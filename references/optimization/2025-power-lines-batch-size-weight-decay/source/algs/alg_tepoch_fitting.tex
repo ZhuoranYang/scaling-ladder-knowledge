@@ -1,0 +1,23 @@
+\renewcommand{\algorithmiccomment}[1]{$\triangleright$ #1}
+\begin{algorithm}[t]
+  \caption{Generating the optimal $\tepoch$ power law}
+  \label{alg:tepoch_fitting}
+  \begin{algorithmic}
+    \small
+    \STATE {\bfseries Input:} small batch size $B$, optimal per-$N$ learning rates $\eta$ 
+    \STATE Initialize $\tepochPoints = [$ $]$
+    \FOR{$N$ {\bfseries in} $\modelScales$}  % N
+      \FOR{$D$ {\bfseries in} $10N, 20N, 80N, 320N, ...$} % D
+        \STATE Reset $\lossPoints = [$ $]$
+        \FOR{$\lambda$ {\bfseries in} $\lambdaRange$} % lambda
+          \STATE Train $\LLM(N,D,B,\lambda,\eta)$, get validation loss $L'$
+          \STATE $\tepoch = \nicefrac{B}{\eta \lambda D}$
+          \STATE $\lossPoints[\tepoch] = L'$
+        \ENDFOR % L
+        \STATE $\tepochopt = \argmin_{\tepoch}(\lossPoints)$
+        \STATE $\tepochPoints.add( \langle \tpp$=$\nicefrac{D}{N}, \tepochopt \rangle )$
+      \ENDFOR % D
+    \ENDFOR % N
+    \STATE Fit $\ctepochalg$, $\mtepochalg$ for $\tepochopt = {\ctepochalg} \tpp^{\mtepochalg}$ on $\tepochPoints$
+  \end{algorithmic}
+\end{algorithm}

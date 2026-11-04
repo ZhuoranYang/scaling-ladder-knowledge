@@ -1,0 +1,100 @@
+LLMs predictably improve as model size $N$ and training data size $D$
+increase~\citep{hestness2017scalinglaws,hoffmann2022empirical,kaplan2020scaling}.
+%
+Today, state-of-the-art LLMs are trained at computational scales that
+leave no scope for hyperparameter (HP) tuning, although it is widely
+accepted that good HPs are critical for effective
+training~\citep{yang2022mup,wortsman2023small,bi2024deepseek}.
+
+Both theoretical and empirical efforts have sought to address this.
+Theoretically, maximal update parameterization ($\mup$) allows the
+optimal learning rate $\etaopt$ and initial weight variance $\varopt$
+to remain stable when scaling model
+width~\citep{yang2020feature,yang2022mup},
+% and depth~\citep{bordelon2023depthwise,yang2023tensor,dey2025dont},
+enabling a ``tune small and train large'' strategy.
+%
+Empirically, DeepSeek~LLM~\citep{bi2024deepseek} adopted ``scaling
+laws for HPs,'' where optimal batch size $\bopt$ and optimal learning
+rate $\etaopt$ are estimated at small scale, and then extrapolated via
+a power law fit in total compute FLOPs, $C$. A similar approach was
+used in~\citet{kaplan2020scaling}, forecasting $\bopt$ and $\etaopt$
+from loss $L$ and model size $N$.
+
+Relying on a unique predicted $\bopt$ is \emph{inflexible}---it
+precludes adjusting $B$ for compute/time trade-offs or hardware
+constraints.
+%
+It is also unclear whether $C$, $L$, $N$, or $D$ (or a combination)
+best explains scaling.  \citet{bi2024deepseek} noted, ``for models with
+the same [$C$] but different model/data allocations, the optimal
+parameter space varies slightly.''
+%
+Also, no comparable study has been done for weight decay $\lambda$.
+
+This paper introduces a flexible, unified approach to HPs, using both
+$\mup$ and scaling laws.
+%
+We fit power laws to losses derived from hundreds of $\mup$-trained
+models, focusing on combinations of $\lambda$, $B$, $N$, and $D$.
+%
+We study both \emph{compute-optimal} and \emph{overtrained} models.
+The fewest FLOPs to achieve a loss typically occurs when training at
+$\approx$20 tokens-per-parameter (TPP =
+$D/N$)~\citep{hoffmann2022empirical,besiroglu2024chinchilla}, but
+overtrained models ($>$20~TPP) offer more-efficient
+inference~\citep{touvron2023llama}.  We study TPPs from 20 to 1280.
+
+To capture $\lambda$'s interaction with other scaling HPs ($\eta$,
+$B$), we model scaling of the AdamW timescale, $\tepoch =
+B/(\eta\lambda D)$.
+%
+\citet{wang2024how} found optimal $\tepoch$ stable with
+varying $D$, but we show it obeys a power law in TPP (\cref{fig:hook},
+$\leftfig$).
+%
+This law thus enables accurate estimation of $\lambdaopt$ for any $N$,
+$D$, $B$.
+
+Leveraging these better HPs as $B$ scales, we also study optimal batch
+size: the $\bopt$ that minimizes loss at a given $N$ and $D$.
+%
+While $\bopt$ scales as a power law in $C$ \emph{when TPP is fixed}
+(\cref{fig:related}, $\leftfig$), our results show this arises from a
+more fundamental power-law dependence on $D$ (\cref{fig:hook},
+$\middlefig$).
+
+Importantly, increasing $B > \bopt$ can still reduce training time
+(fewer steps) and improve hardware utilization.
+%
+This raises the question: how much \emph{extra} data is needed when
+using large $B$?
+%
+Prior work defines the \emph{critical batch size} $\cbs$ as the point
+where training to a target loss requires $2 \times \dmin$, with
+rapidly-diminishing returns in training speed
+thereafter~\citep{mccandlish2018empirical}.
+%
+We show $\cbs$ also scales with $D$ (\cref{fig:hook}, $\rightfig$),
+not $L$ as suggested in~\citet{kaplan2020scaling} (\cref{fig:related},
+$\middlefig$), consistent with recent results
+from~\citet{zhang2024how}.
+
+Finally, amid intense competition to advance LLM performance, a key
+question is: which $N$, $D$, and $B$ yield the best trade-off between
+training speed and compute cost?
+%
+Using our fit $\cbs$ law, we derive Pareto-optimal solutions to these
+competing objectives, and show that small, overtrained models can be
+best---offering both faster steps and greater parallelism via larger
+$D$ (and thus higher $\cbs$).
+
+Key findings and takeaways are highlighted in the paper. Our main
+contributions are:
+\begin{itemize}[topsep=1pt,itemsep=1pt]
+\item The first large-scale empirical study varying weight decay $\lambda$ across $N$, $D$, and $B$ in LLMs.
+\item Showing the AdamW timescale obeys a power law, enabling $\lambdaopt$ for any $N$, $D$, $B$ (\cref{sec:lambda}).
+\item A new method for estimating $\cbs$, suitable for any LR schedule or optimizer (\cref{sec:cbs_methods}).
+\item Confirmation that both $\bopt$ and $\cbs$ scale as power laws in $D$ (\cref{sec:bcrit}).
+\item New methods for selecting $N$, $D$, and $B$ to trade-off training time vs.\@ compute (\cref{sec:balancing}).
+\end{itemize}

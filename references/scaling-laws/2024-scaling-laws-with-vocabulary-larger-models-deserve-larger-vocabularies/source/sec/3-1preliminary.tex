@@ -1,0 +1,34 @@
+\subsection{Scaling law with vocabulary}
+\label{sec:preliminaries}
+As prior work generally assumes the vocabulary size to be fixed, we cannot adopt the attributes in their scaling laws and their evaluation metric directly. Thus, we detail several considerations that allow us to investigate vocabulary scaling laws.
+
+
+\textbf{Attributes}\;\;\;\;Scaling laws commonly deal with the attributes, model parameters ($N$) and number of training tokens ($D$) \citep{hoffmann2022training,muennighoff2024scaling}. We adapt them for our analysis in the context of vocabulary size.
+{(1) We break down the total model parameters ($N$) into non-vocabulary ($N_{\rm nv}$) and vocabulary parameters ($N_{\rm v}$). To understand the importance of vocabulary parameters, we isolate them from other model parameters, where $N=N_{\rm nv}+N_{\rm v}$.
+We use $N_{\rm v}=Vd$ to represent both the vocabulary parameters in the output layer~\footnote{Vocabulary parameters typically encompass both the word embedding layer and the output layer. In this paper, for clarity and analytical simplicity, we employ $Vd$ rather than $2Vd$ to represent the vocabulary parameters. This choice is predicated on empirical observations: the main computational burden, as measured in FLOPs, is associated with the output layer, but not the word embedding layer.}. 
+Notably, to change $N_{\rm v}$ we only vary the vocabulary size $V$ and take the embedding dimension $d$ as given based on $N_{\rm nv}$ empirically, see \autoref{append:Nnv-d} for details. This is based on the observation by \citet{kaplan2020scaling} that the performance of models with varying depth-to-width ratios converges to a single trend. We also provide further analysis about why we break down the model parameters from the perspective of parameter growing in \autoref{append:model_growing}.
+(2) We measure data  not in tokens ($D$) but in training characters ($H$). The number of tokens depends on the vocabulary of the tokenizer. By studying training characters, we can better see how the data volume affects the performance regardless of different vocabulary sizes.
+
+
+
+\textbf{Mapping from training characters ($H$) to tokens ($D$)}\;\;\;\;As detailed above we measure training data in training characters ($H$). Nonetheless, to connect our findings with existing studies on scaling laws~\citep{hoffmann2022training,muennighoff2024scaling}, we need to be able to map from $H$ to $D$. This mapping is the tokenizer's compression ratio which can be computed via $D/H$. The more tokens the tokenizer needs to represent $H$, the larger $D$, and thus it compresses less. We develop a simple function $f(V)$ to estimate this ratio solely from the chosen vocabulary size, $V$. Specifically, we find that a quadratic function on the logarithmic value of $V$ achieves accurate predictions:
+\begin{equation}
+\label{eq:fv}
+    f(V) = a \log^2(V) + b\log (V) + c
+\end{equation}
+By fitting several tokenizers with $V$ ranging from $1K$ to $1024K$, we obtain $a=0.0064$, $b=-0.1581$ and $c=1.2047$. We find that our function accurately predicts the compression ratio with a low relative mean square error (RMSE) and a high coefficient of determination ($R^2$). In \autoref{append:robustness_fv}, we visualize fitting results and show that our approximation works with different tokenizers and is robust to different $V$. For all our main experiments, we use the BPE algorithm for tokenization~\citep{bpe2016}.
+
+
+\textbf{Vocabulary-insensitive loss}\label{subsec:evaluation}
+\;\;\;\;To fairly assess models that vary in $V$, the commonly used language model loss in \autoref{eq:lm_loss} is inappropriate. Models trained with larger $V$ naturally have a higher loss, as there are more possibilities in the vocabulary to predict. However, this does not mean that the model is worse. Thus, we need to normalize the loss with respect to the vocabulary size. We reformulate the unigram-normalized metric~\citep{roh2020unigram} as a loss function. Suppose we have a $T$-length sequence $w_{1:T}$, we design the unigram-normalized language model loss as:
+\begin{equation}
+ \mathcal{L}_u= -\frac{1}{T} \sum_{i=1}^{T} \log \frac{p(w_i | w_{1:i-1},V)}{p(w_i|V)},
+\end{equation}
+where $p(w_i|V)$ is the frequency of word $w_i$ in the tokenized corpus, given the tokenizer with vocabulary size $V$. The loss indicates the improvement in probability that a context-aware language model offers over a unigram model without context, allowing us to assess the language model's efficacy.
+Based on theory from prior work~\citep{roh2020unigram}, the normalized loss $\mathcal{L}_u$ remains consistent for a given model with a fixed non-vocabulary component across different vocabulary sizes. The difference of $\mathcal{L}_u$ comes from the ability of the language model itself. Compared with $\mathcal{L}$, the value of $\mathcal{L}_u$ is much smaller and can be negative as $\mathcal{L}_u$ adds a negative term $\frac{1}{T} \sum_{i=1}^{T} \log p(w_i|V)$.
+One may also employ the average bits per character (BPC), a common metric for text compression~\cite{compression2024}, as the vocabulary-insensitive loss. The only difference lies in the normalization. BPC represents the raw per-character language model loss over the corpus, while our $\mathcal{L}_u$ is equivalent to the per-character language model loss normalized by the frequency of each character.  In practice, we find that the metric BPC and $\mathcal{L}_u$ show a significant positive correlation, which experimentally validated our statement, as detailed in the \autoref{append:bpc}. 
+
+
+
+
+

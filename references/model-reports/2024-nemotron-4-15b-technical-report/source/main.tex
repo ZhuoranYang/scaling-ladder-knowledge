@@ -1,0 +1,780 @@
+\documentclass[11pt]{article}
+
+\usepackage{times}
+\usepackage{float}
+\renewcommand*{\ttdefault}{cmtt}
+\usepackage{fullpage}
+\usepackage[compact]{titlesec}  
+\titlespacing{\section}{0pt}{0pt}{0pt}
+%\renewcommand{\baselinestretch}{1.00}
+\titleformat{\section}
+  {\normalfont\fontsize{13}{15}\bfseries}{\thesection}{1em}{}
+\titleformat{\section}
+  {\normalfont\fontsize{13}{15}\bfseries}{\thesection}{1em}{}
+%\usepackage[hidelinks,colorlinks=true,linkcolor=blue,citecolor=blue]{hyperref}
+\usepackage[hidelinks]{hyperref}
+
+\usepackage[utf8]{inputenc}
+\usepackage{booktabs}
+\usepackage{subcaption}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{authblk}
+\usepackage{caption}
+\captionsetup[table]{skip=3pt}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage[round]{natbib}
+\usepackage{textcomp}
+\usepackage{adjustbox}
+\usepackage{tabularx}
+\usepackage{todonotes}
+\usepackage{footnote}
+%\usepackage[numbers]{natbib}
+\usepackage{graphicx}
+\usepackage{fancyvrb} % for "\Verb" macro
+\usepackage{hyperref}
+\hypersetup{linkcolor=blue}
+\usepackage{listings}
+\usepackage{placeins}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{pifont}
+%\usepackage{subfigure}
+\usepackage{comment}
+
+
+
+\lstset{
+  language=Python,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=4
+}
+
+
+\newcommand{\shrimai}[1]{{\color{red}{\textbf{Shrimai}: #1}}}
+\newcommand{\jupinder}[1]{{\color{blue}{\textbf{Jupinder}: #1}}}
+\newcommand{\joseph}[1]{{\color{red}{\textbf{Joseph}: #1}}}
+
+\newcommand{\ours}{Nemotron-4}
+
+\title{Nemotron-4 15B Technical Report}
+\author{Jupinder Parmar\footnote{
+Equal contribution, corresponding authors: {\tt 
+\{jupinderp,sprabhumoye,jjennings,mpatwary\}@nvidia.com}. 
+%Author order decided by coin flip. % Mohammad: I am not sure if this is needed. Equal contribution nullifies this.
+} \ \ Shrimai Prabhumoye$^{*}$ \ \ Joseph Jennings$^{*}$ \ \ Mostofa Patwary$^{*}$ \\ Sandeep Subramanian\footnote{Work done while at NVIDIA.} \ \ Dan Su \ \ Chen Zhu \ \ Deepak Narayanan \ \  Aastha Jhunjhunwala \ \  Ayush Dattagupta \ \ Vibhu Jawa \ \ Jiwei Liu \ \ Ameya Mahabaleshwarkar \ \ Osvald Nitski \ \  Annika Brundyn \ \ James Maki \ \ Miguel Martinez \ \ Jiaxuan You \ \ John Kamalu \ \ Patrick LeGresley \ \ Denys Fridman \ \ Jared Casper \ \  Ashwath Aithal \ \ Oleksii Kuchaiev \ \ Mohammad Shoeybi \ \ Jonathan Cohen \ \ Bryan Catanzaro \par \textbf{NVIDIA}}
+
+%\thanks{Equal contribution, corresponding authors: {\tt 
+%\{sprabhumoye,jupinderp,jjennings,mpatwary\}@nvidia.com}}
+%}
+
+%Jupinder: Data: SEC Filing dataset - curation, identification, and processing; Data Blending: Implemented unimax/doremi methods for data sampling, ran experiments to identify best sampling procedure across all domains individually as well as for the entire dataset; Evaluations: Implemented multilingual, coding benchmarks and helped lead development of the eval-tool; Continued Training: Gathered new data sources, created data blends, and ran experiments for identification of the best continued training recipe + training of final 15b version, Ablations: ran ablations for data sampling weights across all domains on the 8T set (english, code, multilingual) to identify final blending weights used in training; Report writing
+
+%Shrimai: Data: Lead data effort for non-cc (coordination and curation + identification of new data), identify what data is useful for LM (evaluating new data sources), build metric to evaluate good samples, processing of Non-CC data and fixing it post filtering, PDF-to-text conversion, Data Classifiers: lead the effort to build data classifiers and co-ordinated with KGMON team for building classifiers and SurgeAI/DataFactory team for annotations, wrote guidelines for annotations, classifiers built: domain, type of speech, quality, toxicity; Ablation studies: quality expts to identify whether to upsamples high quality documents, multi-epoch training, group-query attention, Books-3 vs not book3; Evaluation: Implemented LM-Eval-Harness benchmark internally; Code: code ablations to identify what languages as well as file-level vs repo-level; Report writing;
+
+%\date{February 2024}
+\date{}
+
+\begin{document}
+
+\parindent 0.0in
+\parskip 0.15in
+
+\maketitle
+
+\begin{abstract}
+We introduce \ours{} 15B, a 15-billion-parameter large multilingual language model trained on 8 trillion text tokens. \ours{} 15B demonstrates strong performance when assessed on English, multilingual, and coding tasks: it outperforms all existing similarly-sized open models on 4 out of 7 downstream evaluation areas and achieves competitive performance to the leading open models in the remaining ones. Specifically, \ours{} 15B exhibits the best multilingual capabilities of all similarly-sized models, even outperforming models over four times larger and those explicitly specialized for multilingual tasks.
+
+
+%English, multilingual, and coding performance as it either outperforms, or is competitive to, all similarly-sized, open model in downstream benchmark tasks. Specifically, \ours{} 15B exhibits the best multilingual capabilities of all similarly-sized models, even outperforming models specialized for multilingual tasks.
+
+% Reasoning: LM-EVAL: yes
+% MMLU: no
+% BBH" yes
+% Coding: no
+% Multilingual Classification : yes
+% Multilingual Generation: yes
+% Math: no
+
+%We release \ours{} under the Apache 2.0 license.
+%We introduce Nemotron-4 15B, a 15 billion parameter large language model trained on large amounts of high quality data and  demonstrates exceptional performance across benchmark tasks.
+\end{abstract}
+
+
+\section{Introduction}
+
+Recently published efforts \citep{hoffmann2022training,touvron2023llama,touvron2023llama2,yang2023baichuan, jiang2023mistral} in language model pre-training have been inspired by Chinchilla scaling laws \citep{hoffmann2022training}, which argue for scaling data along with model size given a fixed compute budget, compared to past work that only scaled the size of the model~\citep{kaplan2020scaling,brown2020language, smith2022,rae2022scaling,workshop2023bloom}.
+For example, \citep{hoffmann2022training} shows that given two roughly IsoFLOP GPT models with a similar data distribution, a 65-billion-parameter model on 1.4 trillion tokens and a 280-billion-parameter model on 300 billion tokens, the 65B model has better accuracy on downstream tasks. 
+
+
+This trade-off of allocating compute towards training on more data as opposed to increasing model size is particularly appealing from an inference perspective, reducing latency and the amount of compute needed to serve models. As a consequence, a major focus of language modeling training efforts has shifted to collecting high-quality multi-trillion token datasets from public sources such as Common Crawl. We continue this trend by introducing \ours{} 15B which was trained on 8 trillion tokens of English, multilingual, and coding text and was developed to be the best general-purpose large language model (LLM) that can fit on a single NVIDIA A100 or H100 GPU.
+%node of NVIDIA A100s.  
+
+
+%\ours{} 15B has been released under CC license to facilitate research and further customization of NeMoTron models.
+
+As demonstrated in Figure \ref{fig:benchmark_comp}, \ours{} 15B exhibits high downstream accuracies across a wide range of English, code, and multilingual evaluation areas. In comparison to leading similarly-sized, open models we show that \ours{} 15B is significantly better than LLaMA-2 34B~\citep{touvron2023llama2}, which has over twice the number of parameters, and is better than Mistral 7B~\citep{jiang2023mistral} on all English evaluation areas. Additionally, \ours{} 15B achieves competitive accuracies to QWEN 14B~\citep{bai2023qwen} and Gemma 7B~\citep{gemma24}. In a comparison across a wide range of programming languages, we find that \ours{} 15B achieves better average accuracy, and in particular on low-resource programming languages, than Starcoder~\citep{li2023starcoder}, a code-specific model, and Mistral 7B. As \ours{} 15B was trained on significant amount of multilingual data, it is currently the state-of-the-art general purpose model in its size class on all multilingual benchmarks. We find that \ours{} is better than PALM 62B-Cont~\citep{palm2}, and also outperforms multilingual-specific models such as XGLM~\citep{lin2022fewshot} and mGPT~\citep{shliazhko2022mgpt}.
+
+%QWEN 14B~citep{qwen}
+% TODO: chart  / table here to compare and show
+%is competitive with all existing similarly-sized, open models on a variety of downstream English and coding evaluation areas.
+
+%\begin{figure}
+%    \centering
+%    \includegraphics[width=0.85\linewidth]{comparison.png}
+%    \caption{Data composition of the 8 trillion tokens used for pre-training.}
+%    \label{fig:data_comp}
+%\end{figure}
+
+\begin{figure}
+\centering
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{comparison_largest_fin.pdf}
+  \label{fig:sub1}
+\end{subfigure}%
+\begin{subfigure}{.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{multilingual_comp_largest_fin.pdf}
+  \label{fig:sub2}
+\end{subfigure}
+\caption{Comparison of \ours{} 15B across seven evaluation areas against similarly sized models. The composition of tasks that form each evaluation area can be found, along with more detailed evaluation results, in Section \ref{results}}
+\label{fig:benchmark_comp}
+\end{figure}
+
+
+
+%\begin{table}[H]
+%\centering
+%\begin{adjustbox}{max width=\textwidth, scale=1.0}
+%\begin{tabular}{lrcc}
+%\toprule
+%& Parameters  & Multilingual classification & Multilingual generation \\ 
+%\midrule
+%GPT-NeoX  & 20B & 72.0 & 72.3 & - & - & 34.3 & 77.9 & 66.1 & 53.5 & 65.8 \\
+%\midrule
+%GPT-3 &  175B & 76.2 & 68.8 & 14.4 & 45.5 & 35.4 & 81.0 & 70.2 & 78.9 & 76.7 \\
+%\midrule
+%MT-NLG & 530B & 76.6 & - & - & 47.9 & 36.6 & 82.0 & 73.0 & 80.2 & 78.4 \\
+%\midrule
+%\multirow{4}{*}{PaLM} & 8B & 69.5 & 69.2 & 6.7 & 42.3 & 35.8 & 77.1 & 66.3 & 68.7 & 70.7\\
+% & 62B & 75.4 & 75.2 & 11.5 & 47.5 & 37.2 & 80.5 & 77.0 & 79.7 & 79.1  \\
+% & 62B-cont & 76.3 & - & - & - & - & 81.4 & 77.0 & 80.6 & \textbf{79.7} \\
+%\midrule
+%XGLM & 7.5B & 61.4 & - \\
+%\midrule
+%mGPT & 13B & 56.0 & - \\
+%\midrule
+%Palm & 62B-Cont & - & 38.9 \\
+%\midrule
+%Mistral  & 7B & - & 22.2 \\
+%\midrule
+%\ours{} & 15B & \textbf{68.9} & \textbf{45.9}  \\
+%\bottomrule
+%\end{tabular}
+%\end{adjustbox}
+%\caption{\label{tab:multi_comparison} \ours{} 15B is a clear leader in multilingual evaluations: it both outperforms existing general purpose language models (Palm 62B-Cont, Mistral 7B) as well as models that have been specially trained for the multilingual domain (XGLM, mGPT). }
+%For classification we consider the XCOPA task and for generation we aggregate over TyDiQA-GoldP and MGSM. 
+%\end{table}
+
+
+%Specifically, it is significantly better than LLaMA-2 34B \citep{touvron2023llama2} which is twice in number of parameters compared to \ours{} on all tasks and it is better than Mistral 7B~\citep{jiang2023mistral} on English tasks such as MMLU, BigBench-Hard and LM-eval-harness.
+%Since it is trained on significant amount of multilingual data, it is currently the state-of-the-art model on XCopa, TyDiQA, Flores and MGSM benchmarks at this size.
+%It is better than PALM 62B \citep{palm2} which has 4x more parameters than \ours{} on all multilingual benchmarks.
+%This release is accompanied by a reference implementation1 facilitating easy deployment either locally or on cloud platforms such as AWS, GCP, or Azure using the vLLM [17] inference server and SkyPilot 2. Integration with Hugging Face 3 is also streamlined for easier integration. Moreover, Mistral 7B is crafted for ease of fine-tuning across a myriad of tasks. As a demonstration of its adaptability and superior performance, we present a chat model fine-tuned from Mistral 7B that significantly outperforms the Llama 2 13B – Chat model.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{ccccccc}
+    \toprule
+    Number of          & Hidden    & Number of       & Number of & Sequence & Vocabulary \\
+    transformer layers & dimension & attention heads &    KV heads                & length   & size \\
+    \toprule
+    32 & 6144 & 48 & 8 & 4096 & 256,000 \\
+    \bottomrule
+    \end{tabular}
+    \caption{Key hyper-parameters affecting size of \ours{} 15B.}
+    \label{tab:model_arch}
+\end{table}
+
+\section{Architecture Details}
+
+
+\ours{} uses a standard decoder-only Transformer architecture~\citep{DBLP:journals/corr/VaswaniSPUJGKP17}, with causal attention masks. Exact hyper-parameters affecting size are shown in Table~\ref{tab:model_arch}. 
+\ours{} has 3.2 billion embedding parameters and 12.5 billion non-embedding parameters.
+We use Rotary Position Embeddings (RoPE)~\citep{su2021roformer}, SentencePiece tokenizer~\citep{kudo2018sentencepiece}, squared ReLU activations in the MLP layers, no bias terms, dropout rate of zero, and untied input-output embeddings.
+% Using untied embeddings also avoids an extra gradient all-reduce to keep embedding weights in sync across pipeline stages for models that use pipeline parallelism.
+We use grouped query attention (GQA)~\citep{ainslie2023gqa} for faster inference and lower memory footprint.
+
+
+
+\paragraph{Data.} 
+
+We train \ours{} 15B on a pre-training dataset consisting of 8 trillion tokens. At a high-level, the data blend is split into three different types of data: English natural language data (70\%), multilingual natural language data (15\%), and source-code data (15\%). 
+%Figure~\ref{fig:data_comp} highlights the distribution of the entire 8T token pre-training dataset.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.85\linewidth]{plots/new_full_distr.png}
+    \caption{Data composition of the English tokens used for pre-training}
+    \label{fig:data_comp}
+\end{figure}
+
+The English corpus consists of curated documents from a variety of sources and domains including web documents, news articles, scientific papers, books, etc and the distribution used in our pre-training set is highlighted in Figure~\ref{fig:data_comp}. The code and multilingual data consists of a diverse set of natural and programming languages. We find that appropriately sampling tokens from these languages is key to strong accuracies in these domains. We share the distributions used for both code and multilingual tokens in our pre-training dataset in Figure~\ref{fig:code_distr} and Figure~\ref{fig:multi_distr} respectively.  
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{plots/test_code.png}
+    \caption{Data distribution of the 43 programming languages used for pre-training. The number within each bar indicates the percent of the overall code distribution that an individual language comprises.}
+    \label{fig:code_distr}
+\end{figure}
+
+In constructing the pre-training corpus, we remove any possible duplicates via document-level exact and near-deduplication~\citep{jennings2023ndc}. We additionally applied document-level quality filtering across our corpus using a language-model based filtering approach similar to \citep{wenzek2019ccnet} in addition to a  series of heuristic filters as described in \citep{rae2022scaling} and \citep{raffel2020exploring}.
+
+We train a BPE tokenizer in SentencePiece~\citep{kudo2018sentencepiece} on data that is randomly sampled from the final 8T token dataset. To have better coverage of low-resource languages in the tokenizer, we upsample non-English data relative to the final training dataset distribution. Our tokenizer preserves whitespaces (including leading and trailing ones), splits numbers into their individual digits~\citep{chowdhery2022palm}, and relies on byte-level backoff to handle unknown character sequences. The final vocabulary size is 256,000 tokens. 
+
+
+
+
+
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{plots/test_multi.png}
+    \caption{Data distribution of the 53 natural languages, aside from English,we used for pre-training. The number within each bar indicates the percent of the overall multilingual distribution that an individual language comprises.}
+    \label{fig:multi_distr}
+\end{figure}
+
+%\begin{figure}
+%    \centering
+%5    \includegraphics[width=0.7\linewidth]{multilingual.png}
+%    \caption{Data composition of 8 trillion tokens used for pre-training}
+%    \label{fig:data_comp}
+%\end{figure}
+
+\paragraph{Pre-training.} 
+\ours{} was trained using 384 DGX H100 nodes; each node contains 8 H100 80GB SXM5 GPUs based on the NVIDIA Hopper architecture~\citep{nvidia2022h100}. 
+Each H100 GPU has a peak throughput of 989 teraFLOP/s when doing 16-bit floating point (\texttt{bfloat16}) arithmetic without sparsity. Within each node, GPUs are connected by NVLink and NVSwitch~\citep{nvlink}; the GPU-to-GPU bandwidth is 900 GB/s (450 GB/s in each direction). Each node has 8 NVIDIA Mellanox 400 Gbps HDR InfiniBand Host Channel Adapters (HCAs) for inter-node communication. 
+%The switch architecture is a three level fat tree topology (leaf, spine, and core) implemented using a total of 1200 switches. This switch architecture provides full port bandwidth between rail aligned HCAs.
+
+
+%Each node also contains an additional 2 HCAs for access to the cluster wide Lustre filesystem. Peak storage bandwidth is 50 GB/s/node with a maximum of 2 TB/s across the entire cluster.
+
+We used a combination of 8-way tensor parallelism~\citep{shoeybi2019megatron} and data parallelism to train the model; we also use a distributed optimizer to shard the optimizer state over the data-parallel replicas. The degree of data parallelism was varied from 96 to 384 as the batch size was ramped up. 
+Table~\ref{tab:43bmodel_batch_time_mfu} summarizes the 3 stages of batch size ramp, and includes the per-iteration time and model FLOP/s utilization (MFU)~\citep{chowdhery2022palm,korthikanti2022sequence}. MFU quantifies how efficiently the GPUs are utilized in model training. Training was completed in approximately 13 calendar days.
+%\shrimai{Overlapping computation and data parallel communication, and the high internode bandwidth of CoreWeave, results in almost perfectly linear data parallel scaling.}
+
+%The last two columns are the product of the time per iteration and number of iterations at each batch size. 
+%, concurrently with other workloads running on the system. 
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{crccccc}
+    \toprule
+    Data-parallel size & GPUs & Iteration time (secs) & MFU (\%) & Batch size & Tokens (B) & Time (days) \\
+    \toprule
+    96 &  768 & 0.57 & 34.3 & 384 &  200 & 0.8 \\
+    192 & 1,536 & 0.58 & 33.3 & 768 &  200 & 0.4 \\
+    288 & 2,304 & 0.64 & 30.5 & 1,152 &  7,600 & 11.9   \\
+    % 384 & 3072 & 0.61 & 24.2 & 1152 &  7600 & 11.4 \\
+    \bottomrule
+    \end{tabular}
+    \caption{Batch size rampup schedule, along with time and efficiency metrics for the \ours{} 15B parameter model.}
+    \label{tab:43bmodel_batch_time_mfu}
+\end{table}
+
+\paragraph{Continued Training.}
+Similar to recent work~\citep{geminiteam2023gemini}, we find that switching the data distribution and learning rate decay schedule at the end of model training greatly improves model quality. Concretely, after having trained over the entirety of our 8T pre-training dataset, we use the same loss objective and perform continued training on small number of tokens in comparison to the pre-training tokens. 
+
+In this additional phase of continued training, we utilize two distinct data distributions. 
+The first distribution is where the majority of tokens during continued training are sampled from. It utilizes tokens that have already been introduced during pre-training but with a distribution that places larger sampling weight on higher quality sources. 
+The second distribution introduces a small number of benchmark-style alignment examples to better allow the model to respond to such questions in downstream evaluations while also up-weighting data sources that come from areas of low model performance. 
+In accompaniment with a learning rate schedule that prioritizes a steeper slope of decay than magnitude of learning rate, we find that such an ordering and style of data distributions allows for the model to gently transition from the pre-training dataset and better learn newly emphasized data areas. 
+
+
+
+\section{Results}\label{results}
+We evaluate \ours{} 15B on a variety of downstream evaluation areas covering a diverse range of tasks and domains. In all evaluations, we adhere to the standardized task setup and share the exact settings used. The covered evaluation categories include: 
+
+\begin{itemize}
+    \item \textbf{Commonsense Reasoning (0-shot):}  SIQA \citep{sap2019socialiqa}, ARC easy and challenge \citep{clark2018think},  PIQA \citep{Bisk2020PIQARA}, Winogrande \citep{Sakaguchi2020WINOGRANDEAA}, and Hellaswag  \citep{Zellers2019HellaSwagCA}
+    \item \textbf{Popular Aggregated Benchmarks:} MMLU (5-shot) \citep{hendrycks2020measuring} and BBH (3-shot) \citep{suzgun2022challenging}
+    \item \textbf{Math:} GSM8K (8-shot with maj@1) \citep{cobbe2021}
+    \item \textbf{Code:} Pass@1 scores on HumanEval (0-shot) \citep{chen2021evaluating}, MBPP (3-shot) \citep{austin2021program}, and MultiPL-E (0-shot) \citep{multiple2023}
+    \item \textbf{Multilingual:} classification via XCOPA (0 and 4-shot) \citep{xcopa}, machine translation with FLORES-101 (8-shot)~\citep{goyal2021}, and generation tasks such as MGSM (8-shot)~\citep{shi2022language} and TyDiQA (1-shot)~\citep{tydiqa} 
+\end{itemize}
+
+
+
+
+%can add in trivia qa / truthful qa after this aggregation to see. -- confirm with shrimai and mostofa 
+
+%We evaluate our models on a variety of benchmarks. These benchmarks include:
+%\begin{itemize}
+%    \item \textbf{English Benchmarks:} These tasks broadly test commonsense reasoning, reading comprehension, math and world knowledge. We evaluate on \textit{Language Model Evaluation Harness}~\citep{eval-harness}, \textit{BigBench}~\citep{srivastava2022beyond}, \textit{Massive Multitask Language Understanding} (MMLU)~\citep{hendrycks2020measuring} and Big-Bench hard ~\citep{srivastava2022beyond}.
+%    \item \textbf{Multilingual Benchmarks:} classification tasks like XCOPA~\citep{xcopa}, machine translation tasks like FLORES-101~\citep{goyal2021}, and generation tasks like MGSM~\citep{shi2022language}, and TyDiQA~\citep{tydiqa}.
+%    \item \textbf{Code Benchmarks:} HumanEval~\citep{chen2021evaluating}, MBPP~\citep{austin2021program} and Multiple-e~\citep{multiple2023}.
+%\end{itemize}
+
+
+
+% and toxicity generation evaluation following the RealToxicityPrompts setup. 
+%These evaluations cover a variety of tasks: common sense reasoning, reading comprehension, question answering, natural language inference, and more. 
+
+
+In our evaluations, we compare against a number of external decoder-only transformer language models and unless otherwise stated we use the numbers published in the reports of the corresponding models. For English and code tasks, we share detailed results for \ours{} 15B, LlaMA-2 13B and 34B \citep{touvron2023llama2}, Mistral 7B \citep{jiang2023mistral}, Baichuan-2 13B~\citep{yang2023baichuan}, QWEN 14B~\citep{bai2023qwen}, and Gemma 7B \citep{gemma24}. For multilingual benchmarks, we report results against PaLM 62B and 62B-cont \citep{chowdhery2022palm} as well as models specially trained for multilingual capabilities such as mGPT 13B \citep{shliazhko2022mgpt} and XGLM 7.5B \citep{lin2022fewshot}.
+
+
+
+\subsection{Commonsense Reasoning}
+We use the LM-Evaluation Harness~\citep{eval-harness} to evaluate \ours{} 15B across all aforementioned tasks. Table~\ref{tab:lm_eval_harness_external} showcases that \ours{} 15B achieves the strongest average performance on this diverse set of tasks.
+
+\begin{table}[H]
+\centering
+\begin{adjustbox}{max width=\textwidth, scale=1.0}
+\begin{tabular}{lrccccccc}
+\toprule
+& Size & SIQA  & ARC-c & ARC-e & PIQA & Winogrande & Hellaswag & AVG \\ 
+\midrule
+%GPT-NeoX  & 20B & 72.0 & 72.3 & - & - & 34.3 & 77.9 & 66.1 & 53.5 & 65.8 \\
+%\midrule
+%GPT-3 &  175B & 76.2 & 68.8 & 14.4 & 45.5 & 35.4 & 81.0 & 70.2 & 78.9 & 76.7 \\
+%\midrule
+%MT-NLG & 530B & 76.6 & - & - & 47.9 & 36.6 & 82.0 & 73.0 & 80.2 & 78.4 \\
+%\midrule
+%\multirow{4}{*}{PaLM} & 8B & 69.5 & 69.2 & 6.7 & 42.3 & 35.8 & 77.1 & 66.3 & 68.7 & 70.7\\
+% & 62B & 75.4 & 75.2 & 11.5 & 47.5 & 37.2 & 80.5 & 77.0 & 79.7 & 79.1  \\
+% & 62B-cont & 76.3 & - & - & - & - & 81.4 & 77.0 & 80.6 & \textbf{79.7} \\
+%\midrule
+\multirow{2}{*}{LLaMA-2} & 13B & 50.3 & 49.4 & 77.3 & 79.8 & 72.8 & 80.7 & 68.4 \\
+& 34B & 50.9 & 54.5 & 79.4 & 81.9 & 76.7 & 83.3 & 71.1 \\
+\midrule
+\multirow{1}{*}{Baichuan-2} & 13B & - & - & - & 78.1 & - & 70.8 & - \\
+\midrule
+QWEN & 14B & 77.9 & 84.4 &90.3 & 79.9 & - & 80.2 & - \\
+\midrule
+Mistral  & 7B & \ \ 47.0$^{*}$ & 55.5 &80.0 & 83.0 & 75.3 & 81.3 & 70.4 \\
+\midrule
+Gemma & 7B & 51.8 & 53.2 & 81.5 & 81.2 & 72.3 & 81.2 & 70.2 \\
+\midrule
+\ours{} & 15B & 60.9 & 55.5 & 80.9 & 82.4 & 78.0 & 82.4 & \textbf{73.4} \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\label{tab:lm_eval_harness_external} Results on standard reasoning benchmarks in the zero-shot setting. We report the average across all tasks where possible for a fair comparison. The values marked with $*$ are read from ~\citet{gemma24} }
+\end{table}
+
+
+
+\begin{comment}
+\begin{table}[H]
+\centering
+\begin{adjustbox}{max width=\textwidth, scale=1.0}
+\begin{tabular}{lrccccccccc}
+\toprule
+& Parameters  & Lambada & ARC-Easy & WebQS & Race-H & ANLI-R2 & PiQA & Winogrande & Hellaswag & AVG \\ 
+\midrule
+%GPT-NeoX  & 20B & 72.0 & 72.3 & - & - & 34.3 & 77.9 & 66.1 & 53.5 & 65.8 \\
+%\midrule
+%GPT-3 &  175B & 76.2 & 68.8 & 14.4 & 45.5 & 35.4 & 81.0 & 70.2 & 78.9 & 76.7 \\
+%\midrule
+%MT-NLG & 530B & 76.6 & - & - & 47.9 & 36.6 & 82.0 & 73.0 & 80.2 & 78.4 \\
+%\midrule
+%\multirow{4}{*}{PaLM} & 8B & 69.5 & 69.2 & 6.7 & 42.3 & 35.8 & 77.1 & 66.3 & 68.7 & 70.7\\
+% & 62B & 75.4 & 75.2 & 11.5 & 47.5 & 37.2 & 80.5 & 77.0 & 79.7 & 79.1  \\
+% & 62B-cont & 76.3 & - & - & - & - & 81.4 & 77.0 & 80.6 & \textbf{79.7} \\
+%\midrule
+\multirow{2}{*}{LLaMA-2} & 7B & - & 75.2 & - & - & - & 78.8 & 69.2 & 77.2  & 75.1 \\
+& 13B & - & 77.3 & - & - & - & 79.8 & 72.8 & 80.7 & 77.7 \\
+& 34B & - & 79.4 & & & & 81.9 & 76.7 & 83.3 & 80.3 \\
+\midrule
+\multirow{2}{*}{Baichuan-2} & 7B & - & - & - & - & - & 76.2 & - & 67.0 & - \\
+& 13B & - & - & - & - & - & 78.1 & - & 70.8 & - \\
+\midrule
+Mistral  & 7B & - & 80.0 & - & - & - & 83.0 & 75.3 & 81.3 & 79.9\\
+\midrule
+\ours{} & 15B & 75.7 & 80.9 & 22.3 & 47.6 & 44.8 & 82.4 & 78.0 & 82.4 & \textbf{80.9} \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\label{tab:lm_eval_harness_external}Zero-shot accuracy of models on many NLU tasks. We report the average over ARC-Easy,  PiQA, Winogrande, and Hellaswag where possible. }
+\end{table}
+\end{comment}
+
+\subsection{Popular Aggregated Benchmarks}
+
+The MMLU~\citep{hendrycks2020measuring} and Big Bench Hard (BBH)~\citep{suzgun2022challenging} benchmarks have been developed as a challenging assessment of language models' capabilities on a wide range of tasks and domains. As seen from  Table~\ref{tab:bbh_mmlu}, \ours{} 15B achieves the best score on BBH across existing models at its scale by nearly 7\%. 
+Additionally, \ours{} is significantly better than LLaMA-2 70B model on BBH benchmark where LLaMA-2 70B attains a score of 51.2 and \ours{} is 58.7.
+\ours{} 15B additionally attains a highly competitive MMLU score and its per-category performance on MMLU can be found in Table \ref{tab:mmlu}.
+
+%\subsection{MMLU}
+%\subsection{Bigbenchhard}
+
+%\shrimai{put avg, maybe details in appendix}
+
+%& 70B & 51.2 &  \\
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lrcc} 
+\toprule
+    & Size & BBH & MMLU     \\ 
+\midrule
+\multirow{3}{*}{LLaMA-2} & 13B  & 39.4 & 54.8 \\
+& 34B & 44.1 & 62.6 \\
+\midrule
+\multirow{1}{*}{Baichuan-2} & 13B  & 48.8 & 59.2 \\
+\midrule
+QWEN & 14B & 53.4 & \textbf{66.3} \\
+\midrule
+Mistral & 7B & 39.5 & 60.1 \\
+\midrule
+Gemma & 7B & 55.1 & 64.3 \\
+\midrule
+\ours{} & 15B & \textbf{58.7} & 64.2 \\ 
+\bottomrule
+\end{tabular}
+\caption{\label{tab:bbh_mmlu} \ours{} 15B attains highly competitive performance on popular aggregate benchmarks. The BBH result for Mistral is read from the figure in~\citep{jiang2023mistral}.}
+\end{table}
+
+
+
+\begin{comment}
+\begin{table}[H]
+\centering
+\begin{tabular}{lccccc} 
+\toprule
+Sub-tasks & \ours{} &  &       \\ 
+boolean\_expressions & \\
+causal\_judgement  & \\
+date\_understanding  & \\
+disambiguation\_qa  & \\
+dyck\_languages  & \\
+formal\_fallacies  & \\
+geometric\_shapes  & \\
+hyperbaton  & \\
+logical\_deduction\_five\_objects  & \\
+logical\_deduction\_seven\_objects  & \\
+logical\_deduction\_three\_objects  & \\
+movie\_recommendation  & \\
+multistep\_arithmetic\_two  & \\
+navigate  & \\
+object\_counting & \\
+penguins\_in\_a\_table  & \\
+reasoning\_about\_colored\_objects & \\
+ruin\_names & \\
+salient\_translation\_error\_detection & \\
+snarks & \\
+sports\_understanding & \\
+temporal\_sequences & \\
+tracking\_shuffled\_objects\_five\_objects & \\
+tracking\_shuffled\_objects\_seven\_objects & \\
+tracking\_shuffled\_objects\_three\_objects & \\
+web\_of\_lies & \\
+word\_sorting & \\
+\bottomrule
+\end{tabular}
+\caption{\label{tab:bbh} Three-shot performance on the Big-Bench Hard.}
+\end{table}
+\end{comment}
+
+\subsection{Math and Code}
+
+Recently, large language models have been shown to be effective at both mathematical reasoning and a variety of coding tasks \citep{allal2023santacoder,chowdhery2022palm, touvron2023llama}. Table~\ref{tab:code_external} highlights the performance of \ours{} 15B on such tasks. Specifically, on mathematical reasoning we find that \ours{} 15B achieves strong performance as it attains a similar score to Gemma 7B, but lags behind models such as Baichuan-2 and QWEN. On code tasks, we see that \ours{} performs on par with QWEN 14B while remaining slightly behind Gemma 7B. Across both types of tasks, \ours{} 15B is able to outperform Mistral 7B and LlaMA-2 13B/34B. 
+
+
+%The p@1 numbers for both the tasks are reported in Table~\ref{tab:code_external}.
+%As we see in Table~\ref{tab:code_external}, \ours{} performs better than LLaMA-2 34B and even LLaMA-2 70B on Humaneval task.
+%It performs better than Mistral 7B and competitively with similar sized QWEN 14B model.
+%For MBPP task, it performs better than LLaMA-2 13B and 34B models and it performs competitively with QWEN 14B and Gemma 7B.
+
+%a variety of coding tasks including: code translation~\citep{chowdhery2022palm}, code completion \citep{allal2023santacoder,chowdhery2022palm, touvron2023llama}, and code infilling~\citep{bavarian2022efficient, nguyen2023meet}. 
+%In this section, we show that \ours{} achieve exemplary coding performance on HumanEval~\citep{chen2021evaluating} and MBPP~\citep{austin2021program}.
+
+%These two tasks are \textit{Text-to-Code} tasks where the objective is to write code which implements a specification given in natural language. 
+%In both, the model is provided with a short natural-language description and a small set of input-output examples illustrating the desired output and it is tasked with generating a Python program that meets the requirement. 
+% & 70B & 29.9 & \textbf{45.0} \\
+
+
+\begin{table}[H]
+\centering
+\begin{adjustbox}{max width=\textwidth, scale=1.0}
+\begin{tabular}{lrccc}
+\toprule
+& Size & GSM8K & HumanEval & MBPP \\
+\midrule
+  \multirow{2}{*}{LlaMA-2} & 13B & 28.7 & 18.3 &30.6 \\ 
+ & 34B & 42.2 & 22.6 & 33.0 \\
+ \midrule
+ \multirow{1}{*}{Baichuan-2}  & 13B & 52.8 & 17.1  & 30.2 \\ 
+ \midrule
+ \multirow{1}{*}{QWEN}  & 14B & \textbf{60.1} & 32.2 & 40.8 \\
+ \midrule
+\multirow{1}{*}{Mistral}  & 7B & 35.4$^{*}$  &  30.5 &  \ \ 40.2$^{*}$   \\
+\midrule
+\multirow{1}{*}{Gemma}  & 7B & 46.4 &  \textbf{32.3} & \textbf{44.4} \\
+\midrule
+\multirow{1}{*}{\ours{}}  & 15B & 46.0 &   31.6 & 40.6  \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\label{tab:code_external} Comparative results on math and code benchmarks. As Mistral 7B reports MBPP performance on a different eval split and uses a different evaluation setting for GSM8K , we use the corresponding numbers reported in~\citep{gemma24}}
+\end{table}
+
+Nearly all similarly-sized open models determine their code abilities solely based on performance on Python related tasks -- disregarding an evaluation of their capabilities on other programming languages. In Table~\ref{tab:multiple-e}, we demonstrate results of \ours{} 15B on the Multiple-E~\citep{cassano2023multipl} benchmark across 11 diverse programming languages and compare it against Mistral 7B and Starcoder~\citep{li2023starcoder}, a 15B parameter model that has been specially trained for code. We find that \ours{} 15B attains strong coding performance across a wide assortment of programming languages and outperforms both Starcoder and Mistral 7B on average. We especially highlight the superior performance of \ours{} 15B on low-resource programming languages such as Scala, Julia, and R. 
+
+
+\begin{table}[t]
+\centering
+\begin{adjustbox}{max width=\textwidth, scale=1.0}
+\begin{tabular}{lccccccccccccc}
+\toprule
+  & Size & JavaScript & Julia & Java & Lua & C++ & C-Sharp & PHP & Shell & TypeScript & R & Scala & AVG  \\
+\midrule
+Starcoder & 15B & 30.8 & 23.0 & 30.2 & 23.9 & 31.6 & 21.0 & 26.1	& 10.5 & 32.3 & 15.5 & 27.6 & 24.2 \\
+Mistral & 7B & 34.2 & 22.0 & 26.0 & 25.3 & 29.1 & 22.8 & 27.9	& 8.9 & 28.5 & 11.8 & 22.2 & 23.6 \\
+\ours{} & 15B & 28.6 & 24.8 & 24.8 & 24.2 & 35.4 & 21.1 & 27.3 & 8.9 & 32.9 & 18.6 & 27.3 & \textbf{24.5} \\ 
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\label{tab:multiple-e} \ours{} 15B attains high competency in coding performance across a broad range of programming languages. Results for Mistral are from our runs of Mistral in the same setting as \ours{}. }
+\end{table}
+
+
+\subsection{Multilingual}
+
+We demonstrate the outstanding multilingual ability of \ours{} 15B using four widely-studied benchmarks in previous works that cover a diverse range of high to low resource natural languages. For classification we use accuracy as the metric; for generative tasks, we use exact match; and for machine translation, we evaluate using the \texttt{sacreBLEU} \citep{post2018} implementation of \texttt{BLEU}~\citep{papineni2002}, using \texttt{spm-flores-101} tokenization to obtain spBLEU scores. 
+
+%In our generations, we use greedy decoding until either a \texttt{EOS} token is generated or the maximum number of desired tokens have been generated. 
+
+\textbf{1. Classification:}  Cross-lingual Choice of Plausible Alternatives (XCOPA) \citep{xcopa} tests causal commonsense reasoning in 11 languages 
+%abd was created by direct translation of the English Choice of Plausible Alternatives (COPA) \citep{copa} dataset. 
+%In this evaluation, the objective is to correctly select which of two premises fits most plausibly with a possible hypothesis. 
+%An example from XCOPA is shown in Figure \ref{fig:multilingual_examples}.
+
+We compare \ours{} 15B to existing multilingual language models: XGLM \citep{lin2022fewshot} , mGPT \citep{shliazhko2022mgpt}, and BLOOM \citep{workshop2023bloom}. 
+XGLM and mGPT are models specially trained to have improved multilingual ability by up-sampling the presence of non-English languages in the training data. 
+In contrast, BLOOM, like \ours{}, is a general purpose language model that was trained on a combination of English, multilingual, and code data. 
+In Table \ref{tab:xcopa}, we clearly see that \ours{} achieves the best performance amongst all models -- realizing almost a 12\% improvement in the four-shot setting. 
+
+%Overall, \ours{} clearly beats BLOOM, a general purpose language model with over 11$\times$ the number of parameters, and consistently outperforms across the zero and few shot settings against two models specialized for multilingual tasks. 
+%Specifically, we see a gain of 6\% in zero-shot setting and 23\% in four-shot setting over the similar-sized mGPT model.
+
+
+\begin{table}[H]
+\centering
+\begin{adjustbox}{max width=\textwidth, scale=1.0}
+\begin{tabular}{lcrcccccccccccccc}
+\toprule
+Mode & Model & Size & ET & HT & ID & IT  & QU & SW & TA  & TH & TR & VI & ZH & AVG \\
+\midrule
+ \multirow{4}{*}{Zero-Shot} & BLOOM &   176B & - & - &  $57.5^*$ &	- &	 -  &	$59.5^*$ &	 $54.7^*$ &	- &	- &  $58.2^*$ &  $57.7^*$ & -     \\
+ & XGLM & 7.5B & 57.6	& 57.0	& 59.0 &	49.2 &	52.4&	55.0 &	55.6	& 57.8& 	55.0 &	59.0 &	53.6 &	55.6 \\
+ & mGPT &   13B & 49.8 &	50.4	& 63.4	& 61.6	& 50.4	& 57.6 &	57.0 & 54.0 &	58.2	& 60.4	& 54.6 & 56.1  \\
+  & \ours{} & 15B & 62.8 & 47.4 & 66.6 & 67.0 & 53.8 & 50.4 & 62.0 & 59.6 & 57.4 & 65.2 & 62.2 & \textbf{59.5}   \\
+  \midrule
+\multirow{3}{*}{4-Shot} & XGLM &   7.5B & 64.7	&60.4	&67.3	& 64.0&	50.0&	61.8&	56.7&	61.5&	60.1 &	68.5 & 59.9	& 61.4   \\
+ & mGPT & 13B & 48.6&	48.6	&62.6&	60.8&	50.6&	56.6&	55.4&	54.8&	57.4	&61.8&	58.4&56.0            \\
+ & \ours{} & 15B & 72.9 & 52.8 & 79.6 & 79.2 & 50.2 & 52.2 & 72.8 & 66.6 & 77.2 & 78.6 & 76.0 & \textbf{68.9}  \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\label{tab:xcopa} Comparison of \ours{} 15B against existing large language models on XCOPA under the zero- and four-shot setting. Our reported results for XGLM are from the runs of the model in \citep{shliazhko2022mgpt} given that we use the same prompt template used by mGPT. The values marked with $*$ are read from figures in \citep{workshop2023bloom}. %The average of the zero-shot results is only over ID, SW, TA, VI, and ZH whereas the four-shot average is across all languages. \shrimai{check 0-shot avg} 
+}
+\end{table}
+
+\textbf{2. Generation:} We consider two generative tasks: TyDiQA-GoldP~\citep{tydiqa} and Multilingual Grade School Math (MGSM)~\citep{shi2022language}. TyDiQA-GoldP is a question answering task while MGSM evaluates the arithmetic reasoning ability of language models in 10 languages.
+
+%and was created through direct translation of 250 examples from the GSM8K benchmark. 
+%MGSM is particularly useful as it has been shown to highlight emergent abilities within language models. 
+%An example from each of TyDiQA-GoldP and MGSM is shown in Figure \ref{fig:multilingual_examples}. 
+
+In comparing the performance of \ours{} 15B on TyDiQA-GoldP to a range of models, Table \ref{tab:tydiqa_internal} shows that \ours{} 15B achieves the best performance. Impressively, \ours{} 15B is able to significantly improve upon the next best model, PaLM 62B-cont. 
+
+%\shrimai{ add mistral no from sheet}
+%Additionally, when we consider the 8-shot results of NeMoTron, we find that it is able to outperform the 1-shot results of PaLM 62B-cont despite the fact that the later has had continued training on top of pretraining.  
+
+\begin{table}[H]
+\centering
+\begin{adjustbox}{max width=\textwidth, scale=1.0}
+\begin{tabular}{crrrrrrrrrrrr}
+\toprule
+Model & Size & AR & BN & FI & ID & KO & RU & SW & TE & AVG  \\
+\midrule
+\multirow{2}{*}{PaLM}& 62B & 31.2 & 42.5 & 41.7 & 41.6	& 49.3 & 29.2 &	58.1 & 30.6 &	40.5    \\
+ & 62B-cont & 39.4	& 48.7 & 44.0 &	49.2	&52.5&	35.6 &	60.9&	35.3	& 45.7    \\
+ LLaMA-2 & 13B & -& -& -& -& -& -& -& -& 33.2 \\
+ Baichuan-2 & 13B & -& -& -& -& -& -& -& -& 30.8\\
+ QWEN & 14B & -& -& -& -& -& -& -& -& 39.8 \\
+ %Mistral & 7B &  -& -& -& -& -& -& -& -& 22.5 \\
+\ours{} & 15B & 39.1 & 55.8 &52.2 & 54.5 & 55.1 & 37.8 & 54.5 & 55.0 & \textbf{50.5} \\
+%\midrule
+%8-Shot & \ours{} & 15B &  \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\label{tab:tydiqa_internal} Comparative results in the one-shot setting on TyDiQA-GoldP. Results for LLaMA-2 13B, Baichuan-2 13B and QWEN 14B are taken from \citep{chen2024orion14b}.  }
+\end{table}
+%while results for Mistral are from our runs of Mistral in the same setting as \ours{}.
+
+Further demonstrating the impressive multilingual ability of \ours{} 15B, Table \ref{tab:mgsm_all} shows the performance on MGSM. 
+We report using the English chain-of-thought setting introduced in \citep{shi2022language} where all chain of thought explanations are presented to the model in English rather than in the language of the task. On this challenging task which assesses the intersection of mathematical and multilingual ability, \ours{} 15B achieves the best performance amongst compared models and improves upon the closest score by nearly 30\%.
+
+
+% , and strong performance on this benchmark indicates its superior capabilities in these domains.
+
+%However, we see that NeMoTron struggles in comparison to the best results, often with models of multiple hundreds of billions of parameters, that have been reported in literature.  
+
+%\shrimai{Check with Jupinder if avg includes Eng? if 62B-cont nos are available? any other better model? Add Mistral no from sheet -- to add }
+
+\begin{table}[H]
+\centering
+\begin{adjustbox}{max width=\textwidth, scale=1.0}
+\begin{tabular}{lcrrrrrrrrrrrrrrr}
+\toprule
+Mode & Model & Size & DE & FR & ES & RU & ZH & JA & TH & TE & BN & SW & AVG  \\
+\midrule
+ \multirow{1}{*}{Native-COT}  & \multirow{1}{*}{PaLM} 
+ &   62B 	&24.0  &	24.0 &	26.0 &	22.8 &	24.8	& 14.8 & 18.0 & 11.6 &	13.6 & 9.6&	18.9	\\
+\midrule
+\multirow{3}{*}{English-COT} & \multirow{1}{*}{PALM} & 62B-cont & 44.8 & 39.2 & 44.4 & 36.8 & 33.6 & 24.0 & 28.0 & 19.6 & 28.0 & 21.2 & 32.0 \\
+& \multirow{1}{*}{Mistral} & 7B & 33.2 & 35.2 & 35.6 & 35.2 & 33.2 & 18.8 & 10.0 & 0.0 & 8.0 & 9.2 & 21.8 \\
+& \multirow{1}{*}{\ours{}} & 15B & 46.8 & 46.0 & 50.0&45.6&40.0&40.0&43.6&41.6&43.6&16.0 & \textbf{41.3} \\
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\label{tab:mgsm_all} Eight-shot accuracy results on MGSM. Results for Mistral are from our runs of Mistral in the same setting as \ours{}. }
+\end{table}
+
+\textbf{3. Machine Translation:} We additionally evaluate the translation ability of our models through the FLORES-101 \citep{goyal2021} benchmark. The ability to translate between languages is a good test of the model's ability to relate and understand semantic relationships between languages.
+
+As seen in Table~\ref{tab:flores_ext}, \ours{} 15B heftily outperforms both LLaMA-2 13B and Baichuan-2 13B -- improving upon their performance by 90.2\% and 44.1\% respectively. \ours{} 15B does not solely perform well on translating from Chinese into English but is able to attain impressive results on the direct translation of Chinese into other languages. This ability highlights the strong understanding that \ours{} 15B has across a broad spectrum of natural languages.
+
+
+%FLORES-101 is a parallel corpora of 101 languages consisting of 3001 sentences from Wikipedia covering a variety of different topics and domains. 
+%In our evaluations, we focus on a subset of 20 languages for which we evaluate performance across all 380 (20 x 19) source-target language pairs. 
+%By directly translating between languages without needing to go through English, we attain a more thorough understanding of our model's multilingual capabilities. 
+%A translation pair from FLORES-101 is shown in Figure \ref{fig:multilingual_examples}.  
+
+% \begin{table}[H]
+% \centering
+% \begin{adjustbox}{max width=\textwidth, scale=1.0}
+% \begin{tabular}{lccrrrrrrrrrrrrrrrrrrrrrrr}
+% \toprule
+% & Mode & Params & Result Type & EN & ES & DE & FR & PT & IT & PL & ID & EL & NL & VI & FA & TR & CS & AR & SV & RO & UK & HU & FI & AVG   \\
+
+% \midrule
+% \multirow{ 2}{*}{\ours{}} & \multirow{ 2}{*}{1-Shot} &   \multirow{ 2}{*}{15B} & avg out of xx &31.4	& 18.9	& 22.5	& 23.8	& 22.7	& 20.4& 	14.4	& 18.4& 	16.5& 	16.8	& 14.6	& 12.4	& 14.0& 	16.8	& 13.7& 	20.7	& 20.5	& 15.0& 	12.9	& 13.5	& 18.0   \\
+% & & & avg into xx &    39.1	& 17.8& 	18.2& 	25.8	& 23.4& 	16.3& 	15.3& 	19.5	& 15.0	& 14.9	& 21.4	& 15.1& 	11.8& 	16.0	& 12.2	& 17.0	& 21.0& 	16.6& 	13.0	& 10.7	& 18.0 \\
+% \midrule
+% \multirow{ 2}{*}{\ours{}} & \multirow{ 2}{*}{32-Shot} &   \multirow{ 2}{*}{15B} & avg out of xx &  33.6	& 22.9	& 26.8& 	27.1	& 27.8	& 24.1	& 21.6	& 24.6	& 22.8	& 21.8	& 21.5& 	21.3& 	21.5& 	24.8& 	22.8& 	27.0	& 26.8	& 24.6& 	22.0	& 21.6	& 24.4  \\
+% & & & avg into xx &  41.0& 	24.0& 	26.6& 	34.3	& 30.9	& 24.7	& 19.9	& 27.5	& 20.1	& 22.7	& 28.6	& 18.9& 	17.9	& 22.5	& 17.9& 	26.6	& 27.3	& 21.2	& 18.4	& 16.0& 	24.4  \\
+% \bottomrule
+% \end{tabular}
+% \end{adjustbox}
+% \caption{\label{tab:flores_internal} FLORES-101 results(spBLEU) under one and few-shot settings for NeMoTron 8B. }
+% \end{table}
+
+\begin{table}[H]
+\centering
+\begin{adjustbox}{max width=\textwidth, scale=1.0}
+\begin{tabular}{lcrrrrrrrr}
+\toprule
+  & Size & ZH-EN & ZH-FR & ZH-ES & ZH-AR & ZH-RU & ZH-JA & ZH-DE & AVG  \\
+\midrule
+\multirow{1}{*}{LLaMA-2} 
+& 13B & 25.4 &19.2 &17.5& 1.4& 10.3& 0.1 &11.1 &12.2  \\
+\midrule
+\multirow{1}{*}{Baichuan-2} 
+& 13B & 30.6 & 22.1 & 17.3 & 2.4 & 14.2 & 11.6 & 14.5 & 16.1 \\
+\midrule
+\ours{} & 15B & 34.0 & 28.1 & 21.3 & 16.8 & 21.2 & 23.1 &	18.1 & \textbf{23.2} \\ 
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+\caption{\label{tab:flores_ext} Eight-shot results on Flores sub-tasks translating out of Chinese. All results for external models were obtained from \citep{yang2023baichuan}}
+\end{table}
+
+
+
+
+%In Supplementary Materials \ref{supp:multi}, for each benchmark, we share the used prompt and any additional specific parameters. 
+
+
+
+%\section{Instruction Tuning}
+
+\section{Conclusion}
+
+We present \ours{} 15B, a decoder-only transformer-based large language model.
+It is trained on 8 trillion tokens spanning English, 53 additional natural languages as well as 43 programming languages. \ours{} 15B exhibits the strongest multilingual performance of any general purpose language model at its scale -- even outperforming models specialized for the multilingual domain.
+\ours{} demonstrates that pre-training sets for large language models can continue to be scaled up even further in order to improve the abilities of models. 
+
+%large language models can be pre-trained on more tokens than previously estimated with exceptional results. 
+
+%and that smaller models with more tokens can outperform models more than twice as large.
+
+%\ours{} performs better than specialized multilingual models on XCops, TyDiQA, Flores and MGSM benchmarks and better than code specialized Starcoder model on Multiple-e tasks especially focusing on low-resource languages.
+
+
+
+%This opens the possibility of the field exploring the limits of the scaling laws and going beyond.
+
+%\section{Acknowledgements}
+
+%\newpage
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+
+\FloatBarrier
+
+\appendix
+
+\section*{Supplementary Materials} \label{supplementary_material}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrccccc} 
+\toprule
+    & Size & Humanities & Social sciences & STEM & Other & Average       \\ 
+\midrule
+%GPT3                  & 175B   & 40.8       & 50.4            & 36.7 & 48.8  & 43.9          \\ \midrule
+%MTNLG                  & 530B  & 58.3       & 60.0            & 42.8 & 55.4  & 52.2          \\ \midrule
+%\multirow{3}{*}{PaLM} & 8B    & 25.6       & 24.1       & 23.8 & 24.1   & 25.3          \\
+%& 62B   & 59.5       & 62.7         & 41.9 & 55.8  & 53.7          \\
+%& 62B-cont   & -      & -           & - & - & \textbf{61.2}\\
+%\midrule
+%\multirow{2}{*}{LLaMA-2} & 7B  & 42.9  & 51.2 & 36.4& 52.2  & 45.3 \\
+%& 13B  & 52.8  & 62.6 & 44.1 & 66.1 & 54.8  \\
+%& 34B & 59.4 & 71.8 & 52.1 & 69.2 & 62.6 \\
+%\midrule
+%\multirow{2}{*}{Baichuan-2} & 7B  & -      & -           & - & -   & 54.2 \\
+%& 13B  & -      & -           & - & -   & 59.2 \\
+%\midrule
+%QWEN & 14B & 60.9 & 76.2 & 59.4 & 71.8 & \textbf{66.3} \\
+%\midrule
+%Mistral & 7B & -& -& -& -& 60.1 \\
+%\midrule
+%Gemma & 7B & -& -& -& -&  64.3 \\
+%\midrule
+\ours{} & 15B & 69.2 & 74.1 & 53.4 & 67.5 & 64.2 \\ 
+\bottomrule
+\end{tabular}
+\caption{\label{tab:mmlu} Per-category breakdown accuracy for MMLU }
+\end{table}
+
+\end{document}

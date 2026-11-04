@@ -1,0 +1,1719 @@
+                                                              How to Allocate Your Tokens?
+                                                   Scaling Laws with Training Steps and Batch Size
+
+                                                                                   Fabian Schaipp∗ †
+
+
+                                                                                          Abstract
+arXiv:2607.01487v1 [cs.LG] 1 Jul 2026
+
+
+
+
+                                                      We propose a scaling law that takes into account model size and training data
+                                                  while explicitly splitting the latter into training steps and batch size (called three-
+                                                  term law ). Fitting the proposed law on a large set of training runs, we find that it
+                                                  correctly recovers the scaling of the optimal batch size. Moreover, because it makes
+                                                  use of training runs with suboptimal batch size, our proposed law can be robustly
+                                                  fit with a significantly smaller amount of training runs. We further show that the
+                                                  three-term law can be used to derive scaling laws for suboptimal batch sizes, and
+                                                  that it matches previous empirical findings related to the critical batch size.
+
+
+                                        1         Introduction
+                                        The field of deep learning and specifically large language models (LLMs) has seen an
+                                        enormous progress over the last few years. Much of this progress has been attributed to
+                                        “simply” scaling up, both in terms of model size and data used for training. Improvements
+                                        in model performance often follow predictable trends, called scaling laws, which have been
+                                        found in the context of LLM pre-training (Kaplan et al., 2020; Hoffmann et al., 2022),
+                                        but also in many other areas of deep learning such as vision (Zhai et al., 2022), weather
+                                        forecasting (Bodnar et al., 2024), or protein modeling (Lin et al., 2023).
+
+                                        Scaling laws for model size and data. In the context of training large language models,
+                                        scaling laws classically refer to functional forms that allow to infer the optimal allocation
+                                        of compute into model size N and training examples D. Seminal works by Kaplan et al.
+                                        (2020) and Hoffmann et al. (2022) show that the test loss predictably decreases when
+                                        increasing N or D. A widely-used technique to obtain a scaling law, known as Chinchilla
+                                        Approach 3, is to model the (final test) loss as a sum of power-laws in N and D, i.e.
+
+                                                                                                   A    B
+                                                                                L(N, D) = E +         +   .                                 (1)
+                                                                                                   N α Dβ
+                                        The parameters (E, A, B, α, β) are fitted from a set of training runs. One can then
+                                        derive the optimal model size from (1) for a given compute constraint, and potentially
+                                            ∗
+                                                Corresponding email: fabian.schaipp@inria.fr
+                                            †
+                                                Inria, École Normale Supérieure, PSL Research University, Paris
+
+
+                                                                                               1
+extrapolate this to values of (N, D) outside of the experimentally tested ranges. On the
+other hand, several works show that the fitting procedure itself is delicate, and design
+choices in both the training procedure as well as the fitting techniques can impact the
+result (Besiroglu et al., 2024; Li et al., 2025b). Further, it is not guaranteed that the law
+generalizes well, which however is crucial to derive optimal configurations for large-scale
+training runs.
+
+Hyperparameter scaling laws. While scaling laws of the Chinchilla form can inform
+compute-optimal allocation of N and D, they do not explicitly account for training hy-
+perparameters. To address this, several recent works derive scaling laws for the optimal
+learning rate and/or batch size as a function of (N, D) (DeepSeek-AI et al., 2024; Li
+et al., 2025a; von Rütte et al., 2026). Typically, these works simply assume a power-law
+relationship for the hyperparameter of interest (e.g. the optimal batch size as a function
+of D) and fit the coefficients to data from training runs. However, these approaches are
+not directly compatible with laws of form (1) as they do not model the loss value.
+A different line of work is based on the concept of the critical batch size (McCandlish
+et al., 2018; Shallue et al., 2018): it describes the phenomenon that the number of steps
+K required to reach a target loss, as a function of the batch size, will at some point
+decrease much slower than inversely linear. McCandlish et al. (2018) model this with the
+equation
+
+                             (K/Kmin − 1)(D/Dmin − 1) = 1.                               (2)
+
+Here, Kmin (resp. Dmin ) is the minimum number of steps (resp. number of tokens) required
+to reach the target loss, and can be fit empirically. The critical batch size is then defined
+as Dmin /Kmin . Bergsma et al. (2025) establish a connection to weight decay. In an earlier
+work, Kaplan et al. (2020) use the same model of critical batch size to relate the loss to
+the number of training steps.
+A central issue with (2) is that it implies an optimal batch size of one (Bergsma et al.,
+2025); however, this is in conflict with the empirical situation when using AdamW, where
+the optimal batch size has been found to scale with the available token budget D (Porian
+et al., 2024; Li et al., 2025a).
+
+Scaling laws and optimization theory. From a theoretical point of view, the relationship
+between loss, batch size and number of training steps is inherently related to optimization
+theory. Recent works by Shulgin et al. (2026); Islamov et al. (2026) derive hyperparameter
+scaling laws directly from convergence bounds for stochastic conditional gradient methods.
+Moreover, it has been shown previously that hyperparameter tuning/transfer for LLM
+training can be informed by optimization theory, for example in the context of learning-
+rate schedules (Schaipp et al., 2025) or of weight decay (Wang & Aitchison, 2025).
+
+
+2    Overview
+Our proposed laws. Here, we propose to model the loss as a power-law function of
+(N, M, K) where M is the batch size in tokens and K is the number of training steps,
+
+                                             2
+that is,
+
+                                                   A    B   C
+                           L(N, M, K) = E +           +   +   .
+                                                   N α M β Kγ
+
+This has several natural advantages:
+  (i) Our law brings together the Chinchilla form (1) with scaling laws for the optimal
+      batch size. Under a constrained data budget D = M K, our law implies a scaling rule
+      for the optimal batch size with D, while at the same time collapsing to a Chinchilla
+      form when using the optimal batch size.
+ (ii) The proposed form is also closely connected to and inspired by theoretical results
+      from stochastic optimization, see Shulgin et al. (2026); Kovalev (2025). This allows
+      to bridge from empirical scaling analysis to a more theoretical understanding.
+(iii) The proposed law can be fit with runs from suboptimal batch sizes, which (as we
+      will show) drastically reduces the number of training runs needed for fitting.
+ (iv) While previous scaling laws only model the performance with optimal hyperpa-
+      rameters, our formulation describes performance also in the suboptimal batch size
+      regime. This can be important in practice when facing hardware constraints.
+
+
+Summary of our findings. We fit our proposed laws on two datasets of training runs
+of (dense) LLMs, from here on referred to as Li (Li et al., 2025a) and OpenEuroLLM
+(OpenEuroLLM Consortium). Both datasets cover multiple model sizes, token budgets
+and batch sizes.1
+  (i) Our law results in an implied optimal batch size scaling that is consistent with pre-
+      vious hyperparameter scaling laws that do not model the loss value (see Section 4.1).
+      In particular, we find that with our formulation two batch sizes per (N, D) suffice
+      to robustly find this law (instead of doing a full sweep); this reduces the number of
+      training runs needed to 28% (see Section 4.2).
+ (ii) By construction, our proposed law results in non-trivial optimal batch sizes (in
+      contrast to previous formulations, as mentioned above) and that are independent of
+      model size, matching the empirical results of Li et al. (2025a). At the same time,
+      it describes how the critical batch size scales with N and/or D consistently with
+      findings by Zhang et al. (2025) (see Section 4.4).
+(iii) For situations where the optimal batch size might be infeasible due to practical
+      constraints, we derive scaling laws for ε-suboptimal batch sizes that generalize well
+      to out-of-sample token budgets (see Section 4.3).
+
+
+Notation. The table below summarizes the most important notation used throughout
+the document. Note that it holds D = M K.
+  1
+     The OpenEuroLLM dataset is not yet public at the time of writing. We will make our codebase
+for reproducing all experiments public once the OpenEuroLLM dataset has been released.
+
+
+                                               3
+                                    Main quantities
+                 L                        Loss value
+                 N          Number of parameters (model size)
+                 D           Size of training data (in tokens)
+                 b                        Batch size
+                 s                    Sequence length
+                 K               Number of training steps
+                 M        Batch size (in tokens). It holds M = bs.
+                 C    Compute (in flops). Usually modeled as C = 6N D.
+
+
+3    Scaling Laws with Training Steps and Batch Size
+Recall the Chinchilla law proposed by Hoffmann et al. (2022): for A, B, E > 0 and
+α, β > 0 let the loss be parametrized as
+                                                 A     B
+                                L(N, D) = E +     α
+                                                    + β.
+                                                N     D
+Here, L usually refers to the test loss at the end of training (or a smoothed version of
+it). Using the training runs from Hoffmann et al. (2022), but with a more precise fitting
+procedure, Besiroglu et al. (2024) report the law
+                                                 482.01 2085.43
+                         L(N, D) = 1.8172 +               + 0.3658 .             (EpochAI)
+                                                 N 0.3478  D
+The above scaling law does not take into account the batch size, which however plays
+a crucial role for training performance (Bergsma et al., 2025; Zhang et al., 2025). In
+particular, Hoffmann et al. (2022) report only that they used “well-tested heuristics” for
+the choice of batch size, but they do not study its effect on the scaling analysis.
+Here, we propose to take into account how the token budget D is allocated into training
+steps K and batch size b. We first describe two similar approaches to do so.
+
+Approach I: A three-term law. Following the power-law approach, we propose the
+functional form
+                                                  A      B     C
+                           L(N, M, K) = E + α + β + γ ,                                  (3)
+                                                 N      M      K
+where (E, A, B, C, α, β, γ) are fittable parameters. This has the advantage that for optimal
+batch size choice it reduces automatically to the original Chinchilla form (1): to see this,
+minimize (3) with respect to M , subject to D = M K. The optimal batch size is
+                                             1
+                                     h βB i β+γ    γ         γ
+                              M⋆ =              D β+γ =: GD β+γ .                        (4)
+                                       γC
+In particular, the optimal batch size is independent of the model size N . Plugging back
+M ⋆ and K ⋆ = D/M ⋆ into (3) gives
+                              A    B̂              βγ
+             L(N, D) = E +      α
+                                  + τ,     τ :=       ,     B̂ := BG−β + CGγ .          (5)
+                              N    D              β+γ
+
+                                             4
+Hence, under (3), the optimal way to split a fixed token budget D into (K, b) recovers the
+form (1) by re-parameterizing (B, β) → (B̂, τ ).
+
+Equation (3) is structurally very similar to convergence bounds from stochastic optimiza-
+tion. Let (xk )k∈N be the iterates of the stochastic conditional gradient method wrt. a
+general norm. Assuming the µ-KL condition for the loss function (see Islamov et al.
+(2026)), for fixed batch size M (or b) and training steps K, under the optimal learning
+rate η ⋆ , Shulgin et al. (2026, Thm. 1) (derived from Kovalev (2025)) states that
+
+                                                  1   1
+                            min E[L(xk )] ≲ L⋆ + √ + √ ,
+                          1≤k≤K                   M   K
+
+where ≲ denotes that the bound holds up to some multiplicative constant for each term
+on the right-hand side. Comparing to (3), the optimal loss is parametrized by E + NAα ,
+and for the other terms the powers are relaxed from 1/2 to (β, γ).
+
+
+Approach II: Model-specific two-term laws. The functional form (3) implicitly as-
+sumes that the model size does not impact the coefficients (B, C) and (β, γ), and there-
+fore by construction M ⋆ is independent of N . While this implicit assumption is supported
+by previous experimental results on LLMs (Li et al., 2025a; Zhang et al., 2025), as an
+alternative, we can fix the model size and fit the functional form
+
+                                                B    C
+                               L(M, K) = E +       +   ,                               (6)
+                                                M β Kγ
+
+where again (E, B, C, β, γ) are fittable parameters. We can fit this form (independently)
+for multiple N , a priori allowing for different values of (B, C, β, γ) across model sizes.
+
+
+Terminology. From now on, we refer to laws of the form (6) as two-term law, and to
+laws of the form (3) as three-term law. When convenient, we will use the abbreviations
+2TL and 3TL respectively.
+
+
+4    Experiments
+We fit scaling laws of the form 2TL and 3TL on two datasets which contain training logs for
+multiple combinations of (N, M, K) using AdamW (Loshchilov & Hutter, 2019), and which
+include a learning-rate sweep for each combination. We refer to the two datasets as Li and
+OpenEuroLLM; details are described in Section A.1 in the Appendix, in particular see
+Table 4. Here, we focus on the Li dataset; the results for OpenEuroLLM are deferred
+to the Appendix. For each (N, M, K), we choose the smallest final smoothened test loss
+value across learning rates. We form a validation set by collecting the datapoints from
+the largest token budget D for each individual N ; the remaining datapoints are used as
+training set for fitting the law. We usually mark points from the validation set with a
+dashed border in our plots. See Section A.1 for additional details and Figs. 13 and 15 for
+an overview of the Li dataset.
+
+                                            5
+Fitting procedure. If not explicitly mentioned otherwise, we use a standard fitting pro-
+cedure minimizing the Huber loss with L-BFGS-B from multiple initializations, and five-
+fold cross-validation for each law. For the Huber loss we use δ = 10−3 ; for a detailed
+description and additional ablations on these choices, we refer to Section A.1 and refer-
+ences therein. All fitted parameter values can be found in Section A.3 in the Appendix.
+Note that whenever we report a single number for a parameter, it is the average over
+the five cross-validation runs.
+
+
+4.1    Comparison of Approach I and II
+A priori, it is not clear which of the two approaches described in Section 3 is preferable.
+Before doing any experimental comparison, we want to mention the main differences of
+2TL and 3TL that arise from their definition. First, for 3TL we will usually have more
+datapoints per (fittable) parameter, as we can use training runs across all model sizes N .
+For example, for the Li dataset, we have 246 samples to fit seven parameters for 3TL,
+while for 2TL we have 13-60 samples to fit five parameters. Consequently, we expect that
+the in-sample fitting error of 2TL will be smaller. Second, based on the results of Li et al.
+(2025b), we would expect that 3TL is more delicate/unstable to fit, given that it has two
+more fittable parameters.
+
+We compare both approaches with respect to the following evaluations: (i) quality of
+fit, (ii) consistency of the scaling coefficients (β, γ) and (iii) consistency of the resulting
+optimal batch size M ⋆ from (4) with previously reported results. We fit a 2TL for each
+model size N (using only the respective subset of datapoints), and a single 3TL using the
+union of all datapoints (across N ).
+
+For (i), we compute the mean absolute deviation (MAD) for the 3TL as well as for the
+2TL, where each 2TL is evaluated on the subset of datapoints respective to the model size.
+We then compute the average MAD across all 2TL, weighted by the sample size, which
+we call the two-term law ensemble. This is done separately for training and validation
+set (see Fig. 2). For (ii) and (iii), we plot the estimated values of (β, γ) as well as the
+resulting formula for M ⋆ from (4). We can directly compare the latter to the scaling law
+for optimal batch size reported by Li et al. (2025a), which was obtained from the same
+dataset and which we refer to as Step-Law (see Fig. 1).
+
+Discussion: As expected, Fig. 2 shows that the in-sample fit of 2TL is better; however,
+the out-of-sample error of 3TL is slightly smaller. This indicates that despite having two
+additional parameters in 3TL, our fitting procedure is sufficiently robust thanks to multiple
+initializations and bootstrap aggregation. Moreover, Fig. 1 shows that also in terms of
+consistency of the implied scaling of M ⋆ the three-term law approach is preferable. In
+particular, its resulting scaling of M ⋆ almost perfectly overlaps with the one by Li et al.
+(2025a).
+
+Takeaway: The three-term law approach achieves an overall slightly better out-
+of-sample fit than the two-term laws. Its implied scaling for the optimal batch size
+M ⋆ ∼ D is consistent with previous analyses (see Table 1).
+
+
+                                              6
+                                                                                                   Two-term law ensemble
+                                                                                                   Three-term law
+            0.8
+
+
+
+
+                                                              Optimal batch size M ?
+                                                                                                   Step-Law
+                                                                                                   Empirical (train/val)
+
+            0.6                                                                        106
+γ/(β + γ)
+
+
+
+
+            0.4
+
+
+            0.2                              Two-term law                              105
+                                             Three-term law
+                                             Step-Law
+            0.0
+                        108                            109                                   109              1010           1011
+                              Model size N                                                                  Token budget D
+                                                         γ
+Figure 1: (Left) Estimates for M ⋆ -scaling coefficient β+γ  for 3TL and each 2TL. Shaded
+area depicts min and max over five cross-validation fits. (Right) Implied scaling of M ⋆
+according to (4). Shaded area depicts min and max over cross-validation. Dots show the
+empirically best batch size from the train (black ) and validation split (blue).
+
+
+Consistency across datasets. We run the same analysis on the OpenEuroLLM dataset,
+see Section A.4 in the Appendix. On OpenEuroLLM, both approaches again lead to
+a good fit. The scaling of the optimal batch size is relatively similar to the Li dataset,
+albeit slightly steeper. However, we also observe the caveat described below.
+
+Caveat: The fitted parameter values for (E, A, α) are quite different between Li and
+OpenEuroLLM; in particular, the fit for Li is E ≈ 0, indicating no irreducible loss
+which is in conflict to the non-zero entropy of language. This suggests that the effect
+of the model size is not perfectly reflected in 3TL.
+
+We hypothesize that the reason for scaling inconsistencies between the two datasets is
+due to different training setups. For example, OpenEuroLLM uses different β2 values
+in Adam for the larger models, which is known to have an impact on scaling laws (Porian
+et al., 2024). This might also explain that the 2TL has a better out-of-sample error than
+3TL for OpenEuroLLM, as 2TL has more flexibility with respect to the impact of N . We
+also remark that imposing small regularization on log(E) can alleviate the above caveat
+(see Section A.2).
+
+
+                  Table 1: Comparison of 3TL to batch size scaling laws from the literature.
+
+         Reference                   Scaling                                                                     Comment
+     (Li et al., 2025a)        M = 0.58 · D0.571
+                                 ⋆
+                                                                                                          Referred to as Step-Law
+   (Bergsma et al., 2025)   M ⋆ = (0.0306 · s) · D0.383
+ (DeepSeek-AI et al., 2024)   M ⋆ = 0.086 · D0.688                                                   From M ⋆ ∝ C 0.327 , D⋆ ∝ C 0.475
+     (3TL, Li dataset) (ours)                 M ⋆ = 0.667 · D0.566                                                   From (4)
+
+
+
+
+                                                              7
+                            0.08   Three-term law                                              0.08   Three-term law
+                                   Two-term law ensemble                                              Two-term law ensemble
+  Mean absolute deviation
+
+
+
+
+                                                                     Mean absolute deviation
+                                   Two-term law                                                       Two-term law
+                            0.06                                                               0.06
+
+
+                            0.04                                                               0.04
+
+
+                            0.02                                                               0.02
+
+
+                            0.00                                                               0.00
+                                   108                     109                                        108                     109
+                                           Model size N                                                       Model size N
+
+Figure 2: MAD comparison of 2TL and 3TL on train (left) and validation (right) split.
+
+
+4.2                           Compute Savings Using the Three-term Law
+Fitting a scaling law for M ⋆ with the approach of Li et al. (2025a) imposes massive
+computational costs, as it requires to obtain the optimal batch size for a set of different
+token budgets D (and possibly also varying the model size N ). Li et al. (2025a) report
+that producing their entire set of training runs consumed nearly one million NVIDIA
+H800 GPU hours. Recall that Li et al. (2025a) fits a law of form
+
+                                                                     Ã
+                                                           M⋆ =                                                                 (7)
+                                                                     Dα̃
+directly on observations of (M ⋆ , D). For a single observation (M ⋆ , D), a full batch size
+sweep is needed to determine M ⋆ (in the Li dataset, concretely we have 5-10 batch sizes
+per sweep). In contrast, our three-term law makes explicit use of observations from
+suboptimal batch sizes; we will show that this allows to obtain the same scaling law of
+M ⋆ while saving a substantial amount of training runs/compute.
+Setup: We mask the original dataset (containing the full batch size sweep), such that
+for each combination of (N, D) only {one/two/three} batch sizes are randomly
+selected (see Fig. 14 for an illustration). For the Li dataset, this shrinks the number of
+training runs required/available for the fit to {14/28/42} per-cent (see Table 2). We then
+fit the three-term law on this reduced dataset. As comparison, we fit (7) with M ⋆ being
+the batch size (after applying the mask as described above) with the best loss, for each
+(N, D) separately.2 We also use five-fold cross-validation to fit (7).
+Discussion: We make two main observations: (i) Already with the full batch size sweep,
+(7) is unstable to removing the validation split. A direct fit on the full dataset (train and
+val) with our code gives M ⋆ = 0.47 · D0.584 , essentially the same as Step-Law. Removing
+the validation split, we already get a quite different scaling of M ⋆ = 6.29 · D0.468 . (ii) The
+    2
+     This is similar to the procedure described by Li et al. (2025a). Alternatively, one could first fit a
+quadratic (or similar function) to the batch size sweep, and then read off M ⋆ as the minimum. However,
+this is infeasible/unstable with ≤ 3 points available. We try deriving M ⋆ from a quadratic fit when
+having 4 points per sweep, but this does not improve the result, rather the opposite (the resulting scaling
+is 0.02 · D0.738 ).
+
+
+                                                                 8
+                                     Three-term law                                                               Three-term law
+                                     Step-Law                                                                     Step-Law
+Optimal batch size M ?
+
+
+
+
+                                                                             Optimal batch size M ?
+                                     8.59 · D0.455 (from (7))                                                     2852.95 · D0.210 (from (7))
+                                     Empirical (train/val)                                                        Empirical (train/val)
+                         106                                                                          106
+
+
+
+
+                         105                                                                          105
+
+
+
+                               109                1010                1011                                  109                1010               1011
+                                                Token budget D                                                               Token budget D
+                                 (a) Dataset reduced to 42%                                                   (b) Dataset reduced to 28%
+
+Figure 3: Fitting on a reduced dataset, with only 3 values of b per sweep (left) and
+2 values (right). Step-Law can be considered the oracle law here, as it was fit on the
+unreduced dataset (train plus val). In both cases, the implied scaling of M ⋆ of the three-
+term law stays close to Step-Law, and generalizes better to large D than the direct fit (in
+red ). The gray dots mark the empirically best batch size for each (N, D) on the reduced
+dataset (for the train split).
+
+
+three-term law results in almost identical scaling for M ⋆ , even when reducing the batch
+size sweep to two values, hence reducing the number of required training runs to 28%.
+Directly fitting (7) in contrast is highly unstable in this regime, and generalizes badly to
+higher (unseen) token budgets (see Fig. 3). When masking to only one batch size per
+sweep, the results of both approaches are very distinct to the original law.
+
+        Sweep size for b                                        3TL          Direct fit (7)                                     Samples/Training runs
+                             Full                  M ⋆ = 0.67 · D0.566  M ⋆ = 6.29 · D0.468                                                     246
+                           3 values                M ⋆ = 0.48 · D0.580  M ⋆ = 8.59 · D0.455                                                     102
+                           2 values                M ⋆ = 0.84 · D0.555 M ⋆ = 2852.95 · D0.210                                                    68
+                           1 value                 M ⋆ = 5.92 · D0.475  M ⋆ = 3.61 · D0.514                                                      34
+                                                   Step-Law (Li et al., 2025a): M ⋆ = 0.58 · D0.571
+
+Table 2: Laws for M ⋆ ∼ D using 3TL vs. a direct fit, for different masked versions of the
+Li dataset. When having only two or three runs/batch sizes per (N, D), 3TL still results
+in essentially the same law, whereas the direct fit deviates. Note that the direct fit only
+uses the train split, therefore the difference to the Step-Law.
+
+
+4.3                            Performance with Suboptimal Batch Sizes
+In practice, understanding how the optimal batch size scales with N and D might not
+be enough. In case of hardware constraints, it is mandatory to model the performance of
+models trained with suboptimal batch size. The three-term law form has the evident ap-
+peal that it also predicts model performance for suboptimal allocation of tokens into steps
+
+                                                                             9
+                                                     2048
+       3.0                  Three-term law                                         2.8                 D ∈ [2.0e + 09, 1.0e + 11]
+                            Empirical (best b)       1024
+       2.8
+                                                     512                           2.6
+
+
+
+
+                                                            Batch size b
+       2.6
+
+
+
+
+                                                                            Loss
+Loss
+
+
+
+
+                                                     256
+       2.4                                                                         2.4
+                                                     128
+       2.2
+                                                                                   2.2
+       2.0                                           64                                                          Three-term law
+                                                                                                                 Empirical
+                                                     32
+           109       1010      1011          1012                                        25   27        29            211
+                     Token budget D                                                           Batch size b
+
+Figure 4: N = 268M. (Left) While the three-term law (3) accurately predicts optimal
+batch size, its predicted loss value for very large/small token budgets deviates from the
+empirical value. (Right) Empirical and predicted loss value across batch size b. Again,
+for very large/small token budgets the accuracy of the three-term law degrades. Dashed
+border marks datapoints not used for fitting 3TL.
+
+
+and batch size.3 In short, the goal of this section is to answer the following question:
+             What is the interval of sub-optimal batch sizes [bmin , bmax ] such that at most
+             5% of compute is wasted, and how does it scale with D?
+
+Limitations of the three-term law. We first evaluate the fitted 3TL on a range of batch
+sizes, and compare the predicted loss values to the true ones (see Fig. 4). While the
+optimal batch size is predicted well across all token budgets (Fig. 4, left), the three-term
+laws fails to accurately predict the loss value at the boundaries of the empirically covered
+range of D (Fig. 4, right). This is not surprising: note that for the three-term law, we fit
+246 data points with seven parameters; therefore, we can not expect a perfect fit.
+
+Caveat: Due to its underparametrization, the three-term law can not fit loss values
+accurately enough to robustly infer performance at suboptimal batch sizes.
+
+
+Fitting in two stages. To improve the fitting quality, we can fit a functional form L ∼ b
+only on a subset of the data. We use the three-term law (3) as prior to choose such a
+functional form. Assume some fixed N and D and fixed sequence length s. Then, (3)
+simplifies to
+
+                                                 A
+                                L=E+                + (Bs−β )b−β + (CD−γ sγ )bγ .
+                                                 Nα
+
+Based on the parameters of the fitted 3TL, we make the simplifying assumption γ ≈ β
+(we will also see that this is sufficiently expressive to give an almost perfect fit). Based
+       3
+    This is similar to how the Chinchilla Approach 3 has the advantage that it describes suboptimal
+allocation of compute into model size or token budget.
+
+
+                                                                       10
+on the above, we then fit the form
+
+                                      L(b) = Ẽ + Ãb−α̃ + B̃bα̃ .                            (8)
+
+
+As a first stage, we fit (Ẽ, Ã, B̃, α̃) from (8) separately for each (N, D).4 This two-stage
+fitting procedure, where we reduced the number of parameters by assuming γ ≈ β, has
+also been recommended in the survey of Li et al. (2025b).
+Now, let us define the notion of ε-suboptimal batch size:
+Definition 1. Let ε > 0, and let b⋆ be the minimizer of (8) (for a fixed D and N ). Since
+(8) is unimodal in b, we can define [bmin , bmax ] to be the interval of ε-suboptimal batch sizes
+such that L(bmin ) = L(bmax ) = L(b⋆ ) + ε.
+Here, we set ε to the loss difference from the law (EpochAI) evaluated at (N, D) and
+(N, 0.95 · D), that is, we allow a 5% suboptimality in terms of compute. From (8), we can
+then easily read off, for each (N, D), the interval of ε-suboptimal batch sizes.
+As a second stage, we fit a power-law bmin / max = Υ/Dν , where (Υ, ν) are fitted. Here,
+for each model size N we keep the largest three token budgets as held-out validation set,
+and only use values of D where the empirically optimal batch size does not lie on the
+boundary of the sweep.
+From Fig. 5, we observe that this two-stage procedure – as expected – leads to a better fit
+across token budgets D. In particular, the fitted power-law on bmin / max generalizes well
+beyond the token budgets used for fitting (Fig. 5, left). See Sections A.6.2 and A.6.3 for
+additional model sizes, and for the OpenEuroLLM dataset. When averaging the inter-
+vals of suboptimal batch sizes [bmin , bmax ] across model sizes (Fig. 6), we observe a slightly
+narrowing trend for the Li dataset, and a relatively constant width for OpenEuroLLM;
+except for this, the picture is overall similar across the two datasets, suggesting that the
+scaling behavior of suboptimal batch sizes with D is relatively consistent.
+
+Takeaway: The interval of ε-suboptimal batch sizes can be modeled with a two-stage
+fitting procedure based from the three-term law; the scaling behavior generalizes well
+and is fairly consistent across model sizes and training setups. As rule of thumb, the
+interval of suboptimal batch sizes that corresponds to wasting at most 5% of compute
+has roughly a width of 22 (Fig. 6).
+
+
+4.4      Three-term Law and Critical Batch Size
+The notion of critical batch size can be defined as follows: for a fixed target loss L̄, let
+KL̄ (b) be the number of steps to reach loss L̄, as a function of the batch size b. As explained
+in the introduction, McCandlish et al. (2018) show that KL̄ (b) decreases at much slower
+rate than inverse-linearly beyond a critical value of b, the so-called critical batch size. This
+has an important practical consequence: training at the highest practically feasible batch
+size can be suboptimal if it exceeds the critical batch size.
+  4
+      Here we perform a simple non-linear least squares fit using scipy.optimize.curve fit.
+
+
+                                                  11
+                 211
+                         bmin ∝ D0.62                                                     2.8                 D ∈ [2.0e + 09, 8.0e + 10]
+
+                         bmax ∝ D0.41
+                 29
+                                                                                          2.6
+  Batch size b
+
+
+
+
+                                                                                   Loss
+                 27                                                                       2.4
+
+
+                                             (bmin , bmax ) (in-sample)                   2.2
+                 25                          (bmin , bmax ) (out-of-sample)                                                  Law
+                                             Power-law fit bmin , bmax ∝ Dν                                                  Empirical
+
+
+                   109                  1010          1011                                      25   27        29            211
+                                        Token budget D                                               Batch size b
+
+Figure 5: N = 268M. (Left) Batch size range [bmin , bmax ] with ε-suboptimal loss derived
+from law (8) (with ε such that less than 5% compute is wasted). Shaded area is obtained
+from fitting a power-law on the values of bmin / max in-sample (solid lines). (Right) Em-
+pirical and predicted loss value across batch size b. Here, the predicted values are from
+the law (8), fitted separately for each D. Black dotted lines mark bmin / max used for fitting
+the power-law bmin / max ∝ Dν on the left. Plots for other model sizes in Section A.6.2.
+
+
+Empirically, Zhang et al. (2025) show that (i) critical batch size scales with compute under
+Chinchilla-optimal scaling of (N, D), and (ii) this increase comes mostly from scaling up
+the token budget D. In particular, when D is fixed, the function KL̄ (b) is roughly the
+same across model sizes N .5 Furthermore, Zhang et al. (2025) derive a theoretical model
+of critical batch size that captures the phenomena described above, however only for the
+very restricted setting of least-squares problems in the infinite-width limit.
+Here, we show that the three-term law (3) can equally well describe the behaviour of KL̄ (b)
+when scaling D and/or N . For this, fix a target loss L̄ and denote Ẽ(N ) := E + NAα .
+                           CB
+From (3), if L̄ > Ẽ(N ) + M β , the number of steps to reach L̄ is given by
+
+
+                                             h L̄ − Ẽ(N )           B i− γ1 h L̄ − Ẽ(N )    B i− γ1
+                                KL̄ (b) =                          − β      =              −          .                                    (9)
+                                                       C            M              C         Csβ bβ
+
+We replicate the setting of Zhang et al. (2025, Figure 1), but plugging into 3TL:
+(A1) Scale up both N and D in the Chinchilla-optimal setting.
+(A2) Fix D = 3.07B and vary N from 85M to 1.2B.
+(A3) Fix N = 302M and vary D in [0.25, 4] times the Chinchilla-optimal D.
+For all three settings, given (N, D) we compute the target loss L̄ from the law (EpochAI).
+Then, we compute KL̄ (b) according to (9), using the parameters of 3TL previously fitted
+on the Li dataset. Fig. 7 confirms that the function KL̄ (b) is almost invariant as we scale
+up model size N , but changes significantly if we scale up the token budget D.
+        5
+    Note that Zhang et al. (2025) operate in a slightly non-standard setup, as they use constant learning-
+rate schedule with weight averaging (vs. cosine schedule used in Li et al. (2025a)).
+
+
+                                                                              12
+                210         N ∈ [2.1e + 08, 5.4e + 08]                                                210     N ∈ [5.0e + 07, 1.0e + 09]
+
+                29                                                                                    29
+                28                                                                                    28
+ Batch size b
+
+
+
+
+                                                                                       Batch size b
+                27                                                                                    27
+                26                                                                                    26
+                25                                                                                    25
+                                                         bmin                                                                              bmin
+                24                                       bmax                                         24                                   bmax
+                                                         Average [bmin , bmax ]                                                            Average [bmin , bmax ]
+
+                  109                1010          1011                                                 109            1010          1011
+                                     Token budget D                                                                    Token budget D
+                        (a) Li (sequence length 2048)                                  (b) OpenEuroLLM (sequence length 4096)
+
+Figure 6: Scaling of ε-suboptimal batch size across model sizes, for Li dataset (left) and
+OpenEuroLLM dataset (right). The scaling of suboptimal batch sizes [bmin , bmax ] (grey
+area) is relatively consistent across the two datasets, after accounting for a factor of two
+due to the different sequence length.
+
+
+Takeaway: Under the three-term law, the number of steps KL̄ (b) to reach a target
+loss L̄, as a function of the batch size, is mostly invariant to scaling up N , but not to
+scaling up D. This matches the empirical results of Zhang et al. (2025).
+
+As a consequence, the three-term law is a suitable model for KL̄ (b) at large batch sizes,
+while at the same time allowing for a non-trivial optimal batch size. This is in contrast
+to the theoretical models by McCandlish et al. (2018); Bergsma et al. (2025) and Zhang
+et al. (2025), which can describe the critical batch size, but imply that the optimal batch
+size is one.
+
+Comparison to other related models. We would like to mention a different approach
+by von Rütte et al. (2026, Section 4.5), which modifies the model of McCandlish et al.
+(2018) such that it also allows for optimal batch sizes larger than one. They propose the
+equation
+                                                    h K iα                   h b iα    
+                                                                        −1             − 1 = 1.                                                                (10)
+                                                         Kmin                    bmin
+In comparison to the three-term law, the main conceptual difference is the setup of objec-
+tive and constraints: von Rütte et al. (2026) fix a target loss L̄, and minimize D = bsK
+such that L̄ is reached, subject to (10); for 3TL, we fix D, and minimize the final loss with
+respect to b subject to D = bsK. Given that for a concrete training run it is much easier
+to fix D than a target loss, the latter seems to be the more practicable approach.
+
+4.5                   Back to the Chinchilla Form
+Having fitted the 3TL, we can compare its batch-size-optimal reduction from (5) to a
+Chinchilla-type law. To do so, we first fit the form (1) to the runs from Li et al. (2025a)
+
+                                                                                  13
+                    20                                                                            20                                                                           20
+
+
+              2−1                                                                           2−1                                                                          2−1
+ KL̄ (b)/KL̄ (32)
+
+
+
+
+                                                                               KL̄ (b)/KL̄ (32)
+
+
+
+
+                                                                                                                                                            KL̄ (b)/KL̄ (32)
+              2−2                                                                           2−2                                                                          2−2
+                                  Target loss                                                                  Target loss                                                                  Target loss
+                                  3.459 (N =0.09B)                                                             3.365 (N =0.09B)                                                               3.068 (0.25×)
+                                  3.162 (N =0.15B)                                                             3.212 (N =0.15B)                                                               2.863 (0.5×)
+              2−3                 2.874 (N =0.30B)
+                                                                                            2−3                3.065 (N =0.30B)
+                                                                                                                                                                         2−3                  2.704 (1×)
+                                  2.647 (N =0.60B)                                                             2.949 (N =0.60B)                                                               2.580 (2×)
+                                  2.471 (N =1.20B)                                                             2.858 (N =1.20B)                                                               2.484 (4×)
+              2−4                                                                           2−4                                                                          2−4
+                              5             6         7            8       9                               5             6         7            8       9                               5
+                          2             2           2          2       2                               2             2           2          2       2                               2               26            27         28   29
+                                                Batch size b                                                                 Batch size b                                                                     Batch size b
+
+                         (a) Chinchilla-optimal                                              (b) Fixed data D = 3.07B                                                (c) Fixed model N = 302M
+
+Figure 7: Under the three-term law, critical batch size changes with token budget D
+(right), but is almost invariant to changes of model size N (middle). This matches
+empirical findings, cf. Zhang et al. (2025, Figure 1).
+
+
+(only using optimal batch sizes); we use the same fitting procedure except that we set
+δ = 10−5 , which leads to a more stable fit. See Section A.1 in the Appendix for more
+details and ablations of this choice.
+Comparing this to the fitted parameters of the 3TL (see Table 3), we can already see
+a rather big discrepancy; for example, with 3TL we obtain a much smaller value of τ
+(compared to β) as well as E ≈ 0.
+Instead of simply comparing the parameter values, we can also compare the implied
+scaling behavior of both laws. In particular, the main goal of Chinchilla scaling laws is
+to determine how the optimal model size scales with compute C. Assuming C = 6N D,
+                              1
+                   ⋆
+                        h i α+β
+                         αA
+                                    β
+                                 C α+β
+from (1) we get N = βB           6
+                                       . For the three-term law, using (5), we replace
+(β, B) → (τ, B̂). Fig. 8 shows that the implied compute-optimal scaling of N ⋆ overlaps
+only for a relatively small interval of compute C.
+Caveat: The three-term law can be reduced to a Chinchilla-type law, however, its
+implied compute-optimal scaling is quite different to a direct fit of (1). In particular,
+the implied scaling in D is much smaller. This suggests that 3TL is not the most reli-
+able instrument to describe compute-optimal allocation of N and D.
+
+This confirms the finding of Li et al. (2025b), that the exact formulation of the scaling
+law can already impact the implied optimal model size.
+
+
+5                        Limitations
+We have already addressed some caveats in the discussions above. Here, we summarize
+the main limitations of the presented approach and how they could be resolved in future
+work:
+                    • While we have shown that the three-term law can be robustly fit for two different
+                      datasets (Li and OpenEuroLLM), the quantitative results can be inconsistent to
+                      a degree which is minor (e.g. for optimal batch size scaling) or moderately high (e.g.
+                      impact of model size). It is not clear how well the reported scaling laws generalize
+
+                                                                                                                             14
+      Parameter Law (1) 3TL                                                1010
+
+
+
+
+                                                  Optimal model size N ?
+          E       1.26   0.0
+          A      23.82  12.58                                              109
+
+        B | B̂      4885.3   9.16
+         α          0.166    0.132                                         108
+        β|τ         0.336    0.079                                                                       (EpochAI)
+                                                                                7                        Three-term law
+                                                                           10
+                                                                                                         Law (1)
+
+Table 3: Fitted parameter values when                                           1018   1019        1020        1021
+                                                                                          Compute budget C
+fitting a law of form (1) to Li dataset,
+and for 3TL after the reduction (5).           Figure 8: Compute-optimal model size.
+
+
+      to other training setups or tasks. Further, although more sophisticated scaling law
+      formulations can in principle collapse back to the Chinchilla form, the resulting
+      scaling can be quite different (Section 4.5).
+    • While the three-term law explicitly models the batch size, we still need the optimal
+      learning rate for each single combination of (N, D, b); thus, despite our finding that
+      the required amount of training runs can be reduced, the absolute number is still
+      huge (before selecting the optimal learning rate, the Li dataset contains roughly 3000
+      runs). An interesting direction for future work would be to introduce the learning
+      rate in the three-term law, possibly inspired again by the theoretical results from
+      Shulgin et al. (2026) or similar works. However, given the previous limitation, it is
+      unlikely that adding additional terms will alleviate the issue of consistency.
+    • As we have seen, the three-term law alone is not predictive enough to infer the
+      interval of ε-suboptimal batch sizes. For the two-stage procedure we propose instead,
+      we still require a relatively fine-grained batch size sweep.
+    • Optimal batch size scaling might be optimizer-dependent; in particular, it has been
+      shown that the Muon optimizer (Jordan et al., 2024) allows for larger batch sizes
+      (Essential AI et al., 2025). Investigating how switching the optimizer affects the
+      fitted three-term law remains future work.
+
+
+6     Conclusion
+We have proposed a three-term scaling law that takes into account model size, training
+steps and batch size; the latter two explicitly model how the total amount of tokens is
+allocated. This formulation has natural advantages, bringing together Chinchilla-type and
+hyperparameter scaling laws, as well as tying it closely to theoretical results in stochastic
+optimization.
+On a practical side, we have shown that our proposed law can be robustly fit even with
+incomplete batch size sweeps, thus largely reducing the number of training runs necessary
+to obtain scaling laws for the optimal batch size.
+Second, our approach naturally allows to model suboptimal batch sizes, and we have
+
+                                             15
+derived their scaling with the total data budget. Finally, we have shown that the three-
+term law, in contrast to previous proposals, correctly describes the phenomenon of critical
+batch size, while at the same time allowing for non-trivial optimal batch size.
+
+
+Acknowledgments
+Fabian Schaipp is supported by the French government under the management of Agence
+Nationale de la Recherche as part of the “Investissements d’avenir” program, reference
+ANR-19-P3IA-0001 (PRAIRIE 3IA Institute), and the European Research Council Start-
+ing Grant DYNASTY – 101039676.
+First, we would like to thank the authors of Li et al. (2025a) for making all of their training
+runs public; without their dataset, this article would not have not been realized.
+Second, many thanks go to Niccolò Ajroldi for compiling and providing access to the
+OpenEuroLLM dataset, and to both Niccolò Ajroldi and Antonio Orvieto for their
+feedback and suggestions, which inspired some of the ideas of the paper.
+Furthermore, this paper has benefited from discussions with Francis Bach, Alexander
+Hägele, Frederik Kunstner, Umut Şimşekli, and Adrien Taylor.
+
+
+References
+Shane Bergsma, Nolan Dey, Gurpreet Gosal, Gavia Gray, Daria Soboleva, and Joel Hes-
+  tness. Power lines: Scaling laws for weight decay and batch size in LLM pre-training.
+  In Advances in Neural Information Processing Systems, volume 38, pp. 125153–125188,
+  2025. [Cited on pages 2, 4, 7, and 13]
+
+Tamay Besiroglu, Ege Erdil, Matthew Barnett, and Josh You. Chinchilla scaling: A
+  replication attempt. arXiv:2404.10102, 2024. [Cited on pages 2, 4, and 20]
+
+Cristian Bodnar, Wessel P. Bruinsma, Ana Lucic, Megan Stanley, Anna Vaughan, Jo-
+  hannes Brandstetter, Patrick Garvan, Maik Riechert, Jonathan A. Weyn, Haiyu Dong,
+  Jayesh K. Gupta, Kit Thambiratnam, Alexander T. Archibald, Chun-Chieh Wu, Eliz-
+  abeth Heider, Max Welling, Richard E. Turner, and Paris Perdikaris. A foundation
+  model for the earth system. arXiv:2405.13063, 2024. [Cited on page 1]
+
+DeepSeek-AI, Xiao Bi, Deli Chen, Guanting Chen, Shanhuang Chen, Damai Dai, Chengqi
+  Deng, Honghui Ding, Kai Dong, Qiushi Du, Zhe Fu, Huazuo Gao, Kaige Gao, Wen-
+  jun Gao, Ruiqi Ge, Kang Guan, Daya Guo, Jianzhong Guo, Guangbo Hao, Zhewen
+  Hao, Ying He, Wenjie Hu, Panpan Huang, Erhang Li, Guowei Li, Jiashi Li, Yao Li,
+  Y. K. Li, Wenfeng Liang, Fangyun Lin, A. X. Liu, Bo Liu, Wen Liu, Xiaodong Liu,
+  Xin Liu, Yiyuan Liu, Haoyu Lu, Shanghao Lu, Fuli Luo, Shirong Ma, Xiaotao Nie,
+  Tian Pei, Yishi Piao, Junjie Qiu, Hui Qu, Tongzheng Ren, Zehui Ren, Chong Ruan,
+  Zhangli Sha, Zhihong Shao, Junxiao Song, Xuecheng Su, Jingxiang Sun, Yaofeng Sun,
+  Minghui Tang, Bingxuan Wang, Peiyi Wang, Shiyu Wang, Yaohui Wang, Yongji Wang,
+  Tong Wu, Y. Wu, Xin Xie, Zhenda Xie, Ziwei Xie, Yiliang Xiong, Hanwei Xu, R. X.
+
+                                              16
+  Xu, Yanhong Xu, Dejian Yang, Yuxiang You, Shuiping Yu, Xingkai Yu, B. Zhang,
+  Haowei Zhang, Lecong Zhang, Liyue Zhang, Mingchuan Zhang, Minghua Zhang, Wen-
+  tao Zhang, Yichao Zhang, Chenggang Zhao, Yao Zhao, Shangyan Zhou, Shunfeng Zhou,
+  Qihao Zhu, and Yuheng Zou. DeepSeek LLM: Scaling open-source language models with
+  longtermism. arXiv:2401.02954, 2024. [Cited on pages 2 and 7]
+Essential AI, Ishaan Shah, Anthony M. Polloreno, Karl Stratos, Philip Monk, Adarsh
+  Chaluvaraju, Andrew Hojel, Andrew Ma, Anil Thomas, Ashish Tanwer, Darsh J Shah,
+  Khoi Nguyen, Kurt Smith, Michael Callahan, Michael Pust, Mohit Parmar, Peter Rush-
+  ton, Platon Mazarakis, Ritvik Kapila, Saurabh Srivastava, Somanshu Singla, Tim Ro-
+  manski, Yash Vanjani, and Ashish Vaswani. Practical efficiency of Muon for pretraining.
+  arXiv:2505.02222, 2025. [Cited on page 15]
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai,
+  Eliza Rutherford, Diego de Las Casas, Lisa Anne Hendricks, Johannes Welbl, Aidan
+  Clark, Thomas Hennigan, Eric Noland, Katherine Millican, George van den Driessche,
+  Bogdan Damoc, Aurelia Guy, Simon Osindero, Karén Simonyan, Erich Elsen, Oriol
+  Vinyals, Jack Rae, and Laurent Sifre. An empirical analysis of compute-optimal large
+  language model training. In Advances in Neural Information Processing Systems, vol-
+  ume 35, pp. 30016–30030, 2022. [Cited on pages 1 and 4]
+Rustem Islamov, Roman Machacek, Aurelien Lucchi, Antonio Silveti-Falls, Eduard Gor-
+ bunov, and Volkan Cevher. On the role of batch size in stochastic conditional gradient
+ methods. arXiv:2603.21191, 2026. [Cited on pages 2 and 5]
+Keller Jordan, Yuchen Jin, Vlado Boza, You Jiacheng, Franz Cesista, Laker Newhouse,
+  and Jeremy Bernstein. Muon: An optimizer for hidden layers in neural networks, 2024.
+  URL https://kellerjordan.github.io/posts/muon/. Blog post. [Cited on page 15]
+Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B. Brown, Benjamin Chess, Rewon
+  Child, Scott Gray, Alec Radford, Jeffrey Wu, and Dario Amodei. Scaling laws for neural
+  language models. arXiv:2001.08361, 2020. [Cited on pages 1 and 2]
+Dmitry Kovalev. Understanding gradient orthogonalization for deep learning via non-
+ euclidean trust-region optimization. arXiv:2503.12645, 2025. [Cited on pages 3 and 5]
+Houyi Li, Wenzheng Zheng, Jingcheng Hu, Qiufeng Wang, Hanshan Zhang, Zili Wang,
+  Shijie Xuyang, Yuantao Fan, Shuigeng Zhou, Xiangyu Zhang, and Daxin Jiang. Pre-
+  dictable scale: Part i – optimal hyperparameter scaling law in large language model
+  pretraining. arXiv:2503.04715, 2025a. [Cited on pages 2, 3, 5, 6, 7, 8, 9, 12, 13, 16, and 19]
+Margaret Li, Sneha Kudugunta, and Luke Zettlemoyer. (Mis)fitting scaling laws: A
+ survey of scaling law fitting techniques in deep learning. In International Conference
+ on Learning Representations, 2025b. [Cited on pages 2, 6, 11, 14, and 23]
+Zeming Lin, Halil Akin, Roshan Rao, Brian Hie, Zhongkai Zhu, Wenting Lu, Nikita
+  Smetanin, Robert Verkuil, Ori Kabeli, Yaniv Shmueli, Allan dos Santos Costa, Maryam
+  Fazel-Zarandi, Tom Sercu, Salvatore Candido, and Alexander Rives. Evolutionary-scale
+  prediction of atomic-level protein structure with a language model. Science, 379(6637):
+  1123–1130, 2023. [Cited on page 1]
+
+                                              17
+Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization. In International
+   Conference on Learning Representations, 2019. [Cited on page 5]
+
+Sam McCandlish, Jared Kaplan, Dario Amodei, and OpenAI Dota Team. An empirical
+  model of large-batch training. arXiv:1812.06162, 2018. [Cited on pages 2, 11, and 13]
+
+OpenEuroLLM Consortium. A dataset of LLM training runs. [Cited on pages 3 and 20]
+
+Tomer Porian, Mitchell Wortsman, Jenia Jitsev, Ludwig Schmidt, and Yair Carmon.
+  Resolving discrepancies in compute-optimal scaling of language models. In Advances
+  in Neural Information Processing Systems, volume 37, pp. 100535–100570, 2024. [Cited
+  on pages 2 and 7]
+
+Fabian Schaipp, Alexander Hägele, Adrien Taylor, Umut Simsekli, and Francis Bach. The
+  surprising agreement between convex optimization theory and learning-rate scheduling
+  for large model training. In International Conference on Machine Learning, volume
+  267, pp. 53267–53294, 2025. [Cited on page 2]
+
+Christopher J. Shallue, Jaehoon Lee, Joseph M. Antognini, Jascha Narain Sohl-Dickstein,
+ Roy Frostig, and George E. Dahl. Measuring the effects of data parallelism on neural
+ network training. J. Mach. Learn. Res., 20:112:1–112:49, 2018. [Cited on page 2]
+
+Egor Shulgin, Dimitri von Rütte, Tianyue H. Zhang, Niccolò Ajroldi, Bernhard Schölkopf,
+  and Antonio Orvieto. Deriving hyperparameter scaling laws via modern optimization
+  theory. arXiv:2603.15958, 2026. [Cited on pages 2, 3, 5, and 15]
+
+Dimitri von Rütte, Janis Fluri, Omead Pooladzandi, Bernhard Schölkopf, Thomas Hof-
+  mann, and Antonio Orvieto. Scaling behavior of discrete diffusion language models. In
+  International Conference on Learning Representations, 2026. [Cited on pages 2 and 13]
+
+Xi Wang and Laurence Aitchison. How to set AdamW’s weight decay as you scale model
+  and dataset size. In International Conference on Machine Learning, volume 267, pp.
+  62222–62250, 2025. [Cited on page 2]
+
+Xiaohua Zhai, Alexander Kolesnikov, Neil Houlsby, and Lucas Beyer. Scaling vision
+  transformers. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+  Pattern Recognition (CVPR), pp. 12104–12113, 2022. [Cited on page 1]
+
+Hanlin Zhang, Depen Morwani, Nikhil Vyas, Jingfeng Wu, Difan Zou, Udaya Ghai,
+  Dean P. Foster, and Sham M. Kakade. How does critical batch size scale in pre-
+  training? In International Conference on Learning Representations, 2025. [Cited on
+  pages 3, 4, 5, 12, 13, and 14]
+
+
+
+
+                                           18
+Contents
+1 Introduction                                                                              1
+
+2 Overview                                                                                  2
+
+3 Scaling Laws with Training Steps and Batch Size                                           4
+
+4 Experiments                                                                          5
+  4.1 Comparison of Approach I and II . . . . . . . . . . . . . . . . . . . . . . . 6
+  4.2 Compute Savings Using the Three-term Law . . . . . . . . . . . . . . . . . 8
+  4.3 Performance with Suboptimal Batch Sizes . . . . . . . . . . . . . . . . . . 9
+  4.4 Three-term Law and Critical Batch Size . . . . . . . . . . . . . . . . . . . 11
+  4.5 Back to the Chinchilla Form . . . . . . . . . . . . . . . . . . . . . . . . . . 13
+
+5 Limitations                                                                              14
+
+6 Conclusion                                                                               15
+
+A Experiments: Supplementary Material                                                      19
+  A.1 Details on Experimental Setup . . . . . . . . . . . . . . . . . . . . . . . . .      19
+  A.2 Additional Observations . . . . . . . . . . . . . . . . . . . . . . . . . . . .      21
+  A.3 Scaling Law Coefficients . . . . . . . . . . . . . . . . . . . . . . . . . . . .     21
+  A.4 Fitting 2TL and 3TL on OpenEuroLLM Dataset . . . . . . . . . . . . . .               22
+  A.5 Ablation on Value of δ . . . . . . . . . . . . . . . . . . . . . . . . . . . . .     23
+  A.6 Additional Plots . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .   24
+      A.6.1 Li Dataset Overview . . . . . . . . . . . . . . . . . . . . . . . . . .        24
+      A.6.2 Suboptimal Batch Size Scaling: Li . . . . . . . . . . . . . . . . . .          26
+      A.6.3 Suboptimal Batch Size Scaling: OpenEuroLLM . . . . . . . . . .                 27
+      A.6.4 Reduced Dataset Fit for OpenEuroLLM . . . . . . . . . . . . . .                28
+
+
+A     Experiments: Supplementary Material
+A.1    Details on Experimental Setup
+Datasets. Below is a short description and source for the two main datasets we use in
+the analysis. Within each dataset, the sequence length is the same across runs (2048 for
+Li, and 4096 for OpenEuroLLM). For the scaling laws, we select for each combination
+of (N, b, D) (model size, batch size, token budget) the learning rate that obtains smallest
+final loss.
+
+
+Li                                                                         (Li et al., 2025a)
+  Training logs for different model sizes, token budgets, batch sizes, and learning rates.
+  We use their smoothened loss and filter on dense models (no MoEs).
+  Source   https://wandb.ai/billzid/predictable-scale
+
+                                             19
+OpenEuroLLM                                                   (OpenEuroLLM Consortium)
+  This is an unpublished dataset of training runs executed by the OpenEuroLLM initia-
+  tive. Additional details on the training setup will be provided upon its release by the
+  OpenEuroLLM initiative.
+
+
+Table 4: Overview of the datasets used for fitting our scaling laws. Here, we report the
+ranges of (N, M, K) on the union of train and validation set. See also Fig. 13.
+
+                    Name                    Li            OpenEuroLLM
+               Samples (train/val)       (246/54)               (191/21)
+                  Range of N         [59, 1073] (·106 )     [50, 1000] (·106 )
+                  Range of M       [0.032, 4.2] (·106 )    [0.65, 4.19] (·106 )
+                  Range of K        [0.9, 1525] (·103 )   [7.1, 1144.4] (·103 )
+                  Range of L            [2.12, 3.14]           [2.08, 2.93]
+
+
+Fitting methodology. We first describe the procedure for fitting the scaling laws. The
+training set is split into five parts of equal size. For each law, we then fit the same law
+on each leave-one-out split of datapoints (five-fold cross-validation). This allows for more
+robustness to outliers and to quantify uncertainty for each fitted parameter.
+For the fitting procedure, we use the same Huber loss function as Besiroglu et al. (2024):
+for true loss values Ltrue and predicted loss values L̂, we minimize
+                                                       (
+                                                          1 2
+            X              (i)                             δ ,         |z| ≤ δ,
+                Hδ log(Ltrue ) − log(L̂(i) , Hδ (z) = 2
+                                          
+                                                                 1
+              i
+                                                         δ(|z| − 2 δ), else.
+
+We use the minimize method from scipy.optimize together with the L-BFGS-B opti-
+mizer.
+
+Choice of δ. For the Huber loss, we set δ = 10−3 for the 2TL and 3TL scaling laws,
+which is the standard value used also by Besiroglu et al. (2024). We run an ablation on
+this choice, setting δ = 10−5 instead, see Section A.5 for details.
+
+Initialization. For each single fit, we minimize the Huber loss at ninit different initializa-
+tions with L-BFGS, and select the solution that results in the smallest objective function.
+By default, we use a grid of ten values for each of (α, β, γ, E) and two values for each of
+(A, B, C). That is, for a 2TL (see (6)) we have ninit = 103 · 22 = 4000; for a 3TL (see (3))
+this becomes computationally intensive, and we therefore randomly select 5000 starting
+points from the grid.
+
+Evaluation. After fitting, we predict loss values by averaging over the predictions of
+each of the five individually fit models (cross-validation ensemble). In Tables 5 and 6,
+we report the in-sample mean-absolute deviation (MAD) of the predicted and true loss
+values.
+
+                                             20
+A.2     Additional Observations
+
+This section lists changes of the fitting technique that we have tried (usually only on the
+Li dataset), which however do not lead to better or significantly different results.
+
+
+  (I) Due to the almost-zero values of the parameter E in our laws, we try to enforce larger
+      values by adding the regularization term λ2 (log E)2 . With λ = 10−3 , this leads to
+      different coefficients, in particular E = 0.729; in terms of the other analyses, for
+      example optimal batch size scaling, this has no major impact.
+
+
+ (II) Providing the gradient of (3) to the L-BFGS solver has no major impact on results.
+
+
+(III) Using BFGS instead of L-BFGS has no major impact on results (while being signifi-
+      cantly slower for fitting).
+
+
+
+
+A.3     Scaling Law Coefficients
+
+
+
+Table 5: Li dataset: Scaling law coefficients for 2TL (see (6)) across model sizes, as well as
+for 3TL (see (3)). 2TL has no parameters (A, α), see (6). We report average value across
+subsampled fits, with the standard deviation in brackets. MAD refers to the in-sample
+mean absolute deviation of the predicted (with cross-validation ensemble) to the true loss
+values.
+
+ Model size N         E         A        B        C          α          β         γ        Samples    MAD
+    60M             0.705       -       4.56     7.26        -       0.0864     0.278        13      0.00802
+                     (0.31)             (0.15)   (1.4)               (0.018)    (0.029)
+
+      120M          0.0395       -      5.24     8.22        -       0.0752     0.274        13      0.0089
+                    (0.039)             (0.22)   (1.7)               (0.0082)   (0.044)
+
+      215M          0.481        -      4.66     5.01        -       0.0983     0.204        40      0.0123
+                     (0.38)             (0.44)   (0.6)               (0.033)    (0.028)
+
+      268M          0.959        -      4.04     4.33        -       0.113      0.201        60      0.0143
+                     (0.17)             (0.3)    (0.23)              (0.019)    (0.011)
+
+      429M          0.763        -      5.21     3.47        -       0.151      0.133        55      0.0115
+                     (0.22)             (0.73)   (0.25)              (0.027)    (0.018)
+
+      537M          0.198        -      5.05     3.67        -        0.13      0.108        40      0.00962
+                     (0.1)              (0.55)   (0.1)                (0.02)    (0.015)
+
+      1074M      1.37e − 07      -      5.63     4.3         -       0.126      0.125        25      0.0111
+                   (2.7e−07)            (0.35)   (0.19)              (0.0087)   (0.008)
+
+  Three-term     1.08e − 11    12.6     4.9      4.27     0.132      0.139      0.182        246     0.0159
+                   (2.2e−11)   (0.59)   (0.2)    (0.15)   (0.0043)   (0.008)    (0.0074)
+
+
+
+                                                 21
+                                          Table 6: Same as Table 5, but for OpenEuroLLM dataset.
+
+ Model size N                                    E      A          B         C                                    α                           β              γ        Samples         MAD
+    50M                                          2.3    -         2.26      2.27                                  -                         0.161           0.2         43           0.00654
+                                             (0.048)              (0.42)    (0.38)                                                          (0.026)     (0.026)
+
+                                  130M        1.79       -        3.45      2.92                                      -                     0.164       0.184           39           0.00798
+                                              (0.11)              (0.76)     (0.7)                                                          (0.028)         (0.04)
+
+                                  300M        1.16       -        3.07      2.51                                      -                     0.113       0.138           38           0.00656
+                                              (0.13)              (0.21)    (0.056)                                                         (0.018)     (0.007)
+
+                                  600M        1.09       -        4.41      2.58                                      -                     0.159       0.122           36           0.00562
+                                             (0.021)              (0.36)    (0.057)                                                         (0.011)     (0.0085)
+
+                                  1000M       1.02       -        5.17       2.8                                      -                     0.169       0.128           35           0.00718
+                                              (0.12)                (2)     (0.16)                                                          (0.042)     (0.012)
+
+      Three-term                             0.264 180            2.62      2.73            0.292                                           0.0705      0.156           191          0.0128
+                                              (0.23)    (24)      (0.059)   (0.16)       (0.0077)                                           (0.017)     (0.011)
+
+
+
+
+A.4                                  Fitting 2TL and 3TL on OpenEuroLLM Dataset
+
+                                                                                                                                              Two-term law ensemble
+                                                                                                                                              Three-term law
+                  0.8
+                                                                                       Optimal batch size M ?
+
+
+
+
+                                                                                                                                              Step-Law
+                                                                                                                                              Empirical (train/val)
+
+                  0.6                                                                                              106
+γ/(β + γ)
+
+
+
+
+                  0.4
+
+
+                  0.2                                               Two-term law                                   105
+                                                                    Three-term law
+                                                                    Step-Law
+                  0.0
+                                           108                                 109                                                      109               1010                1011
+                                                  Model size N                                                                                          Token budget D
+
+                                          Figure 9: Same as Fig. 1, but for OpenEuroLLM dataset.
+
+
+                                  0.08    Three-term law                                                                             0.08         Three-term law
+                                          Two-term law ensemble                                                                                   Two-term law ensemble
+        Mean absolute deviation
+
+
+
+
+                                                                                                           Mean absolute deviation
+
+
+
+
+                                          Two-term law                                                                                            Two-term law
+                                  0.06                                                                                               0.06
+
+
+                                  0.04                                                                                               0.04
+
+
+                                  0.02                                                                                               0.02
+
+
+                                  0.00                                                                                               0.00
+                                            108                                 109                                                                   108                               109
+                                                   Model size N                                                                                                Model size N
+
+Figure 10: Same as Fig. 2, but for OpenEuroLLM dataset. (Left) Training set, (right)
+validation set.
+
+                                                                                      22
+A.5                                  Ablation on Value of δ
+When fitting the standard Chinchilla form (1) to the Li dataset with δ = 10−3 , we observe
+that the variance in the parameter estimates appears to be unbalanced; this is likely due
+to the rather small range of N in the dataset, which has been reported to cause issues for
+fitting scaling laws (Li et al., 2025b). We find that using δ = 10−5 fixes this. Hence, we
+perform an ablation with δ = 10−5 for the two-term and three-term scaling laws, to check
+whether the value of δ impacts also the fit of those laws.
+Below we show the results of Section 4.1, but using δ = 10−5 instead of δ = 10−3 . In
+short, for 3TL we observe almost identical results, albeit with slightly higher variance for
+the scaling of M ⋆ . For 2TL, we observe a slightly worse MAD when using δ = 10−5 , as
+well as higher variance for the coefficients (γ, β) as well as the scaling of M ⋆ .
+Overall, the choice of δ does not have big impact on the conclusion of Section 4.1, with
+δ = 10−3 being slightly preferable.
+
+                                  0.08    Three-term law                                                                          0.08         Three-term law
+                                          Two-term law ensemble                                                                                Two-term law ensemble
+        Mean absolute deviation
+
+
+
+
+                                                                                                        Mean absolute deviation
+
+
+                                          Two-term law                                                                                         Two-term law
+                                  0.06                                                                                            0.06
+
+
+                                  0.04                                                                                            0.04
+
+
+                                  0.02                                                                                            0.02
+
+
+                                  0.00                                                                                            0.00
+                                          108                                109                                                               108                            109
+                                                  Model size N                                                                                          Model size N
+
+                                                   Figure 11: Same as Fig. 2, but with δ = 10−5 .
+
+
+                                                                                                                                           Two-term law ensemble
+                                                                                                                                           Three-term law
+                  0.8
+                                                                                    Optimal batch size M ?
+
+
+
+
+                                                                                                                                           Step-Law
+                                                                                                                                           Empirical (train/val)
+
+                  0.6                                                                                           106
+γ/(β + γ)
+
+
+
+
+                  0.4
+
+
+                  0.2                                             Two-term law                                  105
+                                                                  Three-term law
+                                                                  Step-Law
+                  0.0
+                                         108                                109                                                      109               1010            1011
+                                                 Model size N                                                                                        Token budget D
+
+                                                   Figure 12: Same as Fig. 1, but with δ = 10−5 .
+
+
+
+
+                                                                                   23
+A.6                    Additional Plots
+A.6.1                   Li Dataset Overview
+
+                              N = 0.060B                                      N = 0.120B                                         N = 0.215B
+               210                                            210                                            211
+
+               29                                             29
+                                                                                                             29
+Batch size b
+
+
+
+
+               28                                             28
+
+               27                                             27                                             27
+
+               26                                             26
+                                                                                                             25
+                   5                                              5
+               2                                              2
+                                                                                                                                                              3.12
+                       211     213         215          217            211     213         215         217               212         215         218    221
+                              N = 0.268B                                      N = 0.429B                                         N = 0.537B
+               211                                            211                                            211
+
+
+               29                                             29                                             29
+Batch size b
+
+
+
+
+                                                                                                                                                              2.72
+
+
+
+
+                                                                                                                                                                     Final loss
+               27                                             27                                             27
+
+
+               25                                             25                                             25
+                                                                                                                                                              2.42
+
+                        212     215         218                       212    214     216         218               212         214         216    218
+                              N = 1.074B
+               211
+                                                                                                                                                              2.12
+                   9
+               2
+Batch size b
+
+
+
+
+               27
+
+
+               25
+
+
+                       213    215     217         219
+                               Steps K
+
+
+Figure 13: Overview of the Li dataset used for fitting scaling laws. Dots with dashed
+border are part of the validation set.
+
+
+
+
+                                                                                             24
+                                          N = 0.060B                                                  N = 0.120B                                        N = 0.215B
+                                                                                   210                                                211
+                   29
+                                                                                   29                                                 210
+
+                                                                                                                                      29
+    Batch size b
+
+
+
+
+                   28
+                                                                                   28
+                                                                                                                                      28
+                   27                                                              27
+                                                                                                                                      27
+                   26                                                              2   6
+                                                                                                                                      26
+                       5                                                               5
+                   2                                                               2                                                  25
+                               11             13             15               17               11          13          15        17
+                                                                                                                                                                                       3.12
+                           2              2              2                2                2           2           2         2              212   214      216       218         220
+                                          N = 0.268B                                                  N = 0.429B                                        N = 0.537B
+               211                                                                 210                                                211
+
+                                                                                   29
+                   29                                                                                                                 29
+                                                                                   28
+Batch size b
+
+
+
+
+                                                                                                                                                                                       2.72
+
+
+
+
+                                                                                                                                                                                              Final loss
+                                                                                   27
+                   27                                                                                                                 27
+                                                                                   26
+
+                   25                                                              25                                                 25
+                                                                                       4                                                                                               2.42
+                                                                                   2
+                                    212            215            218                           214         216        218                  212    214        216          218
+                                          N = 1.074B
+               211
+                                                                                                                                                                                       2.12
+                       9
+                   2
+Batch size b
+
+
+
+
+                   27
+
+
+                   25
+
+
+                               213        215     217               219
+                                           Steps K
+
+
+Figure 14: Illustration of the reduced dataset used in Section 4.2, with 3 batch size values
+b per sweep. See also caption of Fig. 13; here, the difference is that for each value of
+(N, D) we use only three different batch sizes (lying on a diagonal) for fitting, while the
+validation set remains the same as before.
+
+
+
+
+                                                                                                                       25
+                                D = 2.00e + 09            D = 4.00e + 09               D = 8.00e + 09
+                        32                          32                           32
+N = 6.00e + 07
+
+
+
+
+                   1024                           768                        768
+                     1.38e-03             1.56e-02 1.38e-03          1.11e-02 1.38e-03           1.11e-02
+                                D = 2.00e + 09            D = 4.00e + 09               D = 8.00e + 09
+                           32                        32                           32
+      N = 1.20e + 08
+
+
+
+
+                       1024                         768                          768
+                         1.38e-03        1.11e-02    1.38e-03      7.81e-03       1.38e-03      7.81e-03
+                                                          D = 4.00e + 09                                          D = 1.14e + 10             D = 2.00e + 10             D = 1.00e + 11
+                                D = 2.00e + 09                                         D = 8.00e + 09
+      N = 2.15e + 08
+
+
+
+
+                                                    32                                                       32                         16                         32
+                        16                                                       32
+
+
+
+                       256                                                      512
+                                                 2048                                                   2048                       1024                       2048
+                        3.45e-04          3.91e-03                               4.88e-04        5.52e-03
+                                                   4.88e-04          2.21e-02                             4.88e-04          2.21e-02 4.88e-04          2.21e-02 2.44e-04          1.11e-02
+                                                                                       D = 5.00e + 09                                        D = 1.42e + 10                                       D = 2.50e + 10            D = 8.00e + 10             D = 1.00e + 11
+                                D = 2.00e + 09            D = 4.00e + 09                                          D = 8.00e + 09                                        D = 2.00e + 10
+      N = 2.68e + 08
+
+
+
+
+                                                                                 32                                                     32                                                   16                        32                        64
+                        16                          16                                                       32                                                    64
+
+
+
+                       256                        256                                                       512                                                   768                                                                        1024
+                                                                            2048                                                   2048                                                  1024                      2048
+                        3.45e-04          3.91e-03 4.88e-04          5.52e-03                                4.88e-04       5.52e-03                               4.88e-04       5.52e-03
+                                                                              4.88e-04           2.21e-02                            4.88e-04          2.21e-02                            4.88e-04         2.21e-02 2.44e-04         1.11e-02 6.91e-04          7.81e-03
+
+                                                                                       D = 8.00e + 09                                        D = 2.27e + 10             D = 4.00e + 10            D = 5.00e + 10            D = 1.00e + 11
+                                D = 2.00e + 09            D = 4.00e + 09                                          D = 2.00e + 10                                   32                                                  64
+      N = 4.29e + 08
+
+
+
+
+                                                                                 32                                                     32                                                   32
+                        16                          16                                                       64
+
+
+
+                       256                        256                                                       768
+                                                                            2048                                                   2048                        2048                       2048                     1024
+                        3.45e-04          3.91e-03 4.88e-04          5.52e-03                                4.88e-04       5.52e-03
+                                                                              3.45e-04           1.56e-02                            3.45e-04          1.56e-02 4.88e-04          1.56e-02 2.44e-04         1.11e-02 6.91e-04         5.52e-03
+                                                                                                                  D = 1.00e + 10                                        D = 2.84e + 10            D = 5.00e + 10
+                                D = 2.00e + 09            D = 4.00e + 09               D = 8.00e + 09                                        D = 2.00e + 10
+      N = 5.37e + 08
+
+
+
+
+                                                                                                             32                                                    32                        32
+                        16                          16                           32                                                     64
+
+
+
+                       256                        256                        512                                                       768
+                                                                                                        2048                                                  2048                       2048
+                        3.45e-04          3.91e-03 4.88e-04          5.52e-03 4.88e-04           5.52e-03                               4.88e-04       5.52e-03
+                                                                                                          3.45e-04          1.56e-02                            3.45e-04          1.56e-02 3.45e-04         1.56e-02
+                                                                                                                  D = 2.00e + 10             D = 5.69e + 10
+                                D = 2.00e + 09            D = 4.00e + 09               D = 8.00e + 09                                        32
+      N = 1.07e + 09
+
+
+
+
+                                                                                                             32
+                        16                          16                           32
+
+
+
+                       256                        256                        512
+                                                                                                        2048                              2048
+                        3.45e-04          3.91e-03 4.88e-04          5.52e-03 4.88e-04           5.52e-03
+                                                                                                          2.44e-04          1.11e-02        4.88e-04
+                                                                                                                                                   1.95e-03
+
+
+
+
+Figure 15: Overview of the full Li dataset (before learning-rate selection). Each heatmap
+represents the final loss over a grid of batch size b (y-axis) and learning rate η (x-axis)
+for a single combination of (N, D). Blue squares mark the optimal combination of (η, b),
+gray squares mark optimal learning rate for the given row of batch size. Note that most
+marked squares do not lie on the border, therefore indicating that the sweep is sufficiently
+extensive.
+
+
+
+
+A.6.2                                    Suboptimal Batch Size Scaling: Li
+
+
+                                210       bmin ∝ D0.62                                                                                                                                                                      D ∈ [2.0e + 09, 1.0e + 11]
+                                                                                                                                                           2.8
+                                                              0.29
+                                          bmax ∝ D
+                                29
+
+                                28                                                                                                                         2.6
+                 Batch size b
+
+
+
+
+                                                                                                                                                    Loss
+
+
+
+
+                                27
+                                                                                                                                                           2.4
+                                26
+
+                                25                                                     (bmin , bmax ) (in-sample)                                          2.2
+                                                                                       (bmin , bmax ) (out-of-sample)                                                                                                                                 Law
+                                24                                                     Power-law fit bmin , bmax ∝ Dν                                                                                                                                 Empirical
+
+
+                                   109                               1010          1011                                                                                           25                    27        29                              211
+                                                                     Token budget D                                                                                                                     Batch size b
+
+                                                                              Figure 16: Same as Fig. 5, but for N = 429M.
+
+                                                                                                                                              26
+                210           bmin ∝ D0.53                                                        2.8                 D ∈ [2.0e + 09, 5.0e + 10]
+
+                              bmax ∝ D0.31
+                    29
+                                                                                                  2.6
+                    28
+ Batch size b
+
+
+
+
+                                                                                           Loss
+                    27
+                                                                                                  2.4
+                        6
+                    2
+                                                     (bmin , bmax ) (in-sample)                   2.2
+                    25
+                                                     (bmin , bmax ) (out-of-sample)                                                  Law
+                                                     Power-law fit bmin , bmax ∝ Dν                                                  Empirical
+                    24
+                        109                     1010          1011                                      25   27        29            211
+                                                Token budget D                                               Batch size b
+
+                                                   Figure 17: Same as Fig. 5, but for N = 537M.
+
+
+A.6.3                        Suboptimal Batch Size Scaling: OpenEuroLLM
+
+
+                210           bmin ∝ D0.35                                                                            D ∈ [6.0e + 09, 3.0e + 11]
+                                                                                                  2.8
+                                         0.41
+                              bmax ∝ D
+                    29
+
+                    28                                                                            2.6
+ Batch size b
+
+
+
+
+                                                                                           Loss
+
+
+
+
+                    27
+                                                                                                  2.4
+                    26
+
+                    25                               (bmin , bmax ) (in-sample)                   2.2
+                                                     (bmin , bmax ) (out-of-sample)                                                  Law
+                    24                               Power-law fit bmin , bmax ∝ Dν                                                  Empirical
+
+
+                        109                     1010          1011                                      25   27        29            211
+                                                Token budget D                                               Batch size b
+
+                     Figure 18: Same as Fig. 5, but for OpenEuroLLM dataset with N = 300M.
+
+
+
+                              bmin ∝ D0.34                                                        2.8                 D ∈ [6.0e + 09, 3.0e + 11]
+
+                    29        bmax ∝ D   0.42
+
+
+
+                    28                                                                            2.6
+     Batch size b
+
+
+
+
+                                                                                           Loss
+
+
+
+
+                    27
+                                                                                                  2.4
+                    26
+                                                     (bmin , bmax ) (in-sample)                   2.2
+                    25                               (bmin , bmax ) (out-of-sample)                                                  Law
+                                                     Power-law fit bmin , bmax ∝ Dν                                                  Empirical
+                    24
+                      109                       1010          1011                                      25   27        29            211
+                                                Token budget D                                               Batch size b
+
+                            Figure 19: Same as Fig. 5, but for OpenEuroLLM dataset with N = 1B.
+
+                                                                                      27
+A.6.4                           Reduced Dataset Fit for OpenEuroLLM
+
+                                     Three-term law                                                           Three-term law
+                                     Step-Law                                                                 Step-Law
+Optimal batch size M ?
+
+
+
+
+                                                                         Optimal batch size M ?
+                                     9.90 · D0.440 (from (7))                                                 11.27 · D0.445 (from (7))
+                                     Empirical (train/val)                                                    Empirical (train/val)
+                         106                                                                      106
+
+
+
+
+                         105                                                                      105
+
+
+
+                               109                1010           1011                                   109                1010           1011
+                                                Token budget D                                                           Token budget D
+                                 (a) Dataset reduced to 63%                                               (b) Dataset reduced to 42%
+
+Figure 20: Same as Fig. 3, but for OpenEuroLLM dataset. Fitting on a reduced dataset,
+with only 3 values of b per sweep (left) and 2 values (right).
+
+
+
+
+                                                                        28
+

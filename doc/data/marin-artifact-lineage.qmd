@@ -1,0 +1,150 @@
+---
+title: "Marin replication: PRs, code, data and result receipts"
+subtitle: "A concrete build order, with historical Harrier and current Datakit kept distinct"
+date: 2026-11-04
+---
+
+## What we can reproduce from public artifacts
+
+The detailed transformation account is [the code walkthrough](marin-code-walkthrough.qmd). This companion supplies the missing **change → pinned implementation → input artifact → output → measured result** chain. Read both: a function name explains an operation; a frozen input and result receipt make an experiment reproducible.
+
+We retrieved PR metadata and selected discussions on **2026-11-04**, saved selected PR-head files, pinned five HF model repositories, and downloaded the public mixture-search campaign with hash verification. The [local evidence bundle](../../references/marin/2026-marin-code-data-evaluation-evidence/README.md) includes the [PR ledger](../../references/marin/2026-marin-code-data-evaluation-evidence/PR-LEDGER.md), head SHAs, model cards/configurations and checksums. PR status is the retrieved `merged` field, **not** whether GitHub happens to supply a `merge_commit_sha`. An unmerged experiment branch can still have a reported completed run; neither fact establishes public checkpoint access.
+
+| Replication lane | Frozen target | What is actually available here | What must still be obtained |
+|---|---|---|---|
+| A: historical Harrier experiment | Historical normalized source leaves, Harrier embeddings, fusion scores/content types, calibrated buckets, 200-cell store and selected phase weights | Registration code, PR production censuses, mixture JSON, public HF experiment records | Original source snapshots; accessible historical embeddings/scorer/store/checkpoints or a documented regeneration path |
+| B: current portable Datakit build | Reference DAG at `1d274b52c636b6f2a9177b1d4c14b2f74795a8a6`, using its Luxical/token-only interfaces | Complete pinned tracked-code archive and the [stage walkthrough](marin-code-walkthrough.qmd) | Selected raw corpora, compatible quality model/calibration, storage/compute; newly built stores and new proxy results |
+| C: public experiment-record replay | HF campaign revision `283eacf18b66b7888b59fd8f889d6be134aee879` | Hash-verified campaign, referenced swarm observations, bucket/content artifacts and content bases | Candidate-generation environment; model training remains a separate step |
+
+**Do lane C first, then a small lane B corpus pilot.** This is our implementation order, not a claim that Marin published every underlying training shard. Lane A is possible only where its adopted artifacts can be retrieved. A Luxical cell numbered 14 is not a historical Harrier cell numbered 14. [PR #8302](https://github.com/marin-community/marin/pull/8302), [PR #8303](https://github.com/marin-community/marin/pull/8303), [current reference DAG](https://github.com/marin-community/marin/blob/1d274b52c636b6f2a9177b1d4c14b2f74795a8a6/experiments/datakit/reference_pipeline.py).
+
+## Pinned stage implementations
+
+These files are also saved under `pr-heads/` in the evidence bundle. The table freezes implementations independently of changing default branches.
+
+| Stage | Specific code at PR head | Corresponding data contract |
+|---|---|---|
+| Exact dedup, #7816 | [global_exact_dedup.py](https://github.com/marin-community/marin/blob/df82aeb0e6682b5d25005b6c3fd547dffc70d0c8/experiments/datakit/global_exact_dedup.py) | Normalized content IDs → canonical sparse duplicate attributes |
+| Historical assignments, #8302 | [hero_data.py](https://github.com/marin-community/marin/blob/ef6fa6e8c23ccbea1c92da5e351ffc370990d983/experiments/datakit/hero_data.py) | Frozen source/path registration → assignment handles |
+| Fusion quality, #8303 | [score_fusion.py](https://github.com/marin-community/marin/blob/734c01c88553bf34f255581f2c1760704b496f64/experiments/datakit/cluster/quality/fast_transformer/score_fusion.py), [bucket.py](https://github.com/marin-community/marin/blob/734c01c88553bf34f255581f2c1760704b496f64/experiments/datakit/cluster/quality/fast_transformer/bucket.py) | Tokens + Harrier → raw scores; scores + content types + calibration → buckets |
+| Decontamination, #8327/#8328 | [decon.py](https://github.com/marin-community/marin/blob/f64a25c57b373992b007e01bf30b24b5d6a62800/lib/marin/src/marin/datakit/decon.py), [historical path map](https://github.com/marin-community/marin/blob/caa57e03f6757c7d0468b87c07ca256fc3d9e961/experiments/datakit/hero_data_decontam_paths.json) | Eval index/drop sets + normalized text → marks; adopted frozen output leaves |
+| Hero schedule, #9162 | [mixture log](https://github.com/marin-community/marin/blob/cd3fd448a661e17e26a231f28d013364f058fa6e/docs/reports/hero-mixture-log.md) | Store + phase weights + switch steps; log distinguishes planned phases from deployed ones |
+
+## 1. Resolve sources before allocating workers
+
+Start from [`DatakitSource` and its normalize-step dependencies](https://github.com/marin-community/marin/blob/1d274b52c636b6f2a9177b1d4c14b2f74795a8a6/lib/marin/src/marin/datakit/sources.py). Each selected source needs an upstream repository/revision or URL/file inventory, access status, raw-byte checksums, extraction configuration and destination. A registry entry is executable provenance, not a promise that all data is redistributed or currently accessible.
+
+Use the selected-source commands in [walkthrough §1](marin-code-walkthrough.qmd#source-registry-named-components-and-dependency-chains). First inspect pending steps, then download only, then normalize. Keep the source selection explicit. The concrete output is `NormalizedData`, with sorted content IDs/text/metadata and a source manifest. IDs are xxh3_128 of the normalized UTF-8 text; upstream record IDs become `source_id`. This permits independent attributes to join on a stable identity. Save raw and normalized document/byte counts and at least one source-specific transformation fixture.
+
+For our Nemotron-CC pilot, choose actual published shards, not the entire registry. For cyber material, create a separate registry component with upstream version/date/license, document boundaries and an untouched metadata copy. Keep manuals, vulnerability descriptions, code and agent conversations identifiable as distinct components until dedup and quality errors have been measured. Those are proposed extensions; Marin's existing weights do not validate them.
+
+## 2. Build duplicate attributes, rather than silently rewriting text
+
+[PR #7816](https://github.com/marin-community/marin/pull/7816), **merged**, head `df82aeb0e6682b5d25005b6c3fd547dffc70d0c8`, introduced global exact-dedup attributes: select a canonical source/shard/row for each normalized ID and write sparse `attributes.dup_doc` leaves. The store consumes these markers, prefers fuzzy canonical markers when available, and falls back to exact markers for documents skipped by MinHash. Canonicalization across sources therefore affects provenance and retained supply even when text is identical.
+
+Fuzzy processing has its own implementation history. [PR #8405](https://github.com/marin-community/marin/pull/8405) is **unmerged in the retrieved metadata**; use it as design/review evidence, and use the baseline DAG's actual functions to execute lane B. The baseline's candidate generation uses word 5-grams, 286 permutations, 26 bands, seed 42 and a text cap; verification uses distinct word-3-gram containment. Read [walkthrough §3](marin-code-walkthrough.qmd#global-exact-and-fuzzy-dedup-are-different-operations) for limits and source exemptions.
+
+**Acceptance receipt:** exact/fuzzy flags and canonical representative counts per source, duplicate cross-source matrix, retained-token counts, and sampled false merges. Require cases where a one-line patch or command flag changes meaning. Do not reduce all LSH-connected components to a single document without the verification policy.
+
+## 3. Freeze the evaluation corpus, then decontaminate
+
+[PR #8327](https://github.com/marin-community/marin/pull/8327), **merged**, head `f64a25c57b373992b007e01bf30b24b5d6a62800`, gives concrete implementation and production evidence: restartable Bloom/index → common-feature drop sets → mark → report. It requires two distinct matched features in a paragraph, with explicit short-document exceptions. The production report states **18,710,478,349 documents checked and 259,960 marked**, across 292 sources and 162,535 shards. These are author-reported counters, not a corpus scan we performed.
+
+[PR #8328](https://github.com/marin-community/marin/pull/8328), **merged**, freezes the 292-source decontamination path map. Its description records consistent 13-gram, 0.5-overlap and minimum-feature settings. Adopted historical leaves preserve an experiment's identity; rerunning today's configuration is a new artifact. The [later benchmark-inclusion proposal #10541](https://github.com/marin-community/marin/pull/10541) is unmerged and must not be retroactively attributed to the historical corpus.
+
+**Build output:** benchmark record/feature inventory; Bloom and exact-hash/index artifacts; source/global drop sets; co-partitioned marks; report with exact checked/marked counts, benchmark attribution and examples. First inject exact benchmark copies and verify detection, then inspect benign boilerplate collisions. Changing the corpus used to estimate common features changes the policy. The PR's 26-minute versus 85-minute preparation timings use different workloads and are not a measured 3.3× acceleration on identical input. [PR #8327](https://github.com/marin-community/marin/pull/8327).
+
+## 4. Reconstruct the historical topic/quality branches precisely
+
+### Topic assignments
+
+[PR #8302](https://github.com/marin-community/marin/pull/8302), **merged**, head `ef6fa6e8c23ccbea1c92da5e351ffc370990d983`, registers frozen Harrier assignments instead of retraining centroids. Its census covers 292 sources/162,535 shards; the reported comparison checks 698,876 shared IDs across three sources and reproduces cluster IDs with a distance tolerance. The necessary input is the original embedding/centroid basis, not merely the number of clusters.
+
+### Quality and calibration
+
+[PR #8303](https://github.com/marin-community/marin/pull/8303), **merged**, head `734c01c88553bf34f255581f2c1760704b496f64`, is unusually useful for replication:
+
+1. Read normalized IDs, the first **512 Nemotron-tokenized IDs**, and Harrier embeddings in lockstep; regroup chunked tokenize rows into documents.
+2. Reject mismatched normalize output or tokenizer before scoring.
+3. Produce raw fusion scores using the pinned `nemotron_88k` scorer; retain separate content-type attributes.
+4. Apply **per-content-type calibration** in `bucket.quality_step`.
+5. Write `source`, `id`, `content_type`, `raw_score`, `score` and `quality_bucket`, in normalized row order.
+6. Check separate scorer and calibration digests. Refitting calibration should re-key buckets without recomputing raw scores.
+
+The original August-14 Nemotron tokenize leaves were subsequently deleted, according to the PR. Historical scores/content types are adopted by frozen path maps; regenerated tokenization/scoring has a different artifact identity. That missing dependency must appear in a reproduction manifest.
+
+The PR reports an all-shard row-alignment census over **18,710,478,349 documents**, a 292-source bucket pass taking **2h50m with 12 sources in flight on CPU workers**, and a 381,789-document NSF subset reproducing pinned bucket outputs. Rescoring that subset had maximum raw-score difference `1.56e-3`, attributed to bf16 reduction order with a different batch size. These are three different checks: exact row/bucket identity, production throughput, and numerical scorer tolerance. [PR #8303](https://github.com/marin-community/marin/pull/8303).
+
+### Current reference path
+
+[PR #9694](https://github.com/marin-community/marin/pull/9694), **merged**, implements token-only scoring from stored tokenization. The baseline reference DAG uses Luxical embeddings. Its token-only branch cannot simply consume a fusion checkpoint or per-type calibration without content-type inputs: the checked implementation rejects per-type calibration when no type is supplied. Freeze compatible model/config/remap/calibration bytes before claiming lane B can run. [Quality compatibility details](marin-code-walkthrough.qmd#quality-scoring-has-two-pathsdo-not-mix-them).
+
+## 5. Join attributes into training stores and count retained supply
+
+The [baseline store builder](https://github.com/marin-community/marin/blob/1d274b52c636b6f2a9177b1d4c14b2f74795a8a6/experiments/datakit/store/run.py) consumes tokenizer, assignment, quality, duplicate and contamination attributes. It joins co-partitioned streams in row order and checks IDs; do not replace these checks with an unchecked zip. Remove flagged documents, assign retained tokens to domain × quality cells, write token runs and finalize the Levanter/TensorStore cache and manifest. Only committed successful output with the count sidecars is a usable store.
+
+For each cell $i$, measure retained available tokens $U_i$ under the **training tokenizer**. Given phase exposure budgets $B_s$ and weights $w_{s,i}$, compute cumulative exposure and repetition:
+
+$$
+A_i=\sum_s B_s w_{s,i},\qquad E_i=A_i/U_i,\qquad \sum_iw_{s,i}=1.
+$$
+
+Here $U_i$ is token supply after the declared corpus processing; $A_i$ counts training exposures. Do not call an 18.75T target exposure field “18.75T unique data.” Validate nonempty caches for positive weights and compare source-level counts with the sum of all cells. Version and measure document packing, shuffle blocks and repeated traversal separately.
+
+## 6. Inspect public HF experiment records before training a proxy
+
+There are two independently pinned releases in our source tree:
+
+| Public artifact | Local evidence | Interpretation |
+|---|---|---|
+| `harrier_18t75_d768.parquet` at HF `7aa59d2158a6299bde95d24dd1b1b9c98f6e4d5a` | [116-row audit](../../references/marin/2026-datakit-proxy-run-records/audit.json) | 72 fresh-full and 44 resumed-cooldown experiments; 200-cell weights, loss summaries and provenance paths |
+| Transfer campaign at HF `283eacf18b66b7888b59fd8f889d6be134aee879` | [hash-verified artifact audit](../../references/marin/2026-marin-code-data-evaluation-evidence/audit.json) | Campaign and 19 hash-verified dependencies: swarm observations, buckets/content and shared content bases; suitable for surrogate replay |
+
+The first export's example run `harrier-marin-proportional-d768-buffer128-full-krr-20260814` has `macro_bpb=1.9291560386674835` and 54 evaluation tasks in the saved audit. This verifies that a public **result record** is retrievable. It does not give access to its training text or validate cross-run comparisons with different task coverage. [Pinned HF tree](https://huggingface.co/datasets/marin-community/grug-moe-mix-swarm/tree/7aa59d2158a6299bde95d24dd1b1b9c98f6e4d5a).
+
+[PR #7541](https://github.com/marin-community/marin/pull/7541), **unmerged**, provides a concrete swarm launcher holding model/optimizer/resources fixed while varying weights. Its illustrative physical proxy budget is about $10^{11}$ tokens; simulated full-scale store exposure is a different variable. Do not sum resumed branches as independent full training runs.
+
+The campaign contains observation tables with **804 legacy d512**, **56 and 115 historical Harrier d768**, and **3 target-swarm** rows. These are registry-specific scopes, not the older 840/116-row export counts, and should not be added as independent training runs. The downloaded dependencies total about **7.8 MB**.
+
+## 7. Replay the mixture selector with verified inputs
+
+[PR #8633](https://github.com/marin-community/marin/pull/8633), **unmerged**, head `b50c5e9879298b2e189142333480770c747a3fe6`, publishes an independently downloadable campaign and a transfer-GP implementation. This is a **data-mixture search**, separate from the optimizer search in [our HP guide](../optimizers/marin-hyperparameter-search.qmd).
+
+The [saved PR-head README](../../references/marin/2026-marin-code-data-evaluation-evidence/pr-heads/8633/experiments/datakit/mixprior/README.md) specifies the exact environment and command. In an isolated checkout at that head, the documented CPU path is:
+
+```bash
+uv sync --package marin-core --extra datakit --extra cpu --group test
+uv run --no-sync pytest -n 0 -q tests/datakit/mixprior
+uv run --no-sync python -m experiments.datakit.mixprior.generate_from_huggingface \
+  --campaign-uri hf://datasets/marin-community/grug-moe-mix-swarm@283eacf18b66b7888b59fd8f889d6be134aee879/registry/v1/transfer_campaign.parquet \
+  --campaign-sha256 5ed5fb024590dd4707b802caf8fe728be1b8d73375c100139f884b0728f0cca2 \
+  --output-dir work/rav-candidate \
+  --pool-size-per-seed 65536 \
+  --pool-seed 111 --pool-seed 222 --pool-seed 333 --acquisition-seed 7
+```
+
+We downloaded and verified the campaign and referenced artifacts; **we have not executed this candidate-generation command**. Our collector reproduces the download/hash checks without installing Marin's training environment. The loader resolves referenced relative paths beneath the pinned campaign root, rather than trusting mutable informational URI fields.
+
+The implementation represents two phase-simplex vectors on a **1/49,152 lattice**, fits a shared-content GP with swarm-specific residuals and a soft quadratic exposure penalty, and searches seeded candidate pools. Only actual target-swarm observations define the acquisition incumbent. Save `candidate.parquet`, full candidate pool, acquisition values, materialized campaign and bundle manifest. The README's closed-pool development replay was used during method development and predates the JAX acquisition: it is not an unbiased prospective result or a measured hero-run improvement. [Pinned selector code](https://github.com/marin-community/marin/tree/b50c5e9879298b2e189142333480770c747a3fe6/experiments/datakit/mixprior).
+
+## 8. Validate transfer before adopting a hero mixture
+
+[Issue #9126](https://github.com/marin-community/marin/issues/9126) supplies a later, concrete measured comparison absent from the earlier pipeline report. It reports a completed d1536 rung at 90,767 updates: **0.91844 macro BPB**, **0.72% lower** than the old ladder, with 15/16 Paloma subsets improving and Wikipedia regressing by 0.50%. The **1.20× compute-equivalent speedup assumes equal throughput**. The d512 swarm's estimated 1.17× uses transferred baseline slopes; code speedup estimates differ substantially across scales. This is evidence for transfer in this experiment, not proof that every proxy-mixture gain transfers.
+
+[The completion comment](https://github.com/marin-community/marin/issues/9126#issuecomment-5688777500) distinguishes measured finals from an earlier forecast. The saved discussion also records earlier missing-weight and unfinished-rung concerns; do not treat an early analysis as final. [PR #9162](https://github.com/marin-community/marin/pull/9162), **merged**, head `cd3fd448a661e17e26a231f28d013364f058fa6e`, commits the selected hero-mixture schedule/revision. Its 108000/390251 main switch and subsequent cooldown are not identical to the comparison ladder's 25% switch or swarm's 10% switch.
+
+For our cyber extension, train proportional and optimized controls at the same proxy recipe, retain a held-out mixture evaluation set, then test a larger rung. Record both cyber gains and broad-domain regressions. A fixed distribution loss and independent capability suite must survive selection. See [Marin evaluation](../evaluation/marin-evaluation.qmd) for protocols and [mid/post-training](../training/marin-midtraining-posttraining.qmd) for continuation experiments.
+
+## Concrete team handoff
+
+| Order | Deliverable | Gate before next step |
+|---|---|---|
+| 1 | Frozen code/environment + source/access inventory | Every selected input resolves; hashes and tokenizer revisions recorded |
+| 2 | Small real-source normalized corpus | Stable IDs, preserved provenance, format-sensitive fixtures pass |
+| 3 | Dedup/decon/quality/topic attributes | ID alignment, injected-contamination checks, quality false-positive review |
+| 4 | Retained bucket caches and count manifest | Count conservation, nonempty positive-weight cells, repeated traversal measured |
+| 5 | Public record replay and one real proxy control | Selector inputs verified; trainer/evaluator result schema agrees |
+| 6 | New mixture proposals and cyber ablations | Equal recipe/budget, task coverage and exposure caps verified |
+| 7 | Larger-rung holdout + production rehearsal | Measured transfer and throughput; no reliance on inferred wall-clock speedup |
+
+These are reviewable artifacts, not evidence that our team has run the training. Raw corpus preparation, cloud stores and model checkpoints have not been downloaded by this documentation update.

@@ -1,0 +1,133 @@
+% \subsection{Reinforcement Learning}
+% \label{subsec:RL}
+% The RL phase of \ourmodel post-training comprises three stages as shows in Figure \ref{fig:posttraining_stages}: Stage (1) multi-environment RLVR \ref{subsub:rlvr}, Stage (2) reinforcement learning for end-to-end software engineering tasks (SWE-RL) \ref{subsub:swerl}, and Stage 3 RLHF. \ref{subsec:RLHF}
+% We detail each stage along with the training algorithm and systems setup below.
+
+% Multi-environment RLVR is the primary stage and trains on the full set of environments simultaneously. We use this unified setup to keep RL updates informed by the full environment mix and to prevent accuracy drops across all tasks throughout the run.
+
+% We handle end-to-end SWE-RL separately as the second stage since it has very different systems characteristics from the rest of the environments. SWE-RL rollouts take substantially longer to generate and often require longer context lengths, which makes them a throughput bottleneck when trained alongside the other environments. We therefore run RL for the SWE tasks as a separate stage using settings tuned for long-horizon, long-context trajectories. 
+
+% We finally run RLHF as a distinct stage to improve the model behavior and interaction quality.
+
+% \subsubsection{Multi environment Reinforcement Learning from Verifiable Rewards}
+% \label{subsec:RLVR}
+
+\subsection{Reinforcement Learning}
+\label{subsec:RL}
+The RL phase of \ourmodel post-training consists of three stages followed by an MTP healing stage as shown in Figure~\ref{fig:posttraining_stages}:
+\begin{itemize}
+    \item[] --- \textbf{Stage 1: Multi-environment RL from Verifiable Rewards} (\S\ref{subsub:rlvr}). This is the primary training stage, where we optimize \ourmodel jointly across the full set of environments. Training in a unified mixture keeps each RL update informed by the complete environment distribution and helps prevent regressions on individual tasks over the course of training.
+    \item[] --- \textbf{Stage 2: SWE-RL for end-to-end software engineering tasks} (\S\ref{subsub:swerl}). We run SWE-RL as a separate stage because SWE rollouts are substantially slower to generate and typically require longer context lengths, creating a throughput bottleneck when co-trained with shorter-horizon environments. Isolating this stage allows us to tune rollout and batching settings for long-horizon, long-context trajectories.
+    \item[] --- \textbf{Stage 3: RLHF} (\S\ref{subsec:RLHF}). We finally apply RLHF as a distinct stage to improve instruction-following behavior, robustness, and overall interaction quality.
+    \item[] --- \textbf{Stage 4: MTP Healing}. In this stage we train the MTP heads and keep rest of the weights frozen. We re-use the prompts from RLVR, and train the MTP head using the negative log likelihood loss similar to SFT on the generated responses. We find this stage significantly improves MTP accuracy.
+\end{itemize}
+
+We describe these stages below including the training algorithm, data and systems setup.
+
+
+
+\subsubsection{Stage 1: Multi-environment RL from Verifiable Rewards}
+\label{subsub:rlvr}
+
+We employ a unified RLVR strategy similar to \nanomodel, but significantly scale the number of environments. We find that training on all environments simultaneously yields stable gains, whereas single-environment training leads to severe regressions on other benchmarks.
+
+Our RLVR setting contains 21 environments covering diverse domains, including math, code, STEM, safety, chat, instruction following, long context capabilities, puzzles, and various agentic tasks. For data mixture and curriculum, we adopt an approach similar to \nanomodel: we filter out prompts where the SFT model consistently provides correct answers, then sort the remaining samples via a difficulty-based curriculum. Further details of this methodology are available in \nanomodel.
+
+\paragraph{Low-effort Reasoning}
+During the multi-environmental RL stages, we convert a subset of the prompts to be in the low-effort mode. For each low-effort prompt, the reward for a roll-out is adjusted as a function of both correctness and the number of generated tokens. The low-effort prompt mix starts with subsets of Math, STEM QA and competitive coding prompts, in total representing 2\% of all RL prompts being in low-effort mode, and is later reduced to subsets of Math and STEM QA, representing just 1\% of RL prompts. For Math and STEM QA, we randomly sample a subset. For competitive coding, we have a set of coding problems that have been withheld from SFT data and we only sample from this withheld set for low-effort coding prompts. Empirical results suggest that this data strategy provides sufficient generalization and the low-effort mode is improved across a wide set of benchmarks during the course of multi-environmental RL.
+
+
+\subsubsection*{RLVR Data}
+We scale up our RL data significantly compared to \nanomodel. We describe the RL datasets we used in our multi environment RL below. The majority of the RL training environments are open sourced in Nemo Gym \citep{nemo-gym}. In total, we train on 21 environments and 37 different RL datasets.
+
+\begin{itemize}
+    \item[] --- \textbf{Math.} We use the same competitive math problems as \nanomodel. For this dataset, we train both with and without a Python execution tool. We also introduce a new environment for formal proof verification.
+    \item[] --- \textbf{Code.} We train on competition-style code data from \nanomodel and \citet{wang2025nemotroncascadescalingcascadedreinforcement}. We also train on single-step patch generation for software engineering tasks to prepare for end-to-end RL in the next stage.
+    \item[] --- \textbf{STEM.} We include the STEM datasets from \nanomodel and add newly curated, more challenging scientific problems.
+    \item[] --- \textbf{Instruction Following.} We augment the instruction-following data from \nanomodel with a new multi-challenge dataset. In this setting, the agent must follow complex user instructions, with rewards computed from a predetermined rubric.
+    \item[] --- \textbf{Safety.} We add two environments: one targeting reduced over-refusals on safety-related prompts, and one improving robustness to jailbreaks. For jailbreaks, seed prompts come from our SFT data; to surface harder attacks during RL, we apply an iterative attack pipeline following PAIR \citep{chao2024jailbreakingblackboxlarge}, attacking an early SFT-only checkpoint and collecting modified prompts with high attack success rates.
+    \item[] --- \textbf{Long Context.} We use the same long-context environment introduced in \nanomodel.
+    \item[] --- \textbf{Agentic Tool Use.} Beyond the tool-use environments from \nanomodel, we add new environments focused on conversational tool use and terminal use.
+    \item[] --- \textbf{Reasoning Gym.} We train with Reasoning Gym \citep{stojanovski2025reasoning}, enabling learning over a diverse suite of reasoning tasks.
+\end{itemize}
+
+% \textbf{Math. } We train on the same competitive math problems as \nanomodel. When training \ourmodel on this dataset, we enable training both with and without a python execution tool. In addition, we create a new environment for formal proof verification.
+
+% \textbf{Code. } We train on the competition code data from \nanomodel and \citet{wang2025nemotroncascadescalingcascadedreinforcement}.
+
+% \textbf{Stem. } We train on the datasets from \nanomodel as well as newly curated and more difficult scientific problems.
+
+% \textbf{Instruction Following. } We augment the instruction following datasets from \nanomodel with a new multi-challenge style dataset. In this dataset, the agent must must follow complex instructions given by the user and reward is based on a predetermined rubric.
+
+% \textbf{Safety. } We introduce two additional environments when training \ourmodel. The first one focuses on mitigating overrefusals in responses to safety related prompts and the second one focuses on providing robustness against jailbreak attacks. For the jailbreak environment, the seed jailbreak prompts are collected from our SFT dataset. However, to ensure that we engage with challenging jailbreak prompts during RL, we use an iterative attack pipeline following the PAIR method \cite{chao2024jailbreakingblackboxlarge}, to directly attack an early SFT-only checkpoint and collect modified prompts that show a high attack success rate. 
+
+% \textbf{Long Context. } We use the same long context environment developed in \nanomodel.
+
+% \textbf{Agentic Tool Use. } In addition to the environments from \nanomodel, we introduce several new environments focused on conversational tool use and terminal use.
+
+% \textbf{Reasoning Gym. } We train \ourmodel using Reasoning Gym \citep{stojanovski2025reasoning}, allowing our model to learn from a diverse set of reasoning tasks.
+
+\subsubsection{Stage 2: End-to-end RL for Software Engineering}
+\label{subsub:swerl}
+In the SWE-RL stage, we improve the model's ability to autonomously solve GitHub issues under diverse harnesses. Each rollout launches an Apptainer container with the target repository, runs an OpenHands agent loop to produce a code patch, and evaluates it against ground-truth tests for a binary reward. For tool diversity, we implemented OpenCode and Codex agent classes within OpenHands that match the tool formats of Claude Code and Codex CLI, reusing a single harness while varying tools and prompts at training time. This multi-harness training improves the model's generalization and performance across all target harnesses at inference time.
+
+\subsubsection{Stage 3: Reinforcement Learning from Human Feedback}
+\label{subsec:RLHF}
+We follow a similar approach to \nanomodel for RLHF, training a large GenRM model to provide supervision during RL. Rather than using a vanilla GenRM, we train a principle following GenRM as in \citet{wang2025rlbff}. These principles allow us to guide \ourmodel's behavior on important domains like identity and safety related topics. Similar to \nanomodel, we use \texttt{Qwen3-235B-A22B-Thinking-2507} as the initialization for training the GenRM. 
+
+To train the GenRM we use the Helpsteer 3 dataset \citep{Wang2025HelpSteer3Preference}, commercially friendly subsets of the lmarena-140k dataset \citep{chiang2024chatbot}, and some more recently collected human preference data. Unlike \nanomodel, we train using our GenRM throughout our multi environment RL stage and also perform a separate RLHF-only stage at the end of post training.
+
+
+\subsubsection{Algorithm}
+We use an asynchronous GRPO setup in which training and inference are decoupled across separate GPU devices. Inference workers continuously generate trajectories, which are stored in a rollout buffer. Once enough trajectories are collected to form a batch, the batch is sent to the training engine for a model update. We push the updated weights to the inference workers as soon as a new model version is available. Because weight updates can happen mid-rollout, a single trajectory may contain tokens produced by different model versions. We do not recompute the KV cache after updating the model weights on the inference workers. To avoid excessive policy lag, which may result in accuracy degradation, we restrict the inference workers to be at most one step behind the latest model version.
+
+To stabilize the training and minimize off-policy effects caused by the training-inference mismatch and policy lag, we mask the importance sampling ratio computed from the training and inference logprobs \citep{Shao2024DeepSeekMath, team2025every, yao2025offpolicy}.
+
+In multi-environment RLVR, we sample 256 prompts per step and generate 16 responses per prompt. We train with a batch size of 4096, which corresponds to a single gradient update per rollout. We begin training with a maximum generation length of 49K tokens and later increase it to 64K.
+
+\textbf{Agentic RL - PivotRL:}
+Post-training for long-horizon agentic capabilities has a tension between efficiency and accuracy. By long-horizon, we mean tasks that require many turns of interaction with an environment, such as conversational tool use, code editing, terminal interaction, and web search. SFT is cheap and simple for this task, but it often degrades performance outside of the target domain (OOD). End-to-end RL avoids that outcome to a large part, but it is costly because every update requires online interactive rollouts in complex environments. To address this, during the post-training of Super, we adopt PivotRL~\citep{yi2026pivotrl}. 
+
+PivotRL is an assistant-turn-level RL method that addresses this tradeoff by reusing offline SFT expert trajectories during RL. It focuses training on informative turns  (called "pivots") within those SFT traces, where the policy has uncertainty over the next action, and it uses a domain-appropriate reward to match the policy's action to the expert action, so the model gets credit for similar actions rather than the exact expert action. We notice that this method greatly improves the efficiency of our agentic RL, without facing the OOD degradation issues of SFT.
+
+We apply PivotRL for all agentic domains: including for Agentic Programming, Search, Terminal Use, and Conversational Tool Use. We will have a manuscript with more details soon.
+
+\subsubsection{Infrastructure}
+RL at the frontier of model post-training is currently defined by scaling up to an increasing diversity of tasks or environments designed for the model to learn increasingly general capabilities. Scaling RL to many environments requires a high-performance, extensible, and standardized interface for coordinating between rollouts and training. To address the scaling performance and extensibility challenges using one standard framework, we adopt NeMo Gym \citep{nemo-gym} and NeMo RL \citep{nemo-rl} for enabling large-scale RL on many different environments/verifiers.
+
+NeMo Gym is based on the abstraction of servers. There are three core varieties of servers in Gym: (1) agents, (2) models, and (3) resources. An agent server implements the rollout kernel of a RL environment. A model server wraps an inference engine such as vLLM \citep{kwon2023efficientmemorymanagementlarge} to provide a prompt-response API, and also carefully preserves token and inference log-prob data and metadata required for RL. A resource server provides a verification API for computing rewards from a given rollout.
+
+Our Nemotron Super 3 RLVR experiments were all based on an integrated infrastructure of NeMo RL and NeMo Gym: NeMo RL acts as the RL training loop controller, using Megatron-Core \citep{shoeybi2020megatronlmtrainingmultibillionparameter} for model training at scale, and routing all rollouts through NeMo Gym and vLLM.
+
+NeMo RL and NeMo Gym use ray for orchestration and resource management and deploy the ray cluster on SLURM. Megatron training workers, vLLM generation workers, Gym environments and judge models are all scheduled onto a single ray cluster.
+
+\textbf{Async RL Infrastructure: } 
+All RL stages used asynchronous RL, where generation can happen independently of training which improves training efficiency by trading off how on-policy the rollouts are. The trainings used one-step off policy where each training step was earmarked for a future training step so there were no wasted rollouts. Training and generation were not collocated which simplifies deployment and avoids having to orchestrate complex memory management between the async training and generation workers.
+
+All asynchronous RL runs also used in-flight weight updates \citep{piche2025pipelinerl} where training can update generation worker weights without waiting for the remaining ongoing rollouts to finish. The result is a single rollout can have tokens and log probabilities from differently aged policies. Enabling in-flight weight updates is critical for speeding up asynchronous RL training. We did not recompute the KV cache after in-flight weight updates.
+
+\textbf{Resiliency: }
+As we scaled up to 1k GPUs, we encountered several issues that caused intermittent failures that were not observed in smaller job shapes. These issues fell into two categories (1) hardware related and (2) software related.
+
+We observed several hardware issues that required full restart of the job, so several optimizations were also made to improve startup time by (1) parallelizing all initialization (2) prefetching all virtual environments and binaries (3) utilize caching in upstream repos like vLLM and flashinfer.
+
+Parallel initialization exacerbated latent race conditions with port bindings in the post-training software stack, which became a significant failure point. Several components of the post-training software required ports: (1) Ray control plane (2) vLLM workers and OpenAI servers (3) TCP rendezvous (4) NeMo Gym servers. Due to the high number of processes needing ports on a node, we hit port conflict frequently at 1K GPU scale that were all time-of-check to time-of-use (TOCTOU) race conditions. The pattern we observed was that a component would check if a port was available without claiming it exclusively, and by the time it (or another process it notified) attempted to bind, another process had already claimed the port.
+
+
+\textbf{SWE-RL Infrastructure: }
+Training a model on software engineering tasks requires a gym environment that can execute hundreds of concurrent agent-codebase interactions, each within an isolated sandbox, and return a reward signal derived from real test execution. In the SWE-RL environment in Nemo-Gym, each rollout launches an Apptainer container with the target repository, runs the OpenHands agent loop to produce a code patch, and runs the ground-truth tests to compute a binary reward. Rollouts are distributed across nodes using Ray with a \texttt{SPREAD} scheduling strategy. Below we describe the key components of this environment.
+
+\begin{itemize}
+    \item \textbf{Container Execution with Apptainer.} The absence of root access on our cluster restricts the use of Docker for container isolation. Instead, we use Apptainer (formerly Singularity) to run each SWE task instance in a pre-built container image (\texttt{.sif} files), providing filesystem isolation via a writable tmpfs overlay while sharing the host kernel.
+
+    \item \textbf{OpenHands Agent Loop.} The agent loop is executed by a modified version of OpenHands, managing the full lifecycle of each interaction: initializing the runtime, presenting the problem statement, running the agent's step loop upto a configurable turn limit, extracting the git patch, and cleaning up. The agent interacts with the repository workspace through bash commands and file operations via a tmux-based session.
+
+    \item \textbf{Memory Management.} Since Apptainer containers share host memory and processes (unlike Docker's cgroup isolation), runaway agent processes can cause OOM conditions affecting the entire node. We implemented a memory watchdog daemon that monitors the aggregate RSS of the tmux process tree and proactively kills processes inside panes when a configurable limit is exceeded, while keeping the tmux server alive for graceful recovery.
+
+    \item \textbf{Command Blocklist.} The shared-kernel nature of Apptainer means an agent issuing \texttt{killall} or \texttt{pkill} could terminate training processes or vLLM servers on the same node. A regex-based command block list intercepts and blocks dangerous commands before execution, returning informative error messages with safer alternatives.
+
+    \item \textbf{Harness Diversity.} To increase tool diversity during training without building separate harness integrations, we implemented OpenCode and Codex agent classes within OpenHands that match the tool input/output formats of their respective external harnesses (Claude Code and Codex CLI). Both agents plug into OpenHands' existing runtime and conversation memory, inheriting container management and observation handling. 
+
+    \item \textbf{Serialization.} We replaced Python's standard \texttt{json} with \texttt{orjson} for serialization of HTTP payloads between the gym and the model server, as each trajectory turn carries prompt token IDs, generated token IDs, and log probabilities, resulting in large payloads that benefit from orjson's Rust-based implementation.
+\end{itemize}
+

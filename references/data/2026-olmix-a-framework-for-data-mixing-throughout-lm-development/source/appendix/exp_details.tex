@@ -1,0 +1,136 @@
+\section{Experiment Details}\label{supp:details}
+
+
+\subsection{Experimental Setup}\label{supp:exp_details}
+
+\textbf{Domains.} We provide a breakdown of the number of tokens per domain in Table~\ref{tab:domain_sizes}.
+
+\input{tables/token_counts}
+
+
+
+
+\textbf{Model.} We train 1B parameter decoder-only transformer models using Olmo 2 architecture~\citep{olmo20242olmo2furious}. In particular, we set n\_layers=16, n\_head=16, d\_model=2048, head\_dim=128.
+
+We use a batch size of 512, a learning rate of $0.0018$ with a cosine scheduler with warmup and linear decay, and a sequence length of 4096. We use the Dolma 2 tokenizer.
+
+All 1B models were trained on 32 NVIDIA H100s (80 GB), while proxy models were trained on one NVIDIA H100. 
+
+
+\textbf{Evaluation.} Table~\ref{tab:eval_suite} lists all the downstream tasks. 
+
+\input{tables/eval_suite}
+
+
+
+\subsection{Implementation Details}\label{supp:imp_details}
+
+For \fullmixreuse and \partialmixreuse, the first $\tilde{p}$ is from applying \base on the initial web corpus. After each update, the newly recomputed mix becomes the $\tilde{p}$ of the next one.
+
+
+Across all swarm-based methods we evaluate on (\base, Swarm Reuse, \fullmixreuse, \partialmixreuse), we use $\Ssmall=30$M parameters (architecture in Table~\ref{tab:model_architectures}) and train for 5x Chinchilla, with a batch size of 64, a learning rate of $0.007$, and a sequence length of 2048. 
+
+For any $m$ domains we want to recompute, we set $K$ to approximate $c(m + 1)$ for linear multiplier $c = 1, 2, 3$. In particular, for $c = 3$, we set $K = 2^x$ to be the power of $2$ that is closest to $3(m+1)$. For $c = 2$, we set $K = 2^{x-1}$. For $c = 1$, we set $K = m+1$. When we recompute over $m=2$ domains, we use search instead of regression, as the search space is one-dimensional. See Tables~\ref{tab:cost_fullrecomputation}, \ref{tab:cost_swarmreuse}, \ref{tab:cost_fullreuse}, and~\ref{tab:cost_partialreuse} for exact swarm sizes.
+We solve all of our mixture optimization problems using CVXPY and a KL regularization term with $\lambda=0.05$. We set $k=4$ and $R = 1$T for the repetition constraint of the experiments in \S\ref{sec:superswarm}. 
+
+
+\input{tables/superswarm_size_full_recomp}
+\input{tables/superswarm_size_swarm_reuse}
+\input{tables/superswarm_size_full_reuse}
+\input{tables/superswarm_size_partial_reuse}
+
+
+
+
+Algorithm~\ref{alg:swarm_reuse_method} corresponds to the Swarm Reuse approach in \S\ref{sec:superswarm}, presenting another way to reuse prior information from mixing. 
+The blue coloring indicates aspects of this algorithm that are different from \base. 
+
+
+\begin{algorithm}[htb]
+   \caption{Swarm Reuse Mixing}
+   \label{alg:swarm_reuse_method}
+\begin{algorithmic}[1]
+   \STATE {\bfseries Input:} \textcolor{olmoBlue}{Old domain set $\D$, new domain set $\D'$, old swarm $\{(p^j_{\text{old}}, \{y_{ij}^{\text{old}}\}_{i=1}^n)\}_{j=1}^{K_{\text{old}}}$}, new swarm size $K_{\text{new}} = \mathcal{O}(|\D'|)$, Dirichlet distribution $\mathcal{P}'$, repetition factor $k$, requested tokens $R$.
+   \STATE Sample new mixes $p^1_{\text{new}}, \dots, p^{K_{\text{new}}}_{\text{new}} \sim \mathcal{P}'$ on $\D'$.
+   \STATE Train proxy models on new mixes and evaluate on downstream tasks to get new swarm data $\{(p^j_{\text{new}}, \{y_{ij}^{\text{new}}\}_{i = 1}^n \}_{j =1}^{K_{\text{new}}}$.
+   \STATE \textcolor{olmoBlue}{Map old swarm mixes to new domain set: for $j \in [K_{\text{old}}]$, compute $\tilde{p}^j_{\text{old}} \in \triangle^{m'-1}$ from $p^j_{\text{old}} \in \triangle^{m-1}$ where:}
+   \begin{itemize}
+       \item \textcolor{olmoBlue}{If \textbf{Add}: $\D = [\D_1, \emptyset]$ and $\D' = [\D_1, \D_2']$. Then $\tilde{p}^j_{\text{old}}(D_i') = p^j_{\text{old}}(D_i)$ for $D_i \in \D_1$, and $\tilde{p}^j_{\text{old}}(D_i') = 0$ for $D_i' \in \D_2'$.}
+       \item \textcolor{olmoBlue}{If \textbf{Partition}: $\D = [\D_1, \{D_{\text{par}}\}]$ and $\D' = [\D_1, \{D_{\text{par}}^1, \dots, D_{\text{par}}^{\ell}\}]$ where $D_{\text{par}} = \bigcup_{k=1}^{\ell} D_{\text{par}}^k$. Then $\tilde{p}^j_{\text{old}}(D_i') = p^j_{\text{old}}(D_i)$ for $D_i \in \D_1$, and $\tilde{p}^j_{\text{old}}(D_{\text{par}}^k) = p^j_{\text{old}}(D_{\text{par}}) \cdot \frac{N_{D_{\text{par}}^k}}{\sum_{k'=1}^{\ell} N_{D_{\text{par}}^{k'}}}$ for the partitioned domains.}
+   \end{itemize}
+   \STATE \textcolor{olmoBlue}{Construct combined swarm: $\mathcal{S} = \{(\tilde{p}^j_{\text{old}}, \{y_{ij}^{\text{old}}\})\}_{j=1}^{K_{\text{old}}} \cup \{(p^j_{\text{new}}, \{y_{ij}^{\text{new}}\})\}_{j=1}^{K_{\text{new}}}$}.
+   \FOR{$i \in [n]$}
+       \STATE Use combined swarm $\mathcal{S}$ to fit the log-linear model $\hat{f}_i(p) \texttt{=} c_i + \exp(A_i^\top p)$, where $c_i \in \R^+$ and $A_i \in \R^{|\D'|}$.
+   \ENDFOR
+   \STATE Solve the optimization problem:
+   \begin{align}
+       &\text{minimize}_{p \in \triangle^{|\D'|-1}} \frac{1}{n} \sum_{i=1}^n \hat{f}_i(p) \\ 
+       &\text{subject to} \quad p_j \leq \frac{k N_j'}{R} \; \forall j \in |\D'| \nonumber
+   \end{align}
+   \STATE \textbf{Return} $p^\star$, the solution on new domain set $\D'$.
+\end{algorithmic}
+\end{algorithm}
+
+
+\subsection{Additional Results}\label{sec:additional_exp_results}
+
+
+\textbf{6T results.} In Figure~\ref{fig:superswarm_6T}, we compare the performance versus cost of mixing strategies when $R=6$T, a more data-constrained setting. We exclude \partialmixreuse since \fullmixreuse performs well at $R=6$T and only falls short at $R=1$T (Figure~\ref{fig:theorem2_validation}).
+
+
+We find that \fullmixreuse achieves 99\% of full recomputation's ($c=3$) performance improvement (+6.94\% versus +6.97\%) while using 74\% fewer total proxy runs (216 versus 832 runs). Swarm reuse achieves $93\%$ of full recomputation's performance with 52 more runs than \fullmixreuse. 
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.5\linewidth]{figs/contribution_2/superswarm_6T.pdf}
+    \caption{Performance improvement versus cost of mixing under evolving domains. \fullmixreuse achieves $99\%$ of the improvement of full recomputation while using $74\%$ fewer proxy runs.}
+    \label{fig:superswarm_6T}
+\end{figure}
+
+\textbf{Low proxy run budget regime.} While Figure~\ref{fig:main_results} assesses performance versus number of proxy runs for cumulative costs ranging from 216 to 832 runs, it is unclear how recomputation strategies behave in a lower budget regime. We evaluate full recomputation with $c = 1$ (i.e., the minimum swarm size possible) and all other methods with $K \approx c(m+1)$ for $c = 1, 2, 3$, such that the range of total proxy runs considered is from 76 to 272.
+
+Figure~\ref{fig:low_budget} shows performance versus number of proxy runs in a low budget regime. We make three observations:
+\begin{itemize}
+    \item The performance of swarm reuse versus \fullmixreuse at low budgets is similar.
+    \item While the minimum number of proxy runs needed for full recomputation is 267, mixture reuse and swarm reuse unlock a lower budget regime, requiring as little as 76 runs. These reuse strategies can be attractive to practitioners with strict compute budgets and large domain sets that undergo many updates.
+    \item With only 76 runs, mixture reuse still achieves a $+9.6\%$ and $+5\%$ improvement over the natural distribution when $R=1$T and $6$T, respectively.
+\end{itemize}
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.49\linewidth]{figs/contribution_2/superswarm_1T_low_budget_regime.pdf}
+    \includegraphics[width=0.49\linewidth]{figs/contribution_2/superswarm_6T_low_budget_regime.pdf}
+    \caption{Performance improvement versus cost of mixing under evolving domains for $R=1$T (left) and $R=6$T (right). Total number of proxy runs vary from 76 to 272.}
+    \label{fig:low_budget}
+\end{figure}
+
+\textbf{Proposed mixes.} Table~\ref{tab:full_domain_mixtures} shows the full mixtures corresponding to the natural distribution, full recomputation (best seed), and \partialmixreuse (best seed).
+
+\input{tables/superswarm_mixes}
+
+
+\textbf{Ablations for each domain update operator.} We demonstrate that \fullmixreuse attains performance similar to full recomputation for each type of domain update operator. We evaluate the following domain updates:
+\begin{itemize}
+    \item \Add: we start with 24 DCLM topic-based domains. Then, we add 15 Stack-Edu programming language domains.
+    \item \Remove: we start with 39 domains consisting of 24 DCLM topics and 15 Stack-Edu programming languages. Then, we remove the 15 Stack-Edu domains.
+    \item \Partition: we start with 24 DCLM topics and a single Stack-Edu source domain. Then, we partition the Stack-Edu source into 15 programming language domains. 
+    \item \Revise: we start with 24 DCLM topics and a single StackV2~\citep{lozhkov2024starcoder} source domain. Then, the StackV2 domain is replaced with the Stack-Edu domain.
+\end{itemize}
+
+For each operator, we compare \fullmixreuse and the natural distribution over $\D'$ (as a control) against full recomputation. We measure the total variation distance of the proposed mixtures with respect to full recomputation's mix, defined as $\tv(q, q^\star) = \frac{1}{2} \sum_{i=1}^{m'} |q_i - q_i^\star| \in [0, 1]$. We also measure performance gap relative to full recomputation's downstream performance (average task BPB) for \Add, \Remove, and \Partition. For our setup, we used $k=4$, $R=6$T.
+
+
+Figure~\ref{fig:operators} shows that \fullmixreuse achieves substantially smaller performance gaps and TV distances compared to the natural distribution across \Add, \Remove, and \Partition. For \Revise, the TV distance between \fullmixreuse and full recomputation was only 0.21\%---orders of magnitude smaller than other operators---indicating nearly identical mixes. We therefore did not evaluate downstream performance for \Revise, as variation would be dominated by noise. These results demonstrate that mixture reuse works effectively across all domain update operators.
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figs/contribution_2/operator_fig.pdf}
+    \caption{Relative performance gap (left) and total variation distance (right) w.r.t. full recomputation across domain update operators. \fullmixreuse is substantially closer to full recomputation than the natural distribution across all three operators, in both performance and mixes.}
+    \label{fig:operators}
+\end{figure}
+
+
+
+

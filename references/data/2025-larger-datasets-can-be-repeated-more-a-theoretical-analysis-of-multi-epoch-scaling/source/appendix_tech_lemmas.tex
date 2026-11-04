@@ -1,0 +1,401 @@
+\section{Additional Technical lemmas}
+\begin{lemma} \label{lem:dot-product}For any PSD matrix $\mA$, it holds that
+\begin{align*}
+    \inp{\mH}{\mA} \leq \text{tr}(\mH)\|\mA\|.
+\end{align*}
+\end{lemma}
+\begin{proof}
+    We denote the PSD decomposition of $\mH$ by 
+    \[\mH = \sum_{i=1}^d\lambda_iq_iq_i^{\top}\]
+    where $\lambda_i ~\text{and} ~q_i$ are the eigenvalues and corresponding eigenvectors of $\mH$.
+    So we get
+    \begin{align*}
+        \inp{\mH}{\mA}&=\inp{\sum_{i=1}^d\lambda_iq_iq_i^{\top}}{\mA} \\        &=\sum_{i=1}^d\lambda_iq_i^{\top}\mA q_i \\
+        &\leq \sum_{i=1}^d\lambda_i\|\mA\| \\
+        &=\text{tr}(\mH)\|\mA\|,
+    \end{align*}
+    which completes the proof.
+\end{proof}
+\begin{lemma} \label{lem:numerical-power}
+    When $l\geq 1$, we have \[(1+x)^l \leq 1+2lx, \ x\in [0, \frac{\log 2}{l}]\]
+\end{lemma}
+\begin{proof}
+    We define $f(x):=(1+x)^l-(1+2lx)$.
+    Calculating the derivative and notice the fact that $2^x - 1 \geq (\log2)x$, we obtain
+    \begin{align*}
+        f^{'}(x)&=l(1+x)^{l-1}-2l \\
+        &\leq l(1+2^{\frac{1}{l}}-1)^{l-1}-2l \\
+        &\leq l\times2^{\frac{l-1}{l}} -2l \leq 0.
+    \end{align*}
+    The above equation completes the proof.
+\end{proof}
+\begin{lemma} \label{lem:numerical-power-minus}
+    When $l\geq 1$, we have \[(1-x)^{2l} \leq 1-lx, \ x\in [0, \frac{1}{6l}]\].
+\end{lemma}
+\begin{proof}
+    We define $g(x):=(1-x)^{2l}-(1-lx)$.
+    Calculating the derivative, we obtain
+    \begin{align*}
+        g'(x)&=-2l(1-x)^{2l-1}+l \leq 0 ~~~\text{when} ~~~x\in[0, 1-2^{-\frac{1}{2l-1}}].
+    \end{align*}
+    Notice that $h(x) = 2^x$ is convex, so for $x\in[0, 1]$, we have
+    \begin{align*}
+        h(-x+0\times(1-x))\leq xh(-1)+(1-x)h(0),
+    \end{align*}
+    that is 
+    \begin{align*}
+        2^{-x}\leq 1-\frac{x}{2}~~~\text{when} ~~~x\in[0, 1]. 
+    \end{align*}
+    So 
+    \begin{align*}
+        1-2^{-\frac{1}{2l-1}}&\geq1-\left(1-\frac{1}{2(2l-1)}\right) \\
+        &=\frac{1}{2(2l-1)}\geq\frac{1}{6l}~~~\text{when} ~~~l\geq 1,
+    \end{align*}
+    which concludes the proof.
+\end{proof}
+\begin{lemma} \label{lem:un-shuffle-A-EA-expectation}
+    Given N data points such that $\vx_0, \cdots \vx_{n-1} \overset{i.i.d}{\sim} \cN(0, \mH)$, and define $\mA = (\mI-\eta \vx_{N-1}\vx_{N-1}^{\top})\cdots(\mI-\eta \vx_0\vx_0^{\top})$. Then we have
+    \[\E\|\mA-\E\mA\|^l \leq \left(\sqrt{\deltaA\eta^2Nl}\right)^l,\]
+    where $\deltaA:= \Tilde{C}8eD^4\log d$ for some absolute constant $\Tilde{C} > 0$.
+\end{lemma}
+\begin{proof}
+    We define $\mQ:= \mA-\E\mA$ for convenience. 
+    We can obtain a concentration inequality for $\|\mQ\|$ due to the boundedness of $\vx$ according to Theorem 7.1 in~\citet{huang2022matrix}.
+    
+    We define \[\mY_i := \mI-\eta \vx_i\vx_i^{\top}\]
+    For any $1 \leq i \leq N$, we can choose $m_i = 1$, and we have \[\|\mY_i - \E\mY_i\| = \|\eta(\mH-\vx_i\vx_i^{\top})\|\leq 2D^2\eta:=\sigma_i\]
+    So we know that $M_{\mA} = 1, v_{\mA} = 4D^4\eta^2N$, and
+    \[\mathds{P}\{\|\mQ\|\geq t\}\leq de^{-\frac{t^2}{2ev_{\mA}}}=de^{-\frac{t^2}{8eD^4\eta^2N}} \ \text{when} \ t^2 \geq 8eD^4\eta^2N.\]
+    Furthermore, we have \[\mathds{P}\{\|\mQ\|\geq t\}\leq e^{-\frac{t^2}{16eD^4\eta^2N}} \ \text{when} \ t^2 \geq 16eD^4\eta^2N\log d.\]
+    So there exists a non-negative sub-Gaussian random variable $Z, \ \text{s.t}$
+    \[\mathds{P}\{\|\mQ\|\geq t\}\leq \mathds{P}\{Z\geq t\}\leq e^{-\frac{t^2}{16eD^4\eta^2N}} \ \text{when} \ t^2 \geq 16eD^4\eta^2N\log d.\]
+    Then for all $l\geq1$, we can get 
+    \begin{align*}
+        \E\|\mQ\|^l &= \E\|\mQ\|^l(\mathds{1}_{\{\|\mQ\|\leq\sqrt{16eD^4\eta^2N\log d}\}}+\mathds{1}_{\{\|\mQ\|>\sqrt{16eD^4\eta^2N\log d}\}}) \\
+        &\leq\left(\sqrt{16eD^4\eta^2N\log d}\right)^l+ \E\|\mQ\|^l\mathds{1}_{\{\|\mQ\|>\sqrt{16eD^4\eta^2N\log d}\}} \\
+        &\leq \left(\sqrt{16eD^4\eta^2N\log d}\right)^l + \int_{\sqrt{16eD^4\eta^2N\log d}}^{+\infty} \mathds{P}\{\|\mQ\|\geq t\} lt^{l-1} \,dt \\
+        &\leq \left(\sqrt{16eD^4\eta^2N\log d}\right)^l+ \int_{0}^{+\infty} \mathds{P}\{Z\geq t\} lt^{l-1} \,dt \\
+        &\leq \left(\sqrt{16eD^4\eta^2N\log d}\right)^l+ \E Z^{l} \\
+        &\leq \left(\sqrt{16eD^4\eta^2N\log d}\right)^l+(\sqrt{C16eD^4\eta^2Nl\log d})^l \\
+        &\leq \left(\sqrt{\Tilde{C}8eD^4\eta^2Nl\log d }\right)^l.
+    \end{align*}
+    where $C$ and $\Tilde{C}$ are absolute constants, the fifth inequality is due to Proposition 2.5.2 in \citep{vershynin2018high}.
+\end{proof}
+% \begin{lemma} \label{lem:shuffle-poly-A-EA-expectation}
+%     For any $l\leq K$, when $K \leq \frac{\log 2}{\eta \sqrt{\Tilde{C}8eD^4T\log d}}\|\E\mA\|$, we have
+%     \[\E\left\|\prod_{k=1}^l\mA^{(k)} - (\E\mA)^l \right\| \leq 2K\sqrt{\Tilde{C}8eD^4\eta^2NK\log d}.\]
+% \end{lemma}
+% \begin{lemma} \label{lem:shuffle-poly-A-EA-expectation}
+%     For any $l\leq K$, we have that
+%     \[\E\left\|\prod_{k=1}^l\mA^{(k)} - (\E\mA)^l \right\|_2 \leq \left(\sqrt{\Tilde{C}8eD^4\eta^2Nl\log d}+\|\E \mA\|\right)^l-\|\E\mA\|^l.\]
+% \end{lemma}
+% \begin{proof}
+%     \begin{align*}
+%     &\E\|\prod_{k=1}^l\mA^{(k)} - (\E\mA)^l \|_2=\E\|\prod_{k=1}^l(\mQ^{(k)}+\E\mA)-(\E\mA)^l\|\\
+%     &=\E\|\sum_{\substack{i_0=0\leq j_1<i_1<j_2<\cdots <j_{i-1} \\<i_{t-1}<j_t\leq l=i_t ~\text{when} ~t \geq 2 \\ i_0=0\leq j_1<i_1~\text{when} ~t=1}}\prod_{h=1}^{t}\mQ^{(i_h)}\cdots\mQ^{(j_h+1)}(\E\mA)^{j_h-i_{h-1}}\| \\
+%     &\leq \sum_{\substack{i_0=0\leq j_1<i_1<j_2<\cdots <j_{i-1} \\<i_{t-1}<j_t\leq l=i_t ~\text{when} ~t \geq 2 \\ i_0=0\leq j_1<i_1~\text{when} ~t=1}}\prod_{h=1}^{t}\E\|\mQ^{(i_h)}\|\cdots\|\mQ^{(j_h+1)}\|\|(\E\mA)\|^{j_h-i_{h-1}} \\
+%     &\leq \sum_{\substack{i_0=0\leq j_1<i_1<j_2<\cdots <j_{i-1} \\<i_{t-1}<j_t\leq l=i_t ~\text{when} ~t \geq 2 \\ i_0=0\leq j_1<i_1~\text{when} ~t=1}}\prod_{h=1}^{t}\left(\E\|\mQ^{(i_h)}\|^{i_h-j_h}\right)^{\frac{1}{i_h-j_h}}\cdots\left(\|\mQ^{(j_h+1)}\|^{i_h-j_h}\right)^{\frac{1}{i_h-j_h}}\|(\E\mA)\|^{j_h-i_{h-1}} \\
+%     &= \sum_{\substack{i_0=0\leq j_1<i_1<j_2<\cdots <j_{i-1} \\<i_{t-1}<j_t\leq l=i_t ~\text{when} ~t \geq 2 \\ i_0=0\leq j_1<i_1~\text{when} ~t=1}}\prod_{h=1}^{t} \E\|\mQ\|^{i_h-j_h}\|(\E\mA)\|^{j_h-i_{h-1}} \\
+%     &\leq \sum_{\substack{i_0=0\leq j_1<i_1<j_2<\cdots <j_{i-1} \\<i_{t-1}<j_t\leq l=i_t ~\text{when} ~t \geq 2 \\ i_0=0\leq j_1<i_1~\text{when} ~t=1}}\prod_{h=1}^{t} \left(\sqrt{\Tilde{C}8eD^4\eta^2N(i_h-j_h)\log d }\right)^{i_h-j_h}\|(\E\mA)\|^{j_h-i_{h-1}} \\
+%     &\leq \sum_{\substack{i_0=0\leq j_1<i_1<j_2<\cdots <j_{i-1} \\<i_{t-1}<j_t\leq l=i_t ~\text{when} ~t \geq 2 \\ i_0=0\leq j_1<i_1~\text{when} ~t=1}}\prod_{h=1}^{t} \left(\sqrt{\Tilde{C}8eD^4\eta^2Nl\log d }\right)^{i_h-j_h}\|(\E\mA)\|^{j_h-i_{h-1}} \\
+%     &\leq \sum_{m=1}^l\binom{l}{m}\left(\sqrt{\Tilde{C}8eD^4\eta^2Nl\log d}\right)^{m}\|\E\mA\|^{l-m}\\
+%     &=\left(\sqrt{\Tilde{C}8eD^4\eta^2Nl\log d}+\|\E \mA\|\right)^l-\|\E\mA\|^l.
+%     % &=\left(\sqrt{\Tilde{C}8eD^4\eta^2Nl\log d}+1\right)^l-1\\
+%     % &\leq \left(\sqrt{\Tilde{C}8eD^4\eta^2NK\log d}+1\right)^K-1\\
+%     % &\leq 2K\sqrt{\Tilde{C}8eD^4\eta^2NK\log d} ~~~\text{when} ~~~\sqrt{\Tilde{C}8eD^4\eta^2NK\log d} \leq \frac{\log 2}{K},
+% \end{align*}
+% where the second inequality uses the Holder inequality \citep{folland1999real}, and the third equality is due to \Cref{lem:un-shuffle-A-EA-expectation}. 
+
+\begin{lemma} \label{lem:shuffle-poly-A-EA-expectation}
+    For any $l \leq K$, we have
+    \[
+    \mathbb{E}\left\|\prod_{k=1}^l\mA^{(k)} - (\mathbb{E}\mA)^l \right\| 
+    \leq \left(\sqrt{\deltaA\eta^2Nl} + \|\mathbb{E} \mA\|\right)^l - \|\mathbb{E}\mA\|^l,
+    \]
+    where $\deltaA$ is the same positive constant appearing in \Cref{lem:un-shuffle-A-EA-expectation}.
+\end{lemma}
+\begin{proof}
+Let $a = \|\mathbb{E}\mA\|$ and $c_s = \sqrt{\widetilde{C}8eD^4\eta^2Ns\log d}$ for some $s$. Define the perturbation $\mQ^{(k)} = \mA^{(k)} - \mathbb{E}\mA$. Expanding the product as
+\[
+\prod_{k=1}^l\mA^{(k)} = \prod_{k=1}^l \left(\mQ^{(k)} + \mathbb{E}\mA\right) = \sum_{m=0}^l \sum_{\mathcal{S} \in \binom{[l]}{m}} \mP_{\mathcal{S}},
+\]
+where $\mP_{\mathcal{S}}$ is the matrix product with $\mQ^{(k)}$ at positions $k \in \mathcal{S}$ and $\mathbb{E}\mA$ elsewhere, preserving order. The difference is
+\[
+\prod_{k=1}^l\mA^{(k)} - (\mathbb{E}\mA)^l = \sum_{m=1}^l \sum_{\mathcal{S} \in \binom{[l]}{m}} \mP_{\mathcal{S}}.
+\]
+By the triangle inequality and linearity of expectation:
+\[
+\mathbb{E}\left\|\prod_{k=1}^l\mA^{(k)} - (\mathbb{E}\mA)^l\right\| \leq \sum_{m=1}^l \sum_{\mathcal{S} \in \binom{[l]}{m}} \mathbb{E}\|\mP_{\mathcal{S}}\|.
+\]
+For each $\mathcal{S}$, decompose into $t$ maximal consecutive blocks $\mathcal{B}_1, \dots, \mathcal{B}_t$ with sizes $s_1, \dots, s_t$ ($\sum s_i = m$). By Hölder inequality and Lemma \ref{lem:un-shuffle-A-EA-expectation}:
+\[
+\mathbb{E}\|\mP_{\mathcal{S}}\| \leq a^{l-m} \mathbb{E}\prod_{i=1}^t \prod_{j \in \mathcal{B}_i}\left\|\mQ^{(j)}\right\| \leq a^{l-m} \prod_{i=1}^t \prod_{j \in \mathcal{B}_i}\left(\mathbb{E}\left\|\mQ^{(j)}\right\|^{s_i}\right)^{\frac{1}{s_i}}\leq a^{l-m} \prod_{i=1}^t c_{s_i}.
+\]
+Since $c_s = \sqrt{\widetilde{C}8eD^4\eta^2Ns\log d}$ is increasing in $s$ and $s_i \leq l$:
+\[
+c_{s_i} \leq c_l \quad \Rightarrow \quad \mathbb{E}\|\mP_{\mathcal{S}}\| \leq a^{l-m} c_l^{m}.
+\]
+% \kaifengclaw{Readability breakpoint: the Hölder factorization across block products is a key step here. Consider adding one explicit intermediate line showing how exponents are assigned to each block term, so readers can see why the expectation of the ordered product separates into block-wise moments.}
+Summing over all $\mathcal{S}$ with $|\mathcal{S}| = m$:
+\[
+\sum_{\mathcal{S} \in \binom{[l]}{m}} \mathbb{E}\|\mP_{\mathcal{S}}\| \leq \binom{l}{m} a^{l-m} c_l^{m}.
+\]
+Thus the total bound is:
+\[
+\sum_{m=1}^l \binom{l}{m} a^{l-m} c_l^{m} = (a + c_l)^l - a^l,
+\]
+completing the proof.
+\end{proof}
+%When $k \leq $, we have 
+% \begin{align*}
+%      &\E\|\prod_{k=1}^l\mA^{(k)} - (\E\mA)^l \|_2 \leq \left(\sqrt{\Tilde{C}8eD^4\eta^2Nl\log d}+\left\|\E\mA\right\|\right)^l-\left\|\E\mA\right\|^l \\
+%      &\leq \|\E\mA\|^l\left(\left(\frac{\sqrt{\Tilde{C}8eD^4\eta^2NK\log d}}{\|\E\mA\|}+1\right)^K-1\right) \\
+%      &\leq \|\E\mA\|^l\frac{2K\sqrt{\Tilde{C}8eD^4\eta^2NK\log d}}{\|\E\mA\|} ~\text{when} ~\frac{\sqrt{\Tilde{C}8eD^4\eta^2NK\log d}}{\|\E\mA\|}\leq\frac{\log 2}{K} \\
+% \end{align*}
+% \end{proof}
+% \begin{lemma} \label{lem:squareexpectation}
+%     For any $l\leq K$, when $K \leq \frac{\log 2}{\eta \sqrt{\Tilde{C}8eD^4T\log d}}$, we have
+%     \[\E\left\|\prod_{k=1}^l\mA^{(k)} - (\E\mA)^l \right\|^2\leq\left(2K\sqrt{\Tilde{C}8eD^4\eta^2NK}\right)^2\]
+% \end{lemma}
+% \begin{lemma} \label{lem:shuffle-poly-A-EA-expectation-l2}
+%     For any $l\leq K$, it holds that
+%     \[\E\left\|\prod_{k=1}^l\mA^{(k)} - (\E\mA)^l \right\|_2^2\leq \left((\sqrt{\Tilde{C}16eD^4\eta^2Nk\log d}+\|\E\mA\|)^k-\|\E\mA\|^k\right)^2.\]
+%     where $\Tilde{C}$ is the same positive constant appearing in \Cref{lem:shuffle-poly-A-EA-expectation}.
+% \end{lemma}
+% \begin{proof}
+%     \begin{align*}
+%     &\E\left\|\prod_{k=1}^l\mA^{(k)} - (\E\mA)^l \right\|^2 \\
+%     &=\E\left\|\prod_{k=1}^l\left(\mQ^{(k)}+\E\mA\right)-\left(\E\mA\right)^k\right\|^2\\
+%     &= \E\|\sum_{l=0}^{k}\sum_{\substack{ i_1+\cdots+i_t=l \\ j_1+\cdots+j_t=k-l\\i_1, \cdots, i_t>0\\j_1, \cdots, j_{t-1}>0, j_t\geq 0}}\mQ^{i_1}(\E\mA)^{j_1}\cdots\mQ^{i_t}(\E\mA)^{j_t}-(\E\mA)^k\|^2 \\
+%     &\leq\E(\sum_{l=1}^{k}\binom{k}{l}\|\mQ\|^l\|\E\mA\|^{k-l})^2 \\
+%     &\leq\sum_{l=1}^k\sum_{m=1}^k\binom{k}{l}\binom{k}{m}\E\|\mQ\|^{l+m}\|\E\mA\|^{2k-l-m} \\
+%     &\leq \sum_{l=1}^k\sum_{m=1}^k\binom{k}{l}\binom{k}{m}(\sqrt{\Tilde{C}8eD^4\eta^2N(l+m)\log d})^{l+m}\|\E\mA\|^{2k-l-m}\\
+%     &\leq \sum_{l=1}^k\sum_{m=1}^k\binom{k}{l}\binom{k}{m}(\sqrt{\Tilde{C}16eD^4\eta^2N\cdot 2k\log d})^{l+m}\|\E\mA\|^{2k-l-m}\\
+%     &=\left((\sqrt{\Tilde{C}16eD^4\eta^2Nk \log d}+\|\E\mA\|)^k-\|\E\mA\|^k\right)^2,
+% \end{align*}
+% where the second last inequality is due to \Cref{lem:un-shuffle-A-EA-expectation}.
+% \end{proof}
+% \begin{lemma}\label{x-exp-upper-bound}
+%     For $C>0$, it holds that
+%     \begin{align*}
+%         x \exp(-Cx) \le \frac{1}{eC}.
+%     \end{align*}
+% \end{lemma}
+% \begin{proof}
+%     We let $f(x) = x \exp(Cx)$, then we take the derivative of $f$ with respect to $x$
+%     \begin{align*}
+%         \frac{df}{fx} = (1-Cx)\exp(-Cx).
+%     \end{align*}
+%     when $x > \frac{1}{C}$, $\frac{df}{dx}>0$, and when $x<\frac{1}{C}$,$\frac{df}{dx}<0$, so we have
+%     \begin{align*}
+%         f(x) \le f(x)\mid_{x=\frac{1}{C}} = \frac{1}{eC},
+%     \end{align*}
+%     which completes the proof.
+% \end{proof}
+\begin{lemma} \label{lem:shuffle-poly-A-EA-expectation-l2}
+    For any $l \leq K$, it holds that
+    \[
+    \mathbb{E}\left\|\prod_{k=1}^l\mA^{(k)} - (\mathbb{E}\mA)^l \right\|^2 
+    \leq \left[\left(\sqrt{2\deltaA\eta^2N l} + \|\mathbb{E}\mA\|\right)^l - \|\mathbb{E}\mA\|^l\right]^2,
+    \]
+    where $\deltaA$ is the same positive constant appearing in \Cref{lem:un-shuffle-A-EA-expectation}.
+\end{lemma}
+% \begin{proof}
+% Let $a = \|\mathbb{E}\mA\|$ and $c_l = \sqrt{\widetilde{C}16eD^4\eta^2N l\log d}$. Define the perturbation $\mQ^{(k)} = \mA^{(k)} - \mathbb{E}\mA$. 
+% By the triangle inequality and submultiplicativity of the norm:
+% \[
+% \left\|\prod_{k=1}^l\mA^{(k)} - a^l\right\| \leq \sum_{m=1}^l \binom{l}{m} \|\mQ\|^m a^{l-m}.
+% \]
+% Squaring both sides and taking expectations:
+% \[
+% \mathbb{E}\left\|\prod_{k=1}^l\mA^{(k)} - a^l\right\|^2 
+% \leq \mathbb{E}\left[\sum_{m=1}^l \binom{l}{m} \|\mQ\|^m a^{l-m}\right]^2 
+% = \sum_{m=1}^l \sum_{n=1}^l \binom{l}{m}\binom{l}{n} a^{2l-m-n} \mathbb{E}\left[\|\mQ\|^{m+n}\right].
+% \]
+% By \Cref{lem:un-shuffle-A-EA-expectation}, for any $p \geq 1$:
+% \[
+% \mathbb{E}\|\mQ\|^p \leq \left(\sqrt{\widetilde{C}8eD^4\eta^2N p \log d}\right)^p.
+% \]
+% Setting $p = m+n \leq 2l$ and using the monotonicity of $x \mapsto x^x$:
+% \[
+% \mathbb{E}\|\mQ\|^{m+n} \leq \left(\sqrt{\widetilde{C}8eD^4\eta^2N (m+n) \log d}\right)^{m+n} 
+% \leq \left(\sqrt{\widetilde{C}8eD^4\eta^2N \cdot 2l \log d}\right)^{m+n} = c_l^{m+n}.
+% \]
+% Substituting and applying the binomial theorem:
+% \[
+% \sum_{m=1}^l \sum_{n=1}^l \binom{l}{m}\binom{l}{n} a^{2l-m-n} c_l^{m+n} 
+% = \left(\sum_{m=1}^l \binom{l}{m} a^{l-m} c_l^m\right)^2 
+% = \left[(a + c_l)^l - a^l\right]^2,
+% \]
+% completing the proof.
+% \end{proof}
+\begin{proof}
+Set \( a = \|\mathbb{E}\mA\|_2 \) and \( c_l = \sqrt{\widetilde{C}16eD^4\eta^2N l\log d} \). Define the perturbation \(\mQ^{(k)} = \mA^{(k)} - \mathbb{E}\mA\). Expand the matrix product as:
+\[
+\prod_{k=1}^l \mA^{(k)} = \prod_{k=1}^l \left( \mQ^{(k)} + \mathbb{E}\mA \right) = \sum_{m=0}^l \sum_{\mathcal{S} \in \binom{[l]}{m}} \mP_{\mathcal{S}},
+\]
+where \(\mP_{\mathcal{S}}\) denotes the ordered matrix product with \(\mQ^{(k)}\) at positions \(k \in \mathcal{S}\) and \(\mathbb{E}\mA\) elsewhere. The target difference is:
+\[
+\prod_{k=1}^l \mA^{(k)} - (\mathbb{E}\mA)^l = \sum_{m=1}^l \sum_{\mathcal{S} \in \binom{[l]}{m}} \mP_{\mathcal{S}}.
+\]
+For the squared spectral norm, we have:
+\begin{align*}
+\mathbb{E} \left\| \sum_{m=1}^l \sum_{\mathcal{S}} \mP_{\mathcal{S}} \right\|^2 
+&\leq \mathbb{E} \left( \sum_{m=1}^l \sum_{\mathcal{S}} \|\mP_{\mathcal{S}}\| \right)^2 \\
+&= \sum_{m=1}^l \sum_{n=1}^l \sum_{\mathcal{S}_m} \sum_{\mathcal{S}_n} \mathbb{E} \left[ \|\mP_{\mathcal{S}_m}\| \|\mP_{\mathcal{S}_n}\| \right],
+\end{align*}
+where \(\mathcal{S}_m\) and \(\mathcal{S}_n\) range over all subsets of \([l]\) with sizes \(m\) and \(n\), respectively. For each pair \((\mathcal{S}_m, \mathcal{S}_n)\), decompose the union \(\mathcal{U} = \mathcal{S}_m \cup \mathcal{S}_n\) into \(t\) maximal consecutive blocks \(\mathcal{B}_1, \dots, \mathcal{B}_t\) with sizes \(s_i = |\mathcal{B}_i|\) (\(\sum_{i=1}^t s_i = |\mathcal{U}| = m + n\)). By Hölder inequality and Lemma \ref{lem:un-shuffle-A-EA-expectation}:
+% \kaifengclaw{Math-check: here $|\mathcal U|=|\mathcal S_m\cup\mathcal S_n|\le m+n$, with strict inequality when overlap exists. Writing equality may overcount block sizes and affect subsequent Hölder exponents/constants. Please adjust to $\le m+n$ or handle overlap explicitly.}
+
+% By Gelfand's formula and Lemma \ref{lem:un-shuffle-A-EA-expectation}, for any block \(\mathcal{B}_i\):
+% \[
+% \mathbb{E} \left\| \prod_{j \in \mathcal{B}_i} \mQ^{(j)} \right\|_2^{s_i} \leq \left( \sqrt{\widetilde{C}8eD^4\eta^2N s_i \log d} \right)^{s_i}.
+% \]
+% Define \( g(s) = \left( \sqrt{\widetilde{C}8eD^4\eta^2N s \log d} \right)^s \). Since \(\frac{d}{ds} \ln g(s) > 0\) for \(s \geq 1\), \(g(s)\) is monotonically increasing. As \(s_i \leq l\), we have \(g(s_i) \leq g(l) = \left( \sqrt{\widetilde{C}8eD^4\eta^2N l \log d} \right)^l\). Applying the generalized Hölder inequality:
+\begin{align*}
+    \mathbb{E} \left[ \|\mP_{\mathcal{S}_m}\| \|\mP_{\mathcal{S}_n}\| \right] &\leq a^{2l - m - n} \E\prod_{i=1}^t\prod_{j\in\cB_i}\|\mQ_j\|\\
+    &\leq a^{2l - m - n} \prod_{i=1}^t\prod_{j\in\cB_i}\E\left(\|\mQ_j\|^{m+n}\right)^{\frac{1}{m+n}}\\
+    &\leq a^{2l - m - n} \left( \sqrt{\widetilde{C}8eD^4\eta^2N (m+n) \log d} \right)^{m+n} \\
+    &\leq a^{2l - m - n} c_l^{m + n}.
+\end{align*}
+The combinatorial count satisfies:
+\[
+\sum_{\mathcal{S}_m} \sum_{\mathcal{S}_n} 1 = \binom{l}{m} \binom{l}{n}.
+\]
+Combining all terms:
+\[
+\mathbb{E}\left\|\prod_{k=1}^l\mA^{(k)} - (\mathbb{E}\mA)^l \right\|^2 \leq \sum_{m=1}^l \sum_{n=1}^l \binom{l}{m} \binom{l}{n} a^{2l - m - n} c_l^{m + n} = \left[ (a + c_l)^l - a^l \right]^2,
+\]
+where the last equality follows from the binomial theorem applied to \((a + c_l)^{2l}\).
+% \kaifengclaw{Math-check: the lemma target is $\|\prod_{k=1}^l\mA^{(k)}-(\E\mA)^l\|^2$, but the final bound here is for $\|\prod_{k=1}^l\mA^{(k)}-a^l\|^2$ with $a=\|\E\mA\|_2$. This scalar replacement needs an explicit bridge inequality (or a revised statement), otherwise the proof does not directly imply Lemma~\ref{lem:shuffle-poly-A-EA-expectation-l2}.}
+\end{proof}
+
+\begin{lemma} \label{lem:loss-matching-upper-lower-bound}
+    Consider a function of training time $T$ given by 
+    \begin{align*}
+        \cL(T) = \frac{1}{2}\sum_{i=d_1+1}^d \frac{c}{i^l} e^{-\frac{2Tc\eta}{i^a}},
+    \end{align*}
+    where $c, l$ are some absolute constants, $d_1 = \Theta(1)$, and $l>1$. Then we have:
+    \begin{enumerate}[leftmargin=*]  
+        \item $\cL(T)\lesssim\frac{1}{T^{\frac{l-1}{a}}}$;
+        \item Given $d = \Theta
+        \left((KN)^{\frac{1}{a}}\right)$, $\cL(T)\gtrsim\frac{1}{T^{\frac{l-1}{a}}}$.
+    \end{enumerate} 
+\end{lemma}
+\begin{proof}
+    Computing the derivative of $f(x) = \frac{c}{x^l}e^{-\frac{2Tc\eta}{x^a}}$, we have
+    \begin{align*}
+        \arg\max_x f(x)& = \Theta\left((KN)^{\frac{1}{a}}\right), \\
+        \max_x f(x)&= \Theta\left(\frac{1}{(KN)^{\frac{l}{a}}}\right).
+    \end{align*}
+    Then
+    \begin{enumerate}[leftmargin=*]  
+        \item For the upper bound, we have
+        \begin{align*}
+            \cL(T)&\leq\frac{1}{2}\sum_{i=d_1+1}^{\infty} \frac{c}{i^l} e^{-\frac{2Tc\eta}{i^a}} 
+            \leq\frac{1}{2}\sum_{i=d_1+1}^{(KN)^{\frac{1}{a}}} \frac{c}{i^l} e^{-\frac{2Tc\eta}{i^a}}+\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}+1}^{\infty} \frac{c}{i^l} \\
+            &\lesssim(KN)^{\frac{1}{a}}\times\frac{1}{(KN)^{\frac{l}{a}}}+\frac{1} {(KN)^{\frac{l-1}{a}}} 
+            \lesssim\frac{1} {(KN)^{\frac{l-1}{a}}}.          
+        \end{align*}
+        \item For the lower bound, when $d\geq3T^{\frac{1}{a}}$, we have
+        \begin{align*}
+            \cL(T)&\geq\frac{1}{2}\sum_{i=(KN)^{\frac{1}{a}}}^{3(KN)^{\frac{1}{a}}} \frac{c}{i^l} e^{-\frac{2Tc\eta}{i^a}} \geq \frac{1}{2}\frac{c}{3^l(KN)^{\frac{l}{a}}}e^{-2c\eta} \times 2(KN)^{\frac{1}{a}} \gtrsim \frac{1}{(KN)^{\frac{l-1}{a}}}.
+        \end{align*}
+    \end{enumerate} 
+    The above equation comletes the proof.
+\end{proof}
+\begin{lemma} \label{lem:E_K}
+    Given an estimator of the excess risk for ME and OP cases
+    \begin{align*}
+        \Tilde{S_2}(K,N;\eta) = \frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}e^{\frac{-2KNc\eta}{i^{a}}},
+    \end{align*}
+    and
+    \begin{align*}
+        \Tilde{S_2}(1,T';\eta)=\frac{1}{2}\sum_{i=d_1+1}^{d}\frac{c}{i^{a}}e^{\frac{-2T'c\eta}{i^{a}}}
+    \end{align*}
+    for some $d_1 = \Theta(1)$. If the ME excess risk and OP excess risk satisfy that
+    \begin{align*}
+        \Bar{\cR}(K,N;\eta) &= \Tilde{S_2}(K,N;\eta)(1+o(1)) \\
+        \Bar{\cR}(1,T';\eta) &= \Tilde{S_2}(1,T';\eta)(1+o(1)),
+    \end{align*}
+    then give $d = \Omega(T^{\frac{1}{a}})$ and when $T' \eqsim T$, it holds that 
+    \[E(K, N) \in \left[K(1-o(1)),K(1+o(1))\right].\]
+\end{lemma}
+\begin{proof}
+We define $H(T) = \Tilde{S_2}(K,N;\eta)$ and $\alpha = \frac{T'}{T}$. By definition of $E(K, N)$, we have $T' = E(K, N)N$. Our goal is to prove that $\alpha \in [1-o(1), 1+o(1)]$.
+
+Solving $\Bar{\cR}(K,N;\eta)
+=\Bar{\cR}(1,T';\eta)$, we can get $H(T)(1+o_N(1)) = H(T')(1+o_{T'}(1))$. 
+% A direct corollary is that when $N\geq N_8$ for some constant $N_8$, we have $H(T)\eqsim H(T')$. We first prove $T\eqsim T'$.\tingkai{Fix the proof.}
+We define $\delta(K,N) = \frac{\Bar{\cR}(K,N;\eta)-\Tilde{S_2}(K,N;\eta)}{\Tilde{S_2}(K,N;\eta)} = o(1)$, and $\delta(1,T')) = \frac{\Bar{\cR}(1,T';\eta)-\Tilde{S_2}(1,T';\eta)}{\Tilde{S_2}(1,T';\eta)} = o(1)$. Then we can derive that 
+\begin{align*}
+    H(T')(1-\delta(1,T'))&\leq H(T)(1+\delta(K,N)) \\
+    H(T')(1+\delta(1,T'))&\geq H(T)(1-\delta(K,N)) \\
+\end{align*}
+which indicates that
+\begin{align*}
+    -\delta(1,T')H(T')-\delta(K,N)H(T) \leq H(T')-H(T)\leq \delta(1,T')H(T')+\delta(K,N)H(T).
+\end{align*}
+
+% First, we prove that there exists two constants $c_1(a, b)<1, c_2(a, b)>1$ s.t. $c_1\leq \alpha \leq c_2$:
+
+% If $\alpha < c_1$, we have $H(T')\geq c_3(a, b)g(T)$ where $c_3(a, b) > 1$. There exists $T_1(a, b)$ s.t. $\frac{1+\delta(T_1)}{1-\delta(T_1)}<c_3(a, b)$.
+
+% By \[H(T')-H(T)\leq\delta(T')H(T')+\delta(T)H(T)\]
+% we derive that 
+% \begin{align*}
+%     \left(1-\delta(T_1)\right)H(T') &\leq \left(1-\delta(T')\right)H(T') \leq \left(1+\delta(T)\right)H(T')\leq \left(1+\delta(T_1)\right)H(T') \\
+%     &H(T') \leq \frac{1+\delta(T_1)}{1-\delta(T_1)}H(T) < c_3(T)
+% \end{align*}
+% which is a contradiction.
+
+% If $\alpha > c_2$, we have $H(T')\leq c_4(a, \epsilon)H(T)$ where $c_4(a, \epsilon) < 1$. There exists $T_2(a, \epsilon)$ s.t. $\frac{1-\delta(T_2)}{1+\delta(T_2)}>c_4(a, \epsilon)$.
+
+% By \[H(T')-H(T)\geq-\delta(T')H(T')-\delta(T)H(T)\]
+% we derive that 
+% \begin{align*}
+%     \left(1+\delta(T_1)\right)H(T') &\geq \left(1+\delta(T')\right)H(T') \leq \left(1-\delta(T)\right)H(T')\leq \left(1-\delta(T_2)\right)H(T') \\
+%     &H(T') \geq \frac{1-\delta(T_2)}{1+\delta(T_2)}H(T) > c_4(T)
+% \end{align*}
+% which is a contradiction.
+
+Notice that $H(T)$ is strongly convex, and we have $H(T)\eqsim\frac{1}{(KN)^{\frac{a-1}{a}}}$ and $H'(T) = \frac{1}{2}\sum_{i=1}^{d}\frac{c}{i^{2a}}e^{\frac{-2KNc\eta}{i^{a}}}\eqsim\frac{1}{(KN)^{\frac{2a-1}{a}}}$ by \Cref{lem:loss-matching-upper-lower-bound}. We are now ready to prove that $\alpha \in [1-o(1), 1+o(1)]$.
+\begin{align*}
+    -\frac{1}{T^{(2-\frac{1}{a})}}(T'-T)\lesssim H'(T)(T'-T)&\leq H(T')-H(T)\leq H'(T')(T'-T) \lesssim-\frac{1}{T'^{(2-\frac{1}{a})}}(T'-T)\\
+    \delta(1,T')H(T')+\delta(K,N)H(T)&\lesssim \frac{\delta(1,T')}{T'^{(1-\frac{1}{a})}}+\frac{\delta(K,N)}{T^{(1-\frac{1}{a})}} \lesssim\frac{o(1)}{T^{(1-\frac{1}{a})}}.
+\end{align*}
+So 
+\begin{align*}
+    \frac{T-T'}{T^{(1-\frac{1}{a})}} &\lesssim \frac{o(1)}{T^{(1-\frac{1}{a})}} \\
+    -\frac{o(1)}{T^{(1-\frac{1}{a})}}&\lesssim-\frac{1}{T'^{(1-\frac{1}{a})}}(T'-T).
+\end{align*}
+Direct calculation yields the result.
+\end{proof}
+
+\begin{lemma}[Hyper-Contractivity] \label{lem:4-th-moment}
+Given $d$-dimension random vector $\vx \sim \cD$ satisfying that $\|\vx\| \le D$ for some constant $D$, and the covariance matrix $\mH:= \E_{\vx \sim \cD}\left[\vx\vx^{\top}\right] = \diag(\lambda_1,\lambda_2,\dots,\lambda_d)$, where $\lambda_1 \ge \lambda_2 \ge \dots \ge \lambda_d \ge c$ for some constant $c>0$, then the following holds:
+$$
+\mathbb{E}\left[\vx \vx^\top \mP \vx \vx^\top \right] \leq \alpha \, \text{tr}(\mH \mP) \mH
+$$
+for some constant $\alpha>0$ independent of $\mP$.
+\end{lemma}
+\begin{proof}
+    By \citet{dieuleveut2017harder}, the above lemma holds for data distributions with a bounded kurtosis along every direction, i.e., there exists a constant $\kappa > 0$ such that
+    \begin{align*}
+        \text{for every } \vv \in \R^d,\;\E\left[\inp{\vv}{\vx}^4\right] \le \kappa \inp{\vv}{\mH\vv}^2.
+    \end{align*}
+    So that it suffices to verify the above inequality. Since $\lambda_d \ge c$, we have 
+    \begin{align*}
+        \inp{\vv}{\mH\vv}^2 \ge c^2 \|\vv\|^4.
+    \end{align*}
+    For the left side, by the triangle inequality and that $\|\vx\|$ is bounded 
+    \begin{align*}
+        \inp{\vv}{\vx}^4 \le \|\vv\|^4 \|\vx\|^4 \le D^4 \|\vv\|^4 .
+    \end{align*}
+    Combining the above two inequalities gives
+    \begin{align*}
+        \E\left[\inp{\vv}{\vx}^4\right] \le \frac{D^4}{c^2} \inp{\vv}{\mH\vv}^2.
+    \end{align*}
+    Now setting $\kappa=\frac{D^4}{c^2}$ completes the proof.
+\end{proof}
+

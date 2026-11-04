@@ -1,0 +1,51 @@
+\subsection{N-gram Embedding}
+\label{sec:ngram-emb}
+\paragraph{Motivation.}
+Embedding-based memory offers a complementary dimension for scaling model capacity~\citep{Jordan2024,google2025gemma3n,rwkvcommunity2025deepembed,gemmateam2026gemma4,sadhukhan2026stem,tseng2026l3}.
+N-gram embeddings further generalize unigram lookup by conditioning memory retrieval on local context rather than token identity alone~\citep{huang2021lookuplm,roy2022ngrammer,huang2025overtokenized,yu2025scone,cheng2026engram, liu2026scalingembeddings,chen2026xgram}. 
+Concretely, short n-grams ending at each token serve as keys into embedding tables, and the retrieved vectors augment the corresponding token representation.
+N-gram memory scales capacity with negligible additional per-token FLOPs, while deterministic addressing enables host-memory offloading and asynchronous prefetching.
+In this section, we systematically study the key architectural choices for N-gram embedding.
+We use multi-head hashing for embedding lookup~\citep{roy2022ngrammer,huang2025overtokenized}. 
+The embeddings are further injected into residual stream through contextual gating mechanism~\citep{cheng2026engram}.
+We use 300 tokens per active parameter (TPP) throughout experiments.
+
+\subsubsection{Placement of the N-gram Embedding Layers}
+\input{tables/ngram_layer}
+We ablate the placement and number of N-gram embedding layers under a fixed parameter budget.
+Single-layer variants span shallow (Layers 1-4), intermediate (Layers 10 and 15), and deep (Layer 25) locations.
+For multi-layer configurations, we combine a shallow layer (Layer 2) with either an intermediate layer (Layer 15) or a deep layer (Layer 25).
+The results are shown in Table~\ref{tab:ngram-layer-index}.
+
+No single depth regime consistently dominates. 
+The first two layers perform strongly, while intermediate and deep placements remain competitive.
+Distributing the same parameter budget across multiple layers yields no consistent benefit. 
+The marginal loss reduction from combining Layers 2 and 25 does not translate into improved downstream performance. 
+A single N-gram embedding layer is sufficient. 
+Moreover, the relative performance of different placements is similar under full attention and GDN (\S\ref{sec:gdn-hybrid}), suggesting that placement choice is largely insensitive to the attention mechanism.
+We place it at Layer 2, \textit{allowing host-memory prefetching to overlap with the computation of the first layer.}
+
+\subsubsection{N-gram Vocabulary Size}
+We further explore the effect of scaling the vocabulary size of N-gram embeddings.
+
+\input{tables/ngram_vocab_same_budget}
+\paragraph{Allocation under Fixed Parameter Budget.}
+Following prior work, we scale the N-gram embedding slots while reducing the number of experts to maintain a fixed total parameter budget. 
+The results are reported in Table~\ref{tab:ngram-vocab-size-samebudget}. 
+The loss varies non-monotonically with vocabulary size and is lowest at $10\times$ ($25\%$), consistent with the allocation sweet spots reported in prior work~\citep{liu2026scalingembeddings,cheng2026engram}.
+The same optimum is not evident in other evaluations. The out-of-domain uncheatable PPL changes little across budgets, and downstream benchmarks show no clear improvement over the MoE-only baseline.
+These results suggest that \textit{N-gram embeddings and MoE experts play distinct roles in scaling capacity.
+We therefore study N-gram vocabulary scaling while holding the MoE parameter budget fixed.}
+
+\paragraph{Scaling with Additional Parameters.}
+\input{tables/ngram_vocab_size}
+
+Because embedding tables are sparsely accessed and deterministically addressed, they can be scaled with negligible additional per-token computation and stored in off-accelerator storage~\citep{google2025gemma3n,cheng2026engram}.
+We therefore move beyond the fixed-size setting and scale the N-gram vocabulary from $20V$ to $200V$, where $V$ denotes the base tokenizer vocabulary size of Qwen3.5~\citep{qwenteam2026qwen35}.
+The results are shown in Table~\ref{tab:ngram-vocab-size}.
+Loss decreases monotonically as the N-gram vocabulary grows, while downstream performance does not follow the same trend.
+Vocabulary scaling yields broad gains over the baseline, but performance on some benchmarks saturates or fluctuates as the vocabulary grows.
+Furthermore, performance on Chinese benchmarks (e.g., C-Eval and CMMLU) improves consistently with N-gram vocabulary size.
+
+Beyond vocabulary scaling, we explored a range of strategies for improving parameter efficiency of N-gram embeddings, including but not limited to token normalization for vocabulary compression~\citep{cheng2026engram}, non-uniform allocation across N-gram orders, and frequency-based partitioning of embedding slots.
+Despite these efforts, we observed no consistent performance gains in our training recipe.
