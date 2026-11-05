@@ -113,3 +113,14 @@ Each guide should include: (a) a step-by-step protocol, (b) decision tables with
 - `pdf/` contains a tracked PDF for every configured Quarto source page, mirroring the source path, plus a readable index and checksummed manifest. Keep `_site/` and browser/virtualenv artifacts in ignored `tmp/`.
 - Run `quarto render` before `scripts/render_pdfs.py`; see `pdf/README.md` and `scripts/requirements-pdf.txt` for the isolated Chromium setup. The exporter checks MathJax, Mermaid, figures and text extraction before indexing outputs. Update PDFs when their sources change.
 - Root README links to the PDF index so GitHub readers can view rendered pages without opening `.qmd` source.
+
+## Canonical knowledge base and preserved literature
+
+- The user explicitly requested KernelWiki-style schemas in addition to downloaded papers. Keep every original library file; source cards do not replace PDFs, LaTeX, extracted text or code archives. `knowledge/literature-baseline.json` guards preservation.
+- `CLAUDE.md` and `knowledge/schemas.yaml` define source/wiki/query types, controlled vocabulary, confidence and scoped reproducibility. `sources/` holds YAML source cards, `wiki/` canonical syntheses, `queries/` generated views; `doc/` remains the detailed manual. `knowledge/` stores schemas/claims/version/question registries and replay inputs/receipts.
+- Stable IDs link wiki pages to scoped claims and original artifacts. Never promote `source-reported` numbers because a PDF/hash/table was checked. `verified` concerns named document+code coverage, not training reproduction. Every executable claim needs its exact reproduction scope.
+- Run `python scripts/kb_workbench.py --all --check`, `python scripts/kb.py generate-indices`, `python scripts/kb.py validate --verify-artifacts --check-generated`, and the KB unittest suite. Refresh source-card digests only for intentionally reviewed version changes.
+- `scripts/kb.py query/get/status` work from the committed machine index without PyYAML; generation/validation require the small KB dependencies. CPU receipts never authorize cloud jobs or establish GPU training reproduction.
+- Quarto also renders `wiki/**/*.md`, `queries/*.md` and root `index.md`. Refresh the tracked PDF collection after changing canonical pages. Source cards are GitHub-readable metadata pages; they are not all added as extra PDF chapters.
+
+- The final `kb.py validate --check-generated` gate includes PDF source/renderer fingerprints. For source edits, validate the source contracts first, then render Quarto/PDFs, then run the final generated-artifact gate. Do not satisfy a stale-PDF warning by editing manifest hashes alone.

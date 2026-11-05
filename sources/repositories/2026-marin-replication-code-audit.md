@@ -1,0 +1,171 @@
+---
+id: doc-marin-code-baseline
+title: 'Marin replication code audit: optimizer searches, MoE ladder and Datakit'
+type: source-doc
+tags:
+- literature
+- provenance
+- marin
+sources: []
+url: https://github.com/marin-community/marin/tree/1d274b52c636b6f2a9177b1d4c14b2f74795a8a6
+source_category: upstream-code
+retrieved_at: '2026-11-02'
+version: 1d274b52c636b6f2a9177b1d4c14b2f74795a8a6
+local_artifacts:
+- path: references/marin/2026-marin-replication-code-audit/metadata.json
+  sha256: 3ddb1ab41f041d961ccccd4f1ec2b440b7c03aaab68f74e1b4a438991f8e15c7
+  role: metadata
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/domain/v0/assign.py
+  sha256: 82290e15c1765c2f01edecef082137f3b77e2e71138734f1b5411f9e79e3cd13
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/domain/v0/train.py
+  sha256: 5f5ec5dc11bdd722794a1fef91666a021653a977889a112b95e15e34e74d27be
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/artifact.py
+  sha256: 4fb2658c829ec3ec6c1f4232feb275e6d9649579d51a14a68f251dcfe43aab60
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/bucket.py
+  sha256: e73f100263c2c195fe2d66ad732c941ba24dd35c8fd7300698231a313cce52a3
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/calibrate.py
+  sha256: 419262a4bbf112627f04b2dabf290c8b421865ca3527ea3b463305049747b770
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/quality_model.py
+  sha256: 0cd3418f63ad54018ab5f2a7b116221e77034b8e8c15c0ded09065eca0872d09
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/rubric.py
+  sha256: 3c085d2219a11c4d45d8625a6322cffc2210f2d214e452721a3cfd2a9a6c38a0
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/score.py
+  sha256: b11ecdaa05cb3b78c56c9f336aa916129eccd9bd0cb493fa4559a67349193bf6
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/train.py
+  sha256: 66edbbefbdf5e9c0a994aafeb45cdd88ea88b7f3ad0d19295e03ee3439953021
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/embeddings/luxical/pipeline.py
+  sha256: 123fe48bd1402c6a818410a1417c511c6be9b21ded23d80a912c74db97f71194
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/global_exact_dedup.py
+  sha256: 5f985d199fae55a55de7ce8fdf71a1331d61f8438e2c6e7d4d0e1f35bb61000e
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/reference_pipeline.py
+  sha256: ccb477f8f261e41ea40596f15b8273795866256bb3b3c2e7bbdfa3f57deb74a0
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/scripts/fuzzy_cluster_verify.py
+  sha256: 52561a475ba0dd14fe9aeb7b53e3bda21093231e139c5d3e86609cbd5cb0bd80
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/scripts/trigger_sources.py
+  sha256: aea426f222382c5887089851dede111cddf43b9ba6a6e88bd2f349b05cc0f759
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/store/bucket_writer.py
+  sha256: 7a586733ff7bb80fb8302ed29da33a151b96fc83f189da3e55d2df2aca93d859
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/datakit/store/datakit_store.py
+  sha256: 578358c868f2bf6e4c06e54e326d96e097c089ff2304e8a537e8edc93c8d8ffb
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe/heuristic.py
+  sha256: 343b86b0d802b43a0cc41451799fd59259cc5fc4be67d876b9eec168406d90d5
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/harrier_mix_2026_08_18.py
+  sha256: ba3ecde0f9107319946b09d9171244cda98e3972243e07497fefb4051750af9d
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/hero_recipe.py
+  sha256: 3fe1425064fe335c95a05236fa7bbe20e006342f9e2d45fcaaba49ef617a161d
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/heuristic.py
+  sha256: 533eb4bd6c8b53acaa51b312f5b4163446ab197447aeed71759247654ee37e37
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/launch_h100_scaling_ladder.py
+  sha256: d53c0a593ce2b39f7bc133217137c00f5283e4e907586d7d64dad054771889c5
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/launch_scaling_ladder.py
+  sha256: 97109c7e8070056f469987f16b946ca09cc5714499e6c60a5bce9fb9aabf3cd6
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/model.py
+  sha256: f7ad69a6ba508ff4ec7ec06f265d41fc6f8758e519673c3216c7bb3aa1fcdd8c
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/optimizer.py
+  sha256: 4d372b76c4de6b5b32699680977cb86238911145a5527b9242b85ab91affa969
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/small_scale_abl_launch.py
+  sha256: 78d37170cc5a41e114ecc37254ec778f3f15d91a5335e2ffe95be0bfef232708
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/references/completed_adamh.py
+  sha256: 16242b51c6985214c9457175aaeb2f11482dbf0acb76374f0b73f2332247985d
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/experiments/references/reference_hyperparameter_sweep.py
+  sha256: 2db11c29f6e1a35a8678ae4cc219fb8e787cdb001d662517908ec2921ad9210f
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/datakit/decon.py
+  sha256: a6ef1ed28f95d72259fa5a16540b4fdf5f82546785c20da16ea8963130f626cb
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/datakit/normalize.py
+  sha256: f1cb9e48b4b9dd60c66d7a1bb520bf1060124f94c844848eb0c95827aafdc5c4
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/datakit/sources.py
+  sha256: cf57268009281dfe768c03a22ef8695e40ea306cca252e2e021b186b35ac7f4c
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/processing/classification/deduplication/cluster_dedup.py
+  sha256: 0f4c09be9738f409b8ef94fd47b01bd255368148d8bd76081d8fec50fa570748
+  role: code
+- path: references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/processing/classification/deduplication/cluster_verify.py
+  sha256: 7905d3d7f6e58aff7d708c2c5e4c417521c6be20d1c13d968dac875918ca1036
+  role: code
+- path: knowledge/inputs/marin-hero-mixture.json
+  role: configuration
+  sha256: 8f3fd489a6b2bacdcbf61e47577e4e87864e320aece2a62eae64c8f62721344e
+- path: knowledge/inputs/provenance.json
+  role: input-provenance
+  sha256: 5b5a9c9b4e201d9cd6dbeab9e99edfc13392781dfbf11c56c9faa8329a5b6493
+review_status: catalogued
+architectures:
+- not-specified
+---
+
+# Marin replication code audit: optimizer searches, MoE ladder and Datakit
+
+## Source and review boundary
+
+This card indexes the captured source; ingestion is not a paper-wide semantic audit or a reproduction. Claim-specific reviews and replay receipts are linked through the claim registry.
+
+- Upstream: https://github.com/marin-community/marin/tree/1d274b52c636b6f2a9177b1d4c14b2f74795a8a6
+- Captured version: `1d274b52c636b6f2a9177b1d4c14b2f74795a8a6`.
+- Original library folder: [2026-marin-replication-code-audit](../../references/marin/2026-marin-replication-code-audit/metadata.json).
+
+## Local evidence
+
+- [metadata](../../references/marin/2026-marin-replication-code-audit/metadata.json) — SHA-256 `3ddb1ab41f041d961ccccd4f1ec2b440b7c03aaab68f74e1b4a438991f8e15c7`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/domain/v0/assign.py) — SHA-256 `82290e15c1765c2f01edecef082137f3b77e2e71138734f1b5411f9e79e3cd13`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/domain/v0/train.py) — SHA-256 `5f5ec5dc11bdd722794a1fef91666a021653a977889a112b95e15e34e74d27be`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/artifact.py) — SHA-256 `4fb2658c829ec3ec6c1f4232feb275e6d9649579d51a14a68f251dcfe43aab60`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/bucket.py) — SHA-256 `e73f100263c2c195fe2d66ad732c941ba24dd35c8fd7300698231a313cce52a3`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/calibrate.py) — SHA-256 `419262a4bbf112627f04b2dabf290c8b421865ca3527ea3b463305049747b770`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/quality_model.py) — SHA-256 `0cd3418f63ad54018ab5f2a7b116221e77034b8e8c15c0ded09065eca0872d09`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/rubric.py) — SHA-256 `3c085d2219a11c4d45d8625a6322cffc2210f2d214e452721a3cfd2a9a6c38a0`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/score.py) — SHA-256 `b11ecdaa05cb3b78c56c9f336aa916129eccd9bd0cb493fa4559a67349193bf6`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/cluster/quality/fast_transformer/train.py) — SHA-256 `66edbbefbdf5e9c0a994aafeb45cdd88ea88b7f3ad0d19295e03ee3439953021`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/embeddings/luxical/pipeline.py) — SHA-256 `123fe48bd1402c6a818410a1417c511c6be9b21ded23d80a912c74db97f71194`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/global_exact_dedup.py) — SHA-256 `5f985d199fae55a55de7ce8fdf71a1331d61f8438e2c6e7d4d0e1f35bb61000e`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/reference_pipeline.py) — SHA-256 `ccb477f8f261e41ea40596f15b8273795866256bb3b3c2e7bbdfa3f57deb74a0`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/scripts/fuzzy_cluster_verify.py) — SHA-256 `52561a475ba0dd14fe9aeb7b53e3bda21093231e139c5d3e86609cbd5cb0bd80`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/scripts/trigger_sources.py) — SHA-256 `aea426f222382c5887089851dede111cddf43b9ba6a6e88bd2f349b05cc0f759`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/store/bucket_writer.py) — SHA-256 `7a586733ff7bb80fb8302ed29da33a151b96fc83f189da3e55d2df2aca93d859`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/datakit/store/datakit_store.py) — SHA-256 `578358c868f2bf6e4c06e54e326d96e097c089ff2304e8a537e8edc93c8d8ffb`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe/heuristic.py) — SHA-256 `343b86b0d802b43a0cc41451799fd59259cc5fc4be67d876b9eec168406d90d5`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/harrier_mix_2026_08_18.py) — SHA-256 `ba3ecde0f9107319946b09d9171244cda98e3972243e07497fefb4051750af9d`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/hero_recipe.py) — SHA-256 `3fe1425064fe335c95a05236fa7bbe20e006342f9e2d45fcaaba49ef617a161d`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/heuristic.py) — SHA-256 `533eb4bd6c8b53acaa51b312f5b4163446ab197447aeed71759247654ee37e37`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/launch_h100_scaling_ladder.py) — SHA-256 `d53c0a593ce2b39f7bc133217137c00f5283e4e907586d7d64dad054771889c5`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/launch_scaling_ladder.py) — SHA-256 `97109c7e8070056f469987f16b946ca09cc5714499e6c60a5bce9fb9aabf3cd6`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/model.py) — SHA-256 `f7ad69a6ba508ff4ec7ec06f265d41fc6f8758e519673c3216c7bb3aa1fcdd8c`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/optimizer.py) — SHA-256 `4d372b76c4de6b5b32699680977cb86238911145a5527b9242b85ab91affa969`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/grug/moe_hero_ep/small_scale_abl_launch.py) — SHA-256 `78d37170cc5a41e114ecc37254ec778f3f15d91a5335e2ffe95be0bfef232708`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/references/completed_adamh.py) — SHA-256 `16242b51c6985214c9457175aaeb2f11482dbf0acb76374f0b73f2332247985d`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/experiments/references/reference_hyperparameter_sweep.py) — SHA-256 `2db11c29f6e1a35a8678ae4cc219fb8e787cdb001d662517908ec2921ad9210f`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/datakit/decon.py) — SHA-256 `a6ef1ed28f95d72259fa5a16540b4fdf5f82546785c20da16ea8963130f626cb`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/datakit/normalize.py) — SHA-256 `f1cb9e48b4b9dd60c66d7a1bb520bf1060124f94c844848eb0c95827aafdc5c4`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/datakit/sources.py) — SHA-256 `cf57268009281dfe768c03a22ef8695e40ea306cca252e2e021b186b35ac7f4c`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/processing/classification/deduplication/cluster_dedup.py) — SHA-256 `0f4c09be9738f409b8ef94fd47b01bd255368148d8bd76081d8fec50fa570748`.
+- [code](../../references/marin/2026-marin-replication-code-audit/code/lib/marin/src/marin/processing/classification/deduplication/cluster_verify.py) — SHA-256 `7905d3d7f6e58aff7d708c2c5e4c417521c6be20d1c13d968dac875918ca1036`.
+
+Keep the original PDF/LaTeX/code archives in place. This source card adds retrieval metadata; it does not replace them.

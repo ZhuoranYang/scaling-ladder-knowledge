@@ -1,6 +1,16 @@
-# Understanding scientific pretraining ladders
+# Pretraining Science Knowledge Base
 
-**[Read the rendered PDFs](pdf/README.md)** — all 51 Quarto pages, with equations, figures and flowcharts. Start with [Marin data processing](pdf/doc/data/marin-artifact-lineage.pdf), [evaluation](pdf/doc/evaluation/marin-evaluation.pdf), or [mid/post-training](pdf/doc/training/marin-midtraining-posttraining.pdf).
+**[Start at the knowledge portal](index.md)** · [Schema and retrieval contract](CLAUDE.md) · [Question index](queries/by-problem.md) · [Evidence/coverage limits](wiki/governance/coverage.md)
+
+The source → wiki → generated-query layer follows [KernelWiki’s schema design](https://github.com/mit-han-lab/KernelWiki/blob/b6b4301f15e8ce6955a56776690643ce5db369e6/CLAUDE.md). It adds stable IDs, scoped claims, controlled vocabulary, source pins and CPU replay receipts **alongside the original literature library**. All downloaded papers, LaTeX, code archives and reports remain in `references/`.
+
+```bash
+python scripts/kb.py query "muP batch" --type technique
+python scripts/kb.py get technique-hyperparameter-transfer --follow-sources
+python scripts/kb.py validate --verify-artifacts --check-generated
+```
+
+**[Read the rendered PDFs](pdf/README.md)** — all configured Quarto pages, with equations, figures and flowcharts. Start with [Marin data processing](pdf/doc/data/marin-artifact-lineage.pdf), [evaluation](pdf/doc/evaluation/marin-evaluation.pdf), or [mid/post-training](pdf/doc/training/marin-midtraining-posttraining.pdf).
 
 Start with the [Jiaxuan blog reading guide](doc/reading/jiaxuan-reading-guide.qmd). It maps the original blog, supplied notes, section protocols, and deeper explanations.
 
@@ -16,6 +26,17 @@ The `doc/experiments/` guides explain each blog section. The `doc/deep-dives/` c
 The [beginning-to-end pretraining design](doc/workflow/from-data-to-pretraining.qmd) explains the path from an available corpus to a validated training run, drawing on the [OLMo](doc/efforts/olmo-pretraining.qmd) and [Marin](doc/efforts/marin-pretraining.qmd) effort deep dives.
 
 The earlier [128-H100 candidate plan](doc/plans/hero-h100-candidate.qmd) and [SMELT review](doc/architecture/smelt-looped-moe.qmd) give numerical architecture/data/compute choices for a smaller overtrained MoE. Specifications are in `configs/hero-h100/`; regenerate arithmetic with `python scripts/hero_budget.py`. These are not an already qualified training launcher.
+
+## Knowledge structure
+
+- `references/`: preserved PDFs, LaTeX, code archives and evidence snapshots.
+- `sources/`: typed, pinned source cards linked to those originals.
+- `wiki/`: canonical syntheses with scoped claims and reproducibility metadata.
+- `queries/`: generated indices by problem, topic, stage, architecture, source, evidence and reproducibility.
+- `knowledge/`: schemas, vocabulary, claims/versions/questions, preservation manifest and CPU receipts.
+- `doc/`: the retained detailed reading guides and experiment manuals.
+
+See [coverage and remaining inputs](wiki/governance/coverage.md). The schema and CPU checks do not claim independent GPU training reproduction or a completed semantic audit of every legacy guide.
 
 ## Replicate Marin and extend the data
 

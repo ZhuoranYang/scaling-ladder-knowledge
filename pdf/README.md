@@ -2,9 +2,9 @@
 
 These PDFs are printed from the Quarto HTML pages, including rendered equations, figures and flowcharts. Click a title to open GitHub’s PDF viewer; use **Download raw file** to save it.
 
-**Suggested starting points:** [Jiaxuan reading guide](doc/reading/jiaxuan-reading-guide.pdf), [Marin data pipeline](doc/data/marin-artifact-lineage.pdf), [Marin evaluation](doc/evaluation/marin-evaluation.pdf), [mid/post-training](doc/training/marin-midtraining-posttraining.pdf), and [96-H100 plan](doc/plans/plan-96-h100.pdf).
+**Suggested starting points:** [Knowledge portal](index.pdf), [schema and retrieval contract](CLAUDE.pdf), [evidence standards](wiki/governance/evidence-standard.pdf), [Jiaxuan reading guide](doc/reading/jiaxuan-reading-guide.pdf), [Marin data pipeline](doc/data/marin-artifact-lineage.pdf), and [Marin evaluation](doc/evaluation/marin-evaluation.pdf).
 
-**51 documents · 204 PDF pages.** Each PDF mirrors its source path. Dense tables use landscape pages. Source files and the original references remain in the main repository.
+**72 documents · 265 PDF pages.** Each PDF mirrors its source path. Dense tables use landscape pages. Source files and the original references remain in the main repository.
 
 | Document | PDF pages | Editable source |
 |---|---:|---|
@@ -12,7 +12,7 @@ These PDFs are printed from the Quarto HTML pages, including rendered equations,
 | [The science of pretraining: annotated deep-dive notes](<doc/reading/deep-dive-notes.pdf>) | 18 | [Source](<../doc/reading/deep-dive-notes.qmd>) |
 | [Reading Jiaxuan’s scientific scaling ladder blog](<doc/reading/jiaxuan-reading-guide.pdf>) | 2 | [Source](<../doc/reading/jiaxuan-reading-guide.qmd>) |
 | [Review of the deep-dive notes against primary evidence](<doc/reading/notes-review.pdf>) | 2 | [Source](<../doc/reading/notes-review.qmd>) |
-| [How to Build a Scientific Scaling Ladder](<doc/reading/scientific-scaling-ladder.pdf>) | 32 | [Source](<../doc/reading/scientific-scaling-ladder.md>) |
+| [How to Build a Scientific Scaling Ladder](<doc/reading/scientific-scaling-ladder.pdf>) | 31 | [Source](<../doc/reading/scientific-scaling-ladder.md>) |
 | [Starting with Nemotron-CC or Marin data: the complete pretraining design](<doc/workflow/from-data-to-pretraining.pdf>) | 7 | [Source](<../doc/workflow/from-data-to-pretraining.qmd>) |
 | [Industry workflow: auditing the Jiaxuan conversation](<doc/workflow/industry-practice-audit.pdf>) | 6 | [Source](<../doc/workflow/industry-practice-audit.qmd>) |
 | [The complete workflow for scaling-law experiments](<doc/workflow/workflow.pdf>) | 2 | [Source](<../doc/workflow/workflow.qmd>) |
@@ -59,6 +59,27 @@ These PDFs are printed from the Quarto HTML pages, including rendered equations,
 | [1 Reference collection status](<references/README.pdf>) | 2 | [Source](<../references/README.md>) |
 | [1 Source catalogue](<references/SOURCES.pdf>) | 4 | [Source](<../references/SOURCES.md>) |
 | [1 Marin reading map](<references/MARIN-READING.pdf>) | 1 | [Source](<../references/MARIN-READING.md>) |
+| [Compute, parameters and a constrained hero budget](<wiki/foundations/compute-accounting.pdf>) | 3 | [Source](<../wiki/foundations/compute-accounting.md>) |
+| [Pretraining knowledge map and reading dependencies](<wiki/foundations/topic-map.pdf>) | 2 | [Source](<../wiki/foundations/topic-map.md>) |
+| [Scoped scientific claim ledger](<wiki/governance/claim-ledger.pdf>) | 8 | [Source](<../wiki/governance/claim-ledger.md>) |
+| [Knowledge coverage, unresolved inputs and review dates](<wiki/governance/coverage.pdf>) | 2 | [Source](<../wiki/governance/coverage.md>) |
+| [A rigorous pretraining knowledge base: evidence and reproduction](<wiki/governance/evidence-standard.pdf>) | 2 | [Source](<../wiki/governance/evidence-standard.md>) |
+| [Diagnosing a failed scaling or training decision](<wiki/patterns/failure-diagnosis.pdf>) | 2 | [Source](<../wiki/patterns/failure-diagnosis.md>) |
+| [Marin replication: a stage-by-stage evidence and acceptance contract](<wiki/recipes/marin-reproduction.pdf>) | 3 | [Source](<../wiki/recipes/marin-reproduction.md>) |
+| [Offline workbench: public records and analytical fixtures](<wiki/recipes/offline-workbench.pdf>) | 2 | [Source](<../wiki/recipes/offline-workbench.md>) |
+| [Data-mixture experiments: supply, exposure, controls and transfer](<wiki/techniques/data-mixture-design.pdf>) | 2 | [Source](<../wiki/techniques/data-mixture-design.md>) |
+| [Evaluation contracts: losses, capabilities, contexts and failures](<wiki/techniques/evaluation-contract.pdf>) | 3 | [Source](<../wiki/techniques/evaluation-contract.md>) |
+| [Width, batch and horizon: a conditional hyperparameter-transfer protocol](<wiki/techniques/hyperparameter-transfer.pdf>) | 3 | [Source](<../wiki/techniques/hyperparameter-transfer.md>) |
+| [Identifiable scaling fits and independent larger holdouts](<wiki/techniques/scaling-fit.pdf>) | 3 | [Source](<../wiki/techniques/scaling-fit.md>) |
+| [Knowledge index: architecture](<queries/by-architecture.pdf>) | 1 | [Source](<../queries/by-architecture.md>) |
+| [Knowledge index: evidence](<queries/by-evidence.pdf>) | 2 | [Source](<../queries/by-evidence.md>) |
+| [Knowledge index: team questions and open inputs](<queries/by-problem.pdf>) | 3 | [Source](<../queries/by-problem.md>) |
+| [Knowledge index: reproducibility](<queries/by-reproducibility.pdf>) | 1 | [Source](<../queries/by-reproducibility.md>) |
+| [Knowledge index: source](<queries/by-source.pdf>) | 8 | [Source](<../queries/by-source.md>) |
+| [Knowledge index: stage](<queries/by-stage.pdf>) | 2 | [Source](<../queries/by-stage.md>) |
+| [Knowledge index: topic](<queries/by-topic.pdf>) | 5 | [Source](<../queries/by-topic.md>) |
+| [Pretraining Science Knowledge Base](<index.pdf>) | 2 | [Source](<../index.md>) |
+| [1 Pretraining Knowledge Base — Schema and Retrieval Contract](<CLAUDE.pdf>) | 3 | [Source](<../CLAUDE.md>) |
 
 ## Regenerate
 

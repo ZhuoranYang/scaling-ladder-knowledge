@@ -1,9 +1,9 @@
 # Reference collection status
 
-73 technical-report/paper folders, plus 11 web/code/data-artifact reference folders.
+73 technical-report/paper folders, plus 12 web/code/data-artifact reference folders.
 
 LaTeX source results: {'downloaded': 72, 'not_arxiv': 1}.
-Code archive results (per reference; shared repositories can appear more than once): {'downloaded': 161, 'unavailable': 37}.
+Code archive results (per reference; shared repositories can appear more than once): {'downloaded': 162, 'unavailable': 37}.
 
 References are grouped by topic, then readable year/title folder names. Identifiers remain in metadata and directory-map.json. ArXiv folders contain `paper.pdf`, extracted `paper.txt`, `metadata.json`, an `arxiv-source.tar` download, extracted `source/`, and discovered code archives under `code/`. Source archives may be gzip-compressed despite the `.tar` suffix. Unversioned arXiv requests resolve at collection time; do not assume they match an earlier paper version.
 

@@ -19,6 +19,7 @@ from pypdf import PdfReader
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+RENDERER_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 GITHUB = 'https://github.com/ZhuoranYang/scaling-ladder-knowledge/blob/main/'
 DEPENDENCIES = json.loads((ROOT/'configs/industry/source-pins.json').read_text())['repositories']
 PRINT_CSS = '''
@@ -60,7 +61,7 @@ class QuietHandler(SimpleHTTPRequestHandler):
 def sources():
     config = yaml.safe_load((ROOT/'_quarto.yml').read_text())
     return list(dict.fromkeys(p for pattern in config['project']['render']
-                             for p in sorted(ROOT.glob(pattern))))
+                             for p in sorted(ROOT.glob(pattern.lstrip('/')))))
 
 
 async def render_one(browser, source, base_url, semaphore):
@@ -123,11 +124,13 @@ async def render_one(browser, source, base_url, semaphore):
                 const href=a.getAttribute('href'); if(href.startsWith('#')) return;
                 const u=new URL(href, location.href); if(u.origin!==root) return;
                 const path=decodeURIComponent(u.pathname).replace(/^\\//,'');
+                if(!path) {a.href=github+'pdf/index.pdf'+u.hash;return;}
                 const dependency=dependencies.find(d => path.startsWith(d.checkout+'/'));
                 if(dependency) {
-                  a.href=dependency.repository+'/blob/'+dependency.revision+'/'+path.slice(dependency.checkout.length+1)+u.hash;
+                  a.href=dependency.repository+(path.endsWith('/')?'/tree/':'/blob/')+dependency.revision+'/'+path.slice(dependency.checkout.length+1)+u.hash;
                   return;
                 }
+                if(path.endsWith('/')) {a.href=github.replace('/blob/main/','/tree/main/')+path+u.hash;return;}
                 a.href=github+(path.endsWith('.html') ? 'pdf/'+path.replace(/\\.html$/,'.pdf') : path)+u.hash;
               });
             }''', {'root':base_url, 'github':GITHUB, 'dependencies':DEPENDENCIES})
@@ -144,6 +147,7 @@ async def render_one(browser, source, base_url, semaphore):
             if len(text.strip()) < 80:
                 raise RuntimeError(f'Empty or image-only PDF: {relative}')
             result = {'title':title,'source':relative.as_posix(),
+                      'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
                       'pdf':target.relative_to(ROOT).as_posix(),'pages':len(pdf.pages),
                       'bytes':target.stat().st_size,'sha256':hashlib.sha256(target.read_bytes()).hexdigest(),
                       'math_elements':math_count,'mermaid_diagrams':diagram_count,
@@ -157,7 +161,7 @@ async def render_one(browser, source, base_url, semaphore):
 def write_index(records):
     lines = ['# Read the rendered PDFs', '',
              'These PDFs are printed from the Quarto HTML pages, including rendered equations, figures and flowcharts. Click a title to open GitHub’s PDF viewer; use **Download raw file** to save it.', '',
-             '**Suggested starting points:** [Jiaxuan reading guide](doc/reading/jiaxuan-reading-guide.pdf), [Marin data pipeline](doc/data/marin-artifact-lineage.pdf), [Marin evaluation](doc/evaluation/marin-evaluation.pdf), [mid/post-training](doc/training/marin-midtraining-posttraining.pdf), and [96-H100 plan](doc/plans/plan-96-h100.pdf).', '',
+             '**Suggested starting points:** [Knowledge portal](index.pdf), [schema and retrieval contract](CLAUDE.pdf), [evidence standards](wiki/governance/evidence-standard.pdf), [Jiaxuan reading guide](doc/reading/jiaxuan-reading-guide.pdf), [Marin data pipeline](doc/data/marin-artifact-lineage.pdf), and [Marin evaluation](doc/evaluation/marin-evaluation.pdf).', '',
              f"**{len(records)} documents · {sum(r['pages'] for r in records)} PDF pages.** Each PDF mirrors its source path. Dense tables use landscape pages. Source files and the original references remain in the main repository.", '',
              '| Document | PDF pages | Editable source |', '|---|---:|---|']
     for r in records:
@@ -189,6 +193,7 @@ async def main(args):
                 await browser.close()
         if not args.only:
             manifest = {'generated_at':datetime.now(timezone.utc).isoformat(), 'renderer':'Playwright Chromium print-to-PDF',
+                        'renderer_sha256':RENDERER_SHA256,
                         'documents':records,'document_count':len(records),'page_count':sum(r['pages'] for r in records)}
             (ROOT/'pdf/manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
             write_index(records)

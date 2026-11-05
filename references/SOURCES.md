@@ -127,6 +127,7 @@ Each paper folder contains its PDF, extracted text, available LaTeX source, meta
 |---|---|---|
 | On Over-fitting in Model Selection and Subsequent Selection Bias | [Web report](https://www.jmlr.org/papers/v11/cawley10a.html) | [Read](methodology/2010-on-over-fitting-in-model-selection-and-subsequent-selection-bias/paper.pdf) · [Metadata](methodology/2010-on-over-fitting-in-model-selection-and-subsequent-selection-bias/metadata.json) |
 | Democratizing Large-Scale Mixture-of-Experts Training with NVIDIA PyTorch Parallelism | [Web report](https://developer.nvidia.com/blog/accelerating-large-scale-mixture-of-experts-training-in-pytorch/) | [Read](methodology/2026-h100-moe-throughput/article.md) · [Metadata](methodology/2026-h100-moe-throughput/metadata.json) |
+| KernelWiki: source-pinned knowledge engineering and validation practices | [Web report](https://github.com/mit-han-lab/KernelWiki/tree/b6b4301f15e8ce6955a56776690643ce5db369e6) | [Read](methodology/2026-kernelwiki-knowledge-engineering/README.md) · [Metadata](methodology/2026-kernelwiki-knowledge-engineering/metadata.json) |
 
 ## Training systems and source implementations
 
